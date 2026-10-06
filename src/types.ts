@@ -77,6 +77,8 @@ export interface AutomatonConfig {
   chainType?: ChainType;
   /** Money Lab first-run profile (validated by src/money-lab/profile.ts). */
   moneyLab?: import("./money-lab/profile.js").MoneyLabConfig;
+  /** Sonni trader block (validated by src/trader/config.ts). */
+  trader?: import("./trader/config.js").TraderConfig;
 }
 
 export const DEFAULT_CONFIG: Partial<AutomatonConfig> = {

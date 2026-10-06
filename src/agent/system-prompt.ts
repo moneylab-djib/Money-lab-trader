@@ -23,6 +23,7 @@ import type {
 } from "../types.js";
 import { getActiveSkillInstructions } from "../skills/loader.js";
 import { MONEY_LAB_GENESIS_PROMPT, buildMoneyLabPromptBlock } from "../money-lab/prompt.js";
+import { SONNI_MISSION, buildSonniPromptBlock } from "../trader/prompt.js";
 import { getLineageSummary } from "../replication/lineage.js";
 import { sanitizeInput } from "./injection-defense.js";
 import { loadCurrentSoul } from "../soul/model.js";
@@ -654,7 +655,12 @@ Your chain type is ${chainType}.`,
   }
 
   // Layer 4b: Money Lab mission and enforced envelope (code-owned, not agent-evolved)
-  if (config.moneyLab?.enabled) {
+  if (config.moneyLab?.enabled && config.trader) {
+    // Sonni replaces Money Lab's web-business mission (decision 0002).
+    sections.push(
+      `## Sonni Mission\n${SONNI_MISSION}\n## End Sonni Mission\n\n${buildSonniPromptBlock(db.raw, config.moneyLab, config.trader)}`,
+    );
+  } else if (config.moneyLab?.enabled) {
     sections.push(
       `## Money Lab Mission\n${MONEY_LAB_GENESIS_PROMPT}\n## End Money Lab Mission\n\n${buildMoneyLabPromptBlock(db.raw, config.moneyLab)}`,
     );

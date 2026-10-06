@@ -508,10 +508,10 @@ async function chatViaAnthropic(params: {
  * the Money Lab rules carry the live balance. Everything before each marker
  * is cached; a prompt without markers is sent as one uncached block.
  */
-const SYSTEM_CACHE_BOUNDARIES = ["--- WORKLOG.md", "--- MONEY LAB RULES"];
+const SYSTEM_CACHE_BOUNDARIES = ["--- WORKLOG.md", "--- MONEY LAB RULES", "--- SONNI RULES"];
 
-/** Start of the per-turn system content (Money Lab rules, skills, live status). */
-const VOLATILE_SYSTEM_MARKER = "--- MONEY LAB RULES";
+/** Start of the per-turn system content (Money Lab or Sonni rules, skills, live status). */
+const VOLATILE_SYSTEM_MARKERS = ["--- MONEY LAB RULES", "--- SONNI RULES"];
 /** Models that accept a role "system" message inside messages (no beta header). */
 const MID_CONVERSATION_SYSTEM_MODELS = new Set([
   "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-opus-4-8",
@@ -522,7 +522,7 @@ export function splitVolatileSystem(
   model: string,
   messages: Array<Record<string, unknown>>,
 ): { system: Array<Record<string, unknown>>; messages: Array<Record<string, unknown>>; volatile: string } | null {
-  const at = system.indexOf(VOLATILE_SYSTEM_MARKER);
+  const at = VOLATILE_SYSTEM_MARKERS.map((m) => system.indexOf(m)).find((i) => i > 0) ?? -1;
   const last = messages[messages.length - 1];
   if (at <= 0 || !MID_CONVERSATION_SYSTEM_MODELS.has(model) || !last || last.role !== "user") return null;
   const blocks = anthropicSystemBlocks(system.slice(0, at));

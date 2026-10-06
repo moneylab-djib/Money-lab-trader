@@ -25,6 +25,9 @@ import {
 
 import { approvalRequired, decidePost, describePosts, setApprovalMode } from "./social.js";
 import { withSecrets } from "./selfhosted.js";
+import { runSonniCommand } from "../trader/cli.js";
+import { formatSonniStatus } from "../trader/status.js";
+import { ensureTraderSchema } from "../trader/schema.js";
 
 const KV_OFFSET = "money_lab.telegram_offset";
 const KV_SUMMARY_DAY = "money_lab.telegram_summary_day";
@@ -46,6 +49,19 @@ export const TELEGRAM_HELP = `Commandes Money Lab :
 /publications [auto|validation] — voir les publications, ou changer le mode
 /aide — cette liste
 Tout autre message est transmis au bot.`;
+
+export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
+/statut — prix, prédictions, intuitions (+ budget)
+/idee <texte> — ajouter une intuition à tester
+/intuitions — liste des intuitions
+/sante — rapport de santé
+/pause [raison] — mettre Sonni en pause
+/reprendre — relancer Sonni
+/aides — demandes d'aide ouvertes
+/ok <id> [note] — demande faite
+/non <id> [raison] — demande refusée
+/aide — cette liste
+Tout autre message est transmis à Sonni.`;
 
 type FetchFn = typeof fetch;
 
@@ -136,10 +152,22 @@ export class TelegramChannel {
       case "/start":
       case "/aide":
       case "/help":
-        return TELEGRAM_HELP;
+        return this.config.trader ? SONNI_TELEGRAM_HELP : TELEGRAM_HELP;
       case "/statut":
       case "/status":
+        if (this.config.trader) {
+          ensureTraderSchema(this.raw);
+          return `${formatSonniStatus(this.raw, this.config.trader)}\n\n${formatStatus(this.raw, this.config, "BUDGET ET RUNTIME")}`;
+        }
         return formatStatus(this.raw, this.config);
+      case "/idee":
+      case "/idée":
+      case "/intuitions": {
+        if (!this.config.trader) return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
+        ensureTraderSchema(this.raw);
+        runSonniCommand([command === "/intuitions" ? "intuitions" : "idee", ...args], this.raw, this.config.trader, (t) => out.push(t));
+        return out.join("\n");
+      }
       case "/sante":
       case "/santé":
       case "/health":
@@ -190,7 +218,7 @@ export class TelegramChannel {
         return `Mode : ${approvalRequired(this.raw) ? "validation" : "automatique"}\n${describePosts(this.raw)}`;
       }
       default:
-        return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
+        return `Commande inconnue.\n\n${this.config.trader ? SONNI_TELEGRAM_HELP : TELEGRAM_HELP}`;
     }
   }
 

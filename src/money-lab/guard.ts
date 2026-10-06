@@ -26,6 +26,7 @@ import type { PolicyRule, PolicyRequest, PolicyRuleResult } from "../types.js";
 import { setX402PaymentGuard } from "../conway/x402.js";
 import { moneyLabDeniedTools, MONEY_LAB_ALWAYS_DENIED_TOOLS, MONEY_LAB_PAYMENT_TOOLS } from "./profile.js";
 import { getPauseState } from "./journal.js";
+import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 
 export const PAYMENTS_DISABLED_REASON =
   "credit purchases and x402 payments are disabled by the owner (moneyLab.payments = \"disabled\")";
@@ -156,6 +157,10 @@ export function createMoneyLabRules(): PolicyRule[] {
         const paused = getPauseState(request.context.db.raw);
         if (paused) {
           return deny("MONEY_LAB_PAUSED", `Money Lab is paused (${paused.reason}); no tool may run`);
+        }
+
+        if (request.context.config.trader && SONNI_DENIED_TOOLS.has(name)) {
+          return deny("SONNI_TOOL_DISABLED", `${name} belongs to Money Lab's web-business mission and is disabled for Sonni.`);
         }
 
         if (moneyLabDeniedTools(lab).has(name)) {

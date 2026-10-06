@@ -7,7 +7,7 @@
       "title": "First recorded prediction from live prices and memory, resolved by code",
       "criteria": [
         "Prices are stored every 5 minutes and survive a process restart",
-        "A decision session refuses to run on prices older than 15 minutes",
+        "No prediction can be recorded when the asset's latest price is older than 15 minutes",
         "A prediction cannot be recorded without probability, condition, horizon and hypothesis link",
         "A recorded prediction cannot be updated or deleted through the agent's tools",
         "At its horizon, code resolves the prediction from stored prices and computes its Brier score",
@@ -15,7 +15,27 @@
         "/statut shows open and resolved predictions in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "planned"
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-06T20:59:46.977677+00:00",
+        "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
+      },
+      "verification": {
+        "at": "2026-10-06T21:12:35.966361+00:00",
+        "fingerprint": "8894f554d6fa52021ee9748a0a9a1f0abcb6b592868c45a51f8eb35f993ae55c",
+        "criterion_checks": {
+          "1": "sonni-e2e",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni",
+          "7": "sonni",
+          "8": "sonni"
+        },
+        "report": ".likma/checks/89d5367c929c48cb940a37940d87dc1d.json",
+        "contract": "54abeb8eebed31610b84714fc2893cbeccfe339b6eee53c789556ee2c9442a30"
+      }
     }
   ]
 }

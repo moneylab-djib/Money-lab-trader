@@ -533,7 +533,10 @@ export function journalFingerprint(db: DB): string {
   const help = db.prepare("SELECT COALESCE(MAX(resolved_at), '') AS t FROM money_lab_help_requests").get() as any;
   // Discovery work (the idea pipeline) is progress too.
   const ideas = createHash("sha256").update(getKV(db, "money_lab.ideas") ?? "").digest("hex").slice(0, 16);
-  return `${exp.n}|${exp.t}|${help.t}|${ideas}`;
+  // Sonni: a recorded prediction is progress.
+  const hasTrader = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_predictions'").get();
+  const predictions = hasTrader ? (db.prepare("SELECT COUNT(*) AS n FROM trader_predictions").get() as any).n : 0;
+  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}`;
 }
 
 /** Closed help requests, most recently resolved first. */

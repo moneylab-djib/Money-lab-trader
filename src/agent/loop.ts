@@ -69,6 +69,10 @@ import { isIdleOnlyTool } from "./idle-only-tools.js";
 import { automaticTopupsAllowed, hasInferenceLimits, moneyLabDeniedTools } from "../money-lab/profile.js";
 import { seedAnthropicModels, survivalBalance } from "../money-lab/selfhosted.js";
 import { createMoneyLabTools } from "../money-lab/tools.js";
+import { SONNI_DENIED_TOOLS } from "../trader/config.js";
+import { createTraderTools } from "../trader/tools.js";
+import { SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { ensureTraderSchema } from "../trader/schema.js";
 import { paidCallBlockReason } from "../money-lab/guard.js";
 import { recordHealthEvent } from "../money-lab/health.js";
 import { REVIEW_INSTRUCTIONS, REVIEW_MODEL, REVIEW_MODEL_TURNS, ensureReviewClock, isReviewDue, markReviewed } from "../money-lab/review.js";
@@ -135,8 +139,16 @@ export async function runAgentLoop(
   // Money Lab: every tool (including runtime-installed ones and the journal
   // tools) except replication and owner-denied tools.
   const deniedTools = moneyLab ? moneyLabDeniedTools(moneyLab) : undefined;
+  // Sonni: its own tools, without Money Lab's web-business tools.
+  const trader = moneyLab ? config.trader : undefined;
+  if (trader) {
+    ensureTraderSchema(db.raw);
+    for (const name of SONNI_DENIED_TOOLS) deniedTools!.add(name);
+  }
   const tools = moneyLab
-    ? usableToolList([...builtinTools, ...createMoneyLabTools(), ...loadInstalledTools(db)].filter((t) => !deniedTools!.has(t.name)))
+    ? usableToolList([
+        ...builtinTools, ...createMoneyLabTools(), ...(trader ? createTraderTools() : []), ...loadInstalledTools(db),
+      ].filter((t) => !deniedTools!.has(t.name)))
     : [...builtinTools, ...loadInstalledTools(db)];
   const toolContext: ToolContext = {
     identity,
@@ -439,7 +451,7 @@ export async function runAgentLoop(
     if (isReviewDue(db.raw)) {
       reviewPending = true;
       reviewModelTurns = REVIEW_MODEL_TURNS;
-      wakeupInput += `\n\n${REVIEW_INSTRUCTIONS}`;
+      wakeupInput += `\n\n${trader ? SONNI_REVIEW_INSTRUCTIONS : REVIEW_INSTRUCTIONS}`;
     }
   }
 

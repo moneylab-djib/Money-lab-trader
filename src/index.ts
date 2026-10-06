@@ -37,6 +37,8 @@ import { bootstrapTopup } from "./conway/topup.js";
 import { randomUUID } from "crypto";
 import { keccak256, toHex } from "viem";
 import { applyMoneyLabProfile, automaticTopupsAllowed, MoneyLabConfigError } from "./money-lab/profile.js";
+import { applyTraderProfile, TraderConfigError } from "./trader/config.js";
+import { ensureTraderSchema } from "./trader/schema.js";
 import { installMoneyLabPaymentGuard } from "./money-lab/guard.js";
 import { ensureMoneyLabSchema, getKV, getPauseState, journalFingerprint, queueOwnerNotification, setKV } from "./money-lab/journal.js";
 import { afterWakeCycle, inferenceCallCount, isOperatorWake } from "./money-lab/cycle.js";
@@ -132,6 +134,9 @@ Environment:
   if (args[0] === "--money-lab") {
     process.exit(await moneyLabCommand(args.slice(1)));
   }
+  if (args[0] === "--sonni") {
+    process.exit(await sonniCommand(args.slice(1)));
+  }
 
   if (args.includes("--status")) {
     await showStatus();
@@ -210,12 +215,12 @@ Version:    ${config.version}
 
 // ─── Money Lab ─────────────────────────────────────────────────
 
-/** Validate and apply the Money Lab profile; an invalid profile is fatal. */
+/** Validate and apply the Money Lab profile and the Sonni block; an invalid one is fatal. */
 function withMoneyLabProfile(config: AutomatonConfig): AutomatonConfig {
   try {
-    return applyMoneyLabProfile(config);
+    return applyTraderProfile(applyMoneyLabProfile(config));
   } catch (err) {
-    if (err instanceof MoneyLabConfigError) {
+    if (err instanceof MoneyLabConfigError || err instanceof TraderConfigError) {
       logger.error(err.message);
       process.exit(1);
     }
@@ -238,6 +243,27 @@ async function moneyLabCommand(argv: string[]): Promise<number> {
   const db = createDatabase(resolvePath(config.dbPath));
   try {
     return runMoneyLabCommand(argv, db.raw, config);
+  } finally {
+    db.close();
+  }
+}
+
+async function sonniCommand(argv: string[]): Promise<number> {
+  const loaded = loadConfig();
+  if (!loaded) {
+    logger.error("Automaton n'est pas configuré (automaton.json introuvable).");
+    return 1;
+  }
+  const config = withMoneyLabProfile(loaded);
+  if (!config.trader) {
+    logger.error("Aucun bloc trader dans automaton.json : Sonni n'est pas configuré.");
+    return 1;
+  }
+  const { runSonniCommand } = await import("./trader/cli.js");
+  const db = createDatabase(resolvePath(config.dbPath));
+  try {
+    ensureTraderSchema(db.raw);
+    return runSonniCommand(argv, db.raw, config.trader);
   } finally {
     db.close();
   }
@@ -294,6 +320,7 @@ async function run(): Promise<void> {
   const dbPath = resolvePath(config.dbPath);
   const db = createDatabase(dbPath);
   if (moneyLab) ensureMoneyLabSchema(db.raw);
+  if (config.trader) ensureTraderSchema(db.raw);
   // Messages claimed by a turn that a restart or crash interrupted.
   const recovered = recoverInboxClaims(db.raw);
   if (recovered > 0) logger.info(`[INBOX] ${recovered} message(s) interrompu(s) remis en attente.`);
@@ -566,6 +593,18 @@ async function run(): Promise<void> {
       });
       logger.info("[MONEY LAB] Publication Bluesky active.");
     }
+  }
+  if (config.trader) {
+    // Sonni: price collection and prediction resolution run on timers,
+    // without inference (docs/MEMORY.md section 5).
+    const traderCfg = config.trader;
+    const { collectTick, resolveTick } = await import("./trader/runtime.js");
+    every(traderCfg.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, traderCfg));
+    every(60_000, "Sonni résolution", async () => {
+      const n = resolveTick(db.raw, traderCfg);
+      if (n > 0) logger.info(`[SONNI] ${n} prédiction(s) résolue(s).`);
+    });
+    logger.info(`[SONNI] Actif : ${traderCfg.assets.map((a) => a.symbol).join(", ")}, prix toutes les ${traderCfg.collectMinutes} min.`);
   }
   if (moneyLab?.stripe) {
     const stripeCfg = moneyLab.stripe;
