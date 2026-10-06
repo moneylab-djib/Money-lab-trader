@@ -775,7 +775,8 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
         if (capped) duration = MONEY_LAB_MAX_SLEEP_SECONDS;
         // Money Lab: no long sleeps while there are too few ideas to choose
         // from; waiting for indexing is not a reason to stop researching.
-        const discovery = ctx.config.moneyLab?.enabled ? discoveryIncomplete(ctx.db.raw) : null;
+        // Sonni has no idea pipeline, so the cap does not apply to it.
+        const discovery = ctx.config.moneyLab?.enabled && !ctx.config.trader ? discoveryIncomplete(ctx.db.raw) : null;
         const discoveryCapped = !!discovery && duration > MONEY_LAB_DISCOVERY_SLEEP_SECONDS;
         if (discoveryCapped) duration = MONEY_LAB_DISCOVERY_SLEEP_SECONDS;
         ctx.db.setAgentState("sleeping");

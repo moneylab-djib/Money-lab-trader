@@ -408,6 +408,23 @@ describe("Decision session (agent loop with mocked inference)", () => {
     db.close();
   });
 
+  it("does not cap Sonni's sleep with Money Lab's idea-discovery rule", async () => {
+    const db = openDb();
+    const inference = new MockInferenceClient([
+      toolCallResponse([{ name: "sleep", arguments: { duration_seconds: 4 * 3600, reason: "next session" } }]),
+    ]);
+    const turns: any[] = [];
+    await runAgentLoop({
+      identity: createTestIdentity(), config: sonniConfig(), db, conway: new MockConwayClient(), inference,
+      policyEngine: new PolicyEngine(db.raw, createDefaultRules()), spendTracker: new SpendTracker(db.raw),
+      onTurnComplete: (t) => turns.push(t),
+    });
+    const result = String(turns.flatMap((t) => t.toolCalls)[0].result);
+    expect(result).toContain("Entering sleep mode for 14400s");
+    expect(result).not.toMatch(/idea pipeline|discovery/);
+    db.close();
+  });
+
   it("gives Sonni its own weekly review, not Money Lab's experiment review", async () => {
     const db = openDb();
     setKV(db.raw, REVIEW_KEY, new Date(Date.now() - 8 * 24 * 3_600_000).toISOString());
