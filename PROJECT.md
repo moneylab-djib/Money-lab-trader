@@ -42,8 +42,9 @@
 
 ### In
 
-- Virtual portfolio: crypto, stocks and ETFs; long-only spot positions; simulated fees and slippage;
-  a virtual monthly contribution that mirrors the owner's future 50 EUR/month.
+- Virtual portfolio: 1,000 EUR at start; crypto, stocks and ETFs chosen by the agent within realism
+  rules; long-only spot positions; simulated fees and slippage; a virtual 50 EUR monthly contribution
+  that mirrors the owner's future savings.
 - Market data, news and economic/earnings calendar ingestion.
 - The memory system described in [docs/MEMORY.md](docs/MEMORY.md).
 - Decision sessions, daily consolidation and a weekly review reported on Telegram.
@@ -60,13 +61,13 @@
 
 ## Technical constraints
 
-- Runtime/framework: TypeScript on Node.js, starting from the Money Lab codebase (decision 0002, proposed).
+- Runtime/framework: TypeScript on Node.js, starting from the Money Lab codebase (decision 0002).
 - Data/backend: SQLite (`state.db`) as canonical store; Markdown notebooks exported for the owner.
 - Deployment: the owner's existing VPS, as a separate Linux user and systemd service from Money Lab.
 - Supported devices: Telegram clients only.
 - Non-negotiable constraints:
-  - Inference budget 50 EUR/month (owner decision 2026-10-06), enforced in process and backed by an
-    Anthropic workspace spend limit; raised only by the owner after conclusive tests.
+  - Budget 50 EUR/month for inference and paid data (decisions 0001 and 0003), enforced in process and
+    backed by an Anthropic workspace spend limit; raised only by the owner after conclusive tests.
   - No real trading credentials on the machine during the virtual phase.
   - Operator-facing output in French; code, comments and repository documentation in English.
 

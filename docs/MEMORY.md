@@ -46,18 +46,23 @@ Markdown notebooks are exported from them for the owner (section 8).
 
 | Store | Key fields | Notes |
 | --- | --- | --- |
-| `hypotheses` (intuitions) | statement, origin, conditions, test_rule, status, confidence, supersedes | origin: `prior` (Claude's knowledge), `observation`, `owner`, `review`. status: untested → testing → supported / refuted → retired. |
+| `hypotheses` (intuitions) | statement, origin, conditions, test_rule, status, confidence, valid_from, valid_to, recorded_at, supersedes | origin: `prior` (Claude's knowledge), `observation`, `owner`, `review`. status: untested → testing → supported / refuted → retired. |
 | `hypothesis_evidence` | hypothesis_id, kind (support / contradict), ref, source (`historical` / `forward`), weight | Each piece points to a reaction, prediction or trade. |
 | `traps` | name, description, warning_signs, occurrences, cost_so_far | Named mistakes, for example "buying a rumour already priced in". |
 | `trap_occurrences` | trap_id, trade_id or prediction_id, note | Written at post-mortem time. |
 | `patterns` (cycles) | name, event_type, sequence, stats, n, last_seen | Recurring event → reaction sequences; `stats` and `n` are computed by code from `reactions`. |
 | `dossiers` | asset, notes, catalysts, calendar | One per followed asset. |
+| `universe` | asset, action (add / remove), reason, data_source, recorded_at | The watch list the agent chooses (decision 0003); every change has a reason, so its choices can be reviewed. |
+
+Semantic and procedural records are bi-temporal, an idea taken from Graphiti (docs/RESEARCH.md):
+`valid_from` / `valid_to` say when the belief held in the market, `recorded_at` when the agent wrote it.
+A superseded belief is closed with `valid_to`, never deleted, so the agent can see how its views changed.
 
 ### 3.3 Procedural: how it works
 
 | Store | Key fields | Notes |
 | --- | --- | --- |
-| `lessons` (rules) | text, scope, provenance refs, status, created_at, retired_at, reason | Active rules are read before every decision. Each rule cites the evidence that justifies it. The owner can veto a rule. |
+| `lessons` (rules) | text, scope, provenance refs, status, valid_from, valid_to, recorded_at, retired_at, reason | Active rules are read before every decision. Each rule cites the evidence that justifies it. The owner can veto a rule. |
 
 ## 4. Turning Claude's knowledge into tested hypotheses
 
@@ -91,18 +96,27 @@ Markdown notebooks are exported from them for the owner (section 8).
 Triggers for an extra decision session: a followed asset moves more than a set threshold, or a
 scheduled event resolves.
 
+Two optional steps for high-conviction calls, enabled when the budget allows (docs/RESEARCH.md):
+several independent forecasts whose median probability is recorded, and a short adversarial pass that
+argues the other side before a virtual trade; its arguments are stored with the trade.
+
 ## 6. Retrieval: the memory pack
 
 Before each decision, code assembles a pack deterministically within a token budget (proposed
-12,000 tokens), in this order:
+12,000 tokens). Within each group below, items are ranked by a computed score combining relevance to
+the context, importance (evidence count, money at stake) and exponential recency decay with a
+half-life per store: lessons and traps decay slowly, observations quickly (idea from FinMem). Groups,
+in this order:
 
 1. Active lessons (all, they are short).
-2. Open positions and pending predictions.
-3. Traps whose warning signs or assets match the current context.
-4. Hypotheses in `testing` or `supported` that mention the assets or upcoming events.
-5. The last N reactions to the same event types, with pattern statistics.
-6. Observations from the last 24 h on the assets in scope.
-7. The asset dossier, truncated.
+2. Indicators computed by code for the assets in scope (returns, volatility, drawdown, moving-average
+   position, volume ratios). The model never receives raw candles.
+3. Open positions and pending predictions.
+4. Traps whose warning signs or assets match the current context.
+5. Hypotheses in `testing` or `supported` that mention the assets or upcoming events.
+6. The last N reactions to the same event types, with pattern statistics.
+7. Observations from the last 24 h on the assets in scope.
+8. The asset dossier, truncated.
 
 The model can then search further with full-text recall (Money Lab's `recall` tool, extended to the
 memory tables). No embeddings and no vector database: structured keys plus FTS5 are enough at this

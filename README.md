@@ -13,10 +13,11 @@ decides otherwise.
 - [ARCHITECTURE.md](ARCHITECTURE.md): components, data flow, budget
 - [docs/MEMORY.md](docs/MEMORY.md): memory design, the core of the project
 - [docs/FIRST-SLICE.md](docs/FIRST-SLICE.md): first deliverable and its acceptance criteria
+- [docs/RESEARCH.md](docs/RESEARCH.md): reusable projects, data sources, realism rules
 - [docs/PLAN.fr.md](docs/PLAN.fr.md): owner summary in French, with open questions
 - [docs/decisions/](docs/decisions/): accepted and proposed decisions
 - [AGENTS.md](AGENTS.md): rules for coding agents
 
 Project methods follow [Likma Dev System](https://github.com/Cloied/likma-dev-system)
 (profile `ai-product`). The runtime is planned to start from
-[Money Lab](https://github.com/Cloied/Money-lab) (decision 0002, proposed).
+[Money Lab](https://github.com/Cloied/Money-lab) (decision 0002).

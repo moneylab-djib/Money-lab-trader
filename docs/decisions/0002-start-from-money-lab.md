@@ -1,5 +1,5 @@
 # Architecture decision 0002: start from the Money Lab codebase
-- Status: proposed (needs owner approval)
+- Status: accepted (owner, 2026-10-06)
 - Date: 2026-10-06
 - Context and constraints: the trader needs an agent loop, an inference router with per-purpose
   budgets, a Telegram owner channel, scheduled jobs without inference, a journal in SQLite, sealed
