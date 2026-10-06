@@ -1,0 +1,9 @@
+
+
+# Likma local execution records
+**/.likma/session.json
+**/.likma/sessions/
+**/.likma/checks/
+**/.likma/*.sqlite
+**/.likma/knowledge.json
+**/.likma/knowledge-history/
