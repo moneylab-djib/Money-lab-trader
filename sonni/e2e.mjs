@@ -82,6 +82,9 @@ function model(body) {
     }
     case 1: {
       const pack = results.find((r) => r.includes("MEMORY PACK")) ?? "";
+      /news\.example: Spot ETF inflows reach a record/.test(pack) && /UNTRUSTED DATA/.test(pack)
+        ? ok("memory pack shows the fetched headline as untrusted data") : fail("headline missing from the memory pack");
+      /Upcoming events[^\n]*\n- \d{4}-\d{2}-\d{2} fomc/.test(pack) ? ok("memory pack shows the next Fed decision") : fail("Fed decision missing from the memory pack");
       hypothesisId = pack.match(/h_[0-9A-Z]+/)?.[0] ?? null;
       /BTC: \d+\.\d\d EUR/.test(pack) ? ok("memory pack shows the collected BTC price") : fail("memory pack has no BTC price");
       hypothesisId ? ok("memory pack lists the owner's hypothesis") : fail("no hypothesis in the memory pack");
@@ -113,6 +116,7 @@ const tgSend = (text) => tgQueue.push({
 });
 const krakenCalls = [];
 const ohlcCalls = [];
+let gdeltCalls = 0;
 let tick = 0;
 
 const server = http.createServer(async (req, res) => {
@@ -128,6 +132,19 @@ const server = http.createServer(async (req, res) => {
       return send(400, { type: "error", error: { type: "invalid_request_error", message: errs[0] } });
     }
     return send(200, model(body));
+  }
+  if (url.pathname.startsWith("/fed/")) {
+    // Next FOMC decision in 9 days, in the page's own markup.
+    const d = new Date(Date.now() + 9 * 86_400_000);
+    const month = d.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+    res.writeHead(200, { "content-type": "text/html" });
+    return res.end(`<h4>${d.getUTCFullYear()} FOMC Meetings</h4><div class="fomc-meeting__month col-xs-5"><strong>${month}</strong></div>` +
+      `<div class="fomc-meeting__date col-xs-4">${d.getUTCDate()}</div>`);
+  }
+  if (url.pathname.startsWith("/gdelt/")) {
+    gdeltCalls++;
+    const seen = new Date(Date.now() - 1_800_000).toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+    return send(200, { articles: [{ url: "https://news.example/etf", title: "Spot ETF inflows reach a record", domain: "news.example", seendate: seen }] });
   }
   if (url.pathname.startsWith("/kraken/0/public/OHLC")) {
     // 400 committed days in a 5-day cycle (+1, -1, +1, -4, +5 %), then the unfinished day.
@@ -229,6 +246,11 @@ intake.model === "claude-opus-5-5" ? ok("intake runs on the stronger model") : f
 // The owner's message wakes Sonni for a normal decision session.
 tgSend("Bonjour Sonni, regarde le marché.");
 await until(() => step >= 3, 60000) || fail(`decision session stopped at step ${step}`);
+
+tgSend("/agenda");
+await until(() => tgOutbox.some((m) => /décision de taux de la Fed/.test(m.text)), 30000)
+  ? ok("/agenda lists the next Fed decision in French") : fail("/agenda without the Fed decision");
+gdeltCalls >= 1 ? ok("headlines fetched from GDELT") : fail("GDELT never called");
 
 tgSend("/statut");
 await until(() => tgOutbox.some((m) => /SONNI/.test(m.text)), 30000) || fail("/statut got no Sonni answer");

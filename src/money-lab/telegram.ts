@@ -54,6 +54,7 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /statut — prix, prédictions, intuitions (+ budget)
 /idee <texte> — ajouter une intuition à tester
 /intuitions — liste des intuitions
+/agenda — événements à venir (Fed, inflation, emploi)
 /sante — rapport de santé
 /pause [raison] — mettre Sonni en pause
 /reprendre — relancer Sonni
@@ -162,10 +163,12 @@ export class TelegramChannel {
         return formatStatus(this.raw, this.config);
       case "/idee":
       case "/idée":
-      case "/intuitions": {
+      case "/intuitions":
+      case "/agenda": {
         if (!this.config.trader) return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
         ensureTraderSchema(this.raw);
-        runSonniCommand([command === "/intuitions" ? "intuitions" : "idee", ...args], this.raw, this.config.trader, (t) => out.push(t));
+        const sub = command === "/intuitions" ? "intuitions" : command === "/agenda" ? "agenda" : "idee";
+        runSonniCommand([sub, ...(sub === "idee" ? args : [])], this.raw, this.config.trader, (t) => out.push(t));
         return out.join("\n");
       }
       case "/sante":

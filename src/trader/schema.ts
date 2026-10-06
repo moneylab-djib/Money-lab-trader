@@ -140,6 +140,24 @@ function ensureKnowledgeSchema(db: DB): void {
       BEFORE DELETE ON trader_historical_tests
       BEGIN SELECT RAISE(ABORT, 'trader_historical_tests is append-only'); END;
   `);
+  // Step 2: event calendar and headlines.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_events (
+      type TEXT NOT NULL,
+      day TEXT NOT NULL,
+      source TEXT NOT NULL,
+      recorded_at TEXT NOT NULL,
+      PRIMARY KEY (type, day)
+    );
+    CREATE TABLE IF NOT EXISTS trader_headlines (
+      url TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      published_at TEXT NOT NULL,
+      fetched_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_headlines_published ON trader_headlines (published_at);
+  `);
   const columns = (db.prepare("PRAGMA table_info(trader_hypotheses)").all() as { name: string }[]).map((c) => c.name);
   if (!columns.includes("test_rule")) db.exec("ALTER TABLE trader_hypotheses ADD COLUMN test_rule TEXT");
 }

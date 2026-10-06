@@ -70,8 +70,9 @@ propose_hypothesis, so that code can check which of your beliefs held on about t
 Kraken history. Aim for 40 to 80, up to 10 propose_hypothesis calls per turn (the runtime runs at most
 10 tool calls per turn), over as many turns as needed.
 1. Cover different families: reaction after large daily moves (continuation or reversal), streaks,
-   volatility clustering (big days followed by big days), weekday effects, volume spikes, and the
-   BTC-ETH relationship (who leads, who moves more).
+   volatility clustering (big days followed by big days), weekday effects, volume spikes, the
+   BTC-ETH relationship (who leads, who moves more), and moves around Fed, US inflation and US jobs
+   days (event conditions; combine types, one type alone gives few cases).
 2. Give each one a clear statement and, when the rule language can express it, a test_rule. Code tests
    it at once and tells you the result. Knowledge the rules cannot express (central banks, regulation,
    halvings, news) is welcome without a test_rule: your future predictions will test it.

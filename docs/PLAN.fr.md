@@ -68,8 +68,12 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    s'écrivent sous forme de règle, et donne un verdict : confirmée, contredite, peu concluante ou pas
    assez de cas. Exemple réel : « le BTC remonte le lendemain d'une baisse de 3 % » n'est arrivé que
    dans 40 % des 47 cas, contre 51 % des jours en général : contredite.
-1 ter. **Il voit le monde** (prochaine étape) : actualité, calendrier (Fed, inflation, résultats) et
-   mesure des réactions de prix.
+1 ter. **Il voit le monde** ✅ construite le 6 octobre : chaque heure, les titres de l'actualité crypto
+   et Fed (GDELT, gratuit) ; chaque jour, le calendrier des décisions de la Fed (et, avec une clé FRED
+   gratuite à ton nom, l'inflation et l'emploi américains) ; le code mesure comment le BTC et l'ETH ont
+   bougé ces jours-là, et Sonni peut tester des intuitions du type « le BTC bouge de plus de 3 % les
+   jours de Fed ou d'inflation ». Nouvelle commande : `/agenda`. La lecture des articles par Haiku est
+   remise à plus tard : Sonni lit les titres directement, ce qui ne coûte rien de plus.
 2. **Portefeuille virtuel** : 1 000 € virtuels au départ, ordres fictifs, frais et glissement
    simulés, versement virtuel de 50 €/mois.
 3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.

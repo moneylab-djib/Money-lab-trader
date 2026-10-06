@@ -1,8 +1,9 @@
 # Working status
 - Updated: 2026-10-06
-- Branch / commit: claude/sonni-knowledge (step 1, stacked on claude/sonni-first-slice, PR #2)
-- Current goal: step 1 "Sonni already knows things" (owner's order 2026-10-06: step 1, then step 2
-  news and calendar). First slice is live on the owner's VPS since 2026-10-06 22:12 UTC.
+- Branch / commit: claude/sonni-world (step 2, stacked on claude/sonni-knowledge, PR #3)
+- Current goal: steps 1 and 2 built (owner's order 2026-10-06); next, on the owner's request, more
+  autonomy ("as alive as possible"), planned with the owner before building. First slice is live on the
+  owner's VPS since 2026-10-06 22:12 UTC.
 - Accepted decisions: 0001 (owner direction), 0002 (start from Money Lab), 0003 (capital, data, assets,
   readiness measures; thresholds to be set after the first months of results), name Sonni.
 - Completed behaviour (first slice, docs/FIRST-SLICE.md):
@@ -31,6 +32,13 @@
   - Checks (new Likma session begun deliberately for step 1 after the previous one reached its time
     limit): likma project check PASS (types, sonni 33/33, money-lab 110/110, build, sonni-e2e);
     features knowledge-intake and first-prediction verified, 2026-10-06.
+- Step 2 built (2026-10-06): event calendar (FOMC from federalreserve.gov, parsed live on 2026-10-06:
+  56 decision days 2021-2027; CPI and jobs from FRED with an optional FRED_API_KEY), GDELT headlines
+  hourly (rate-limited from this sandbox, format covered by fixtures), event conditions in test rules
+  (re-tested when the calendar changes), reactions to past events in the memory pack, /agenda. The
+  Haiku news digest is deferred: titles go to the memory pack directly.
+  Checks: likma project check PASS (types, sonni 42/42, money-lab 110/110, build, sonni-e2e with fake
+  Fed and GDELT); features first-prediction, knowledge-intake and sees-the-world verified, 2026-10-06.
 - Known gaps (deliberate, later slices):
   - Monthly budget pacing is approximated by Money Lab's daily cap (1/30 of the month: $1.93/day for 50 EUR) and its funding
     balance (example: $58, topped up monthly by the owner with /fonds). Remaining/remaining-days pacing

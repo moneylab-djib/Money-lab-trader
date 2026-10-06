@@ -103,6 +103,18 @@
       "edit_when": "Intake trigger, limits or instructions change"
     },
     {
+      "area": "Sonni calendar",
+      "path": "src/trader/events.ts",
+      "purpose": "FOMC days from the Fed page, CPI and jobs from FRED, reactions from daily candles",
+      "edit_when": "An event source, type or reaction window changes"
+    },
+    {
+      "area": "Sonni headlines",
+      "path": "src/trader/news.ts",
+      "purpose": "Hourly GDELT headlines, deduplicated, untrusted data",
+      "edit_when": "News source, query or retention changes"
+    },
+    {
       "area": "Sonni memory pack",
       "path": "src/trader/pack.ts",
       "purpose": "Deterministic memory pack read before decisions",

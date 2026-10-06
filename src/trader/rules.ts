@@ -9,6 +9,7 @@
  */
 
 import type { Candle } from "./candles.js";
+import { EVENT_TYPES, type EventType } from "./events.js";
 
 export const OPS = [">", ">=", "<", "<="] as const;
 export type Op = (typeof OPS)[number];
@@ -21,7 +22,8 @@ export type Condition =
   | { kind: "range"; asset: string; op: Op; value: number }
   | { kind: "streak"; asset: string; direction: "up" | "down"; days: number }
   | { kind: "weekday"; days: (typeof WEEKDAYS)[number][] }
-  | { kind: "volume_ratio"; asset: string; op: Op; value: number };
+  | { kind: "volume_ratio"; asset: string; op: Op; value: number }
+  | { kind: "event"; types: EventType[]; offset: number };
 
 export type Outcome =
   | { kind: "forward_return"; asset: string; days: number; op: Op; value: number }
@@ -43,6 +45,9 @@ Conditions:
 - {"kind":"streak","asset":"BTC","direction":"down","days":3}: the last N daily returns all down (or up), N 2 to 10
 - {"kind":"weekday","days":["mon","fri"]}: weekday of day t (sun..sat)
 - {"kind":"volume_ratio","asset":"BTC","op":">=","value":2}: volume of day t / average of the 20 previous days
+- {"kind":"event","types":["fomc","cpi","jobs"],"offset":1}: day t+offset is an event day (fomc = Fed rate decision,
+  cpi = US inflation, jobs = US employment report; offset -3 to 3). With offset 1 and a 1-day outcome, the outcome
+  measures the event day's own move. One event type alone gives few cases over two years: combine types.
 Outcomes (from close of day t to close of day t+days):
 - {"kind":"forward_return","asset":"BTC","days":1,"op":">","value":0}
 - {"kind":"abs_forward_return","asset":"ETH","days":1,"op":">=","value":3}: size of the move, either direction
@@ -110,8 +115,15 @@ export function parseTestRule(raw: unknown, assets: string[]): TestRule {
       case "volume_ratio":
         onlyKeys(c, ["kind", "asset", "op", "value"], w);
         return { kind: "volume_ratio", asset: asset(c.asset, `${w}.asset`), op: op(c.op, `${w}.op`), value: num(c.value, `${w}.value`) };
+      case "event": {
+        onlyKeys(c, ["kind", "types", "offset"], w);
+        if (!Array.isArray(c.types) || c.types.length === 0 || c.types.some((t) => !EVENT_TYPES.includes(t as EventType))) {
+          throw new Error(`${w}.types must list event types among ${EVENT_TYPES.join(", ")}`);
+        }
+        return { kind: "event", types: [...new Set(c.types)] as EventType[], offset: intIn(c.offset, -3, 3, `${w}.offset`) };
+      }
       default:
-        throw new Error(`${w}.kind must be return, range, streak, weekday or volume_ratio`);
+        throw new Error(`${w}.kind must be return, range, streak, weekday, volume_ratio or event`);
     }
   });
   const t = raw.then;
@@ -158,8 +170,15 @@ function align(candles: Record<string, Candle[]>, assets: string[]): Series {
 
 const pct = (from: number, to: number) => ((to - from) / from) * 100;
 
+/** Event days by type (from the stored calendar). */
+export type EventCalendar = Partial<Record<EventType, Set<string>>>;
+
+function shiftDay(day: string, offset: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** Value of a condition on day index t, or null when history is too short. */
-function conditionHolds(c: Condition, s: Series, t: number): boolean | null {
+function conditionHolds(c: Condition, s: Series, t: number, events: EventCalendar): boolean | null {
   switch (c.kind) {
     case "return": {
       const x = s.byAsset[c.asset];
@@ -190,6 +209,10 @@ function conditionHolds(c: Condition, s: Series, t: number): boolean | null {
       const avg = sum / 20;
       if (avg <= 0) return null;
       return compare(x[t].volume / avg, c.op, c.value);
+    }
+    case "event": {
+      const day = shiftDay(s.days[t], c.offset);
+      return c.types.some((type) => events[type]?.has(day) ?? false);
     }
   }
 }
@@ -240,7 +263,7 @@ export function rulesAssets(rule: TestRule): string[] {
  * conditions is compared with its frequency on every day (or with 50 %),
  * using a one-sided z score on the proportion.
  */
-export function evaluateRule(rule: TestRule, candles: Record<string, Candle[]>): RuleStats {
+export function evaluateRule(rule: TestRule, candles: Record<string, Candle[]>, events: EventCalendar = {}): RuleStats {
   const s = align(candles, rulesAssets(rule));
   let cases = 0, hits = 0, baseCases = 0, baseHits = 0;
   for (let t = 1; t < s.days.length; t++) {
@@ -250,7 +273,7 @@ export function evaluateRule(rule: TestRule, candles: Record<string, Candle[]>):
     if (outcome) baseHits++;
     let all = true;
     for (const c of rule.when) {
-      const holds = conditionHolds(c, s, t);
+      const holds = conditionHolds(c, s, t, events);
       if (holds !== true) { all = false; break; }
     }
     if (!all) continue;

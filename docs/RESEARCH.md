@@ -56,7 +56,8 @@ It never creates accounts: the owner subscribes, and the subscription cost count
 | Company news, calendars | [Finnhub](https://finnhub.io/pricing) | Company and market news, earnings and economic calendars, quotes | Paid tiers | Free rate limit not confirmed on the pages read |
 | Macro data, release dates | [FRED API](https://fred.stlouisfed.org/docs/api/fred/releases_dates.html) | Free key; future release dates with `include_release_dates_with_no_data` | — | Inflation, jobs, rates |
 | US filings | [SEC EDGAR APIs](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) | Free, no key | — | Submissions and XBRL company facts |
-| World news | [GDELT DOC 2.0](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) | Free | — | Rolling 3-month window, 65 languages, JSON and RSS |
+| World news | [GDELT DOC 2.0](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) | Free | — | Rolling 3-month window, 65 languages, JSON and RSS. Asks for at most one request every 5 s (it answered only that message from the development sandbox on 2026-10-06). Used hourly since step 2. |
+| Fed rate decisions | [FOMC calendar page](https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm) | Free, no key | — | Meetings 2021-2027 parsed on 2026-10-06 (56 decision days). Used since step 2. |
 | Open web | Anthropic web search and fetch (already in Money Lab) | — | Billed per search plus tokens | Counted in the inference budget |
 
 Excluded: scraping libraries for sites without a public API or whose terms forbid automated access

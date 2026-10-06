@@ -12,6 +12,7 @@ import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import type { TraderConfig } from "./config.js";
 import { loadDaily, type Candle } from "./candles.js";
+import { eventDays } from "./events.js";
 import { listHypotheses, type Hypothesis } from "./hypotheses.js";
 import { evaluateRule, rulesAssets, type HistoricalVerdict, type RuleStats } from "./rules.js";
 
@@ -29,7 +30,7 @@ function loadCandles(db: DB, assets: string[]): Record<string, Candle[]> {
 /** Evaluate one hypothesis's rule and append the result. Returns null when it has no rule. */
 export function runHistoricalTest(db: DB, hypothesis: Hypothesis, now: Date = new Date()): HistoricalTest | null {
   if (!hypothesis.testRule) return null;
-  const stats = evaluateRule(hypothesis.testRule, loadCandles(db, rulesAssets(hypothesis.testRule)));
+  const stats = evaluateRule(hypothesis.testRule, loadCandles(db, rulesAssets(hypothesis.testRule)), eventDays(db));
   const testedAt = now.toISOString();
   db.prepare(
     `INSERT INTO trader_historical_tests (id, hypothesis_id, tested_at, data_from, data_to, cases, hits, rate,
@@ -51,6 +52,15 @@ export function runAllHistoricalTests(db: DB, _cfg: TraderConfig, now: Date = ne
     const dataTo = latestDay(db, rulesAssets(h.testRule));
     if (last && last.dataTo === dataTo) continue;
     if (runHistoricalTest(db, h, now)) ran++;
+  }
+  return ran;
+}
+
+/** Re-test hypotheses whose rule uses the event calendar (after the calendar changed). */
+export function runEventRuleTests(db: DB, now: Date = new Date()): number {
+  let ran = 0;
+  for (const h of listHypotheses(db)) {
+    if (h.testRule?.when.some((c) => c.kind === "event") && runHistoricalTest(db, h, now)) ran++;
   }
   return ran;
 }

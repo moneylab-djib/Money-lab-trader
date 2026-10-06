@@ -3,7 +3,8 @@
 Memory is the core of the project. The agent is a language model whose weights never change: it
 learns only through what it writes down, what code measures, and what it reads back before acting.
 This document defines what is remembered, who may write it, how it is consolidated and how it is
-retrieved. Status (2026-10-06): implemented so far are prices, daily history, hypotheses (owner,
+retrieved. Status (2026-10-06): implemented so far are prices, daily history, the event calendar, headlines,
+reactions to past events computed on the fly from daily candles, hypotheses (owner,
 prior and observation origins) with optional test rules evaluated by code on history, predictions
 limited to "price above/below a threshold at a horizon", forward evidence, computed confidence, the
 intake of Claude's prior knowledge and a memory pack (src/trader/). Everything else here is still the
@@ -44,6 +45,8 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `events` | type, assets, scheduled_at, occurred_at, expected, actual, surprise, source | Typed: central bank decision, inflation print, jobs report, earnings, token unlock, halving, listing, regulation, hack, index rebalance… |
 | `reactions` | event_id, asset, window, return_pct, volume_ratio, computed_at | Computed by code only, at fixed windows (−24 h, +1 h, +24 h, +7 d). |
 | `trader_candles` (implemented) | asset, day, open, high, low, close, volume | Kraken daily candles, about two years; the unfinished day is skipped. |
+| `trader_events` (implemented) | type (fomc, cpi, jobs), day, source | Fed decisions from the public FOMC calendar; CPI and jobs dates from FRED with the owner's free key. Code only. |
+| `trader_headlines` (implemented) | url, title, domain, published_at | GDELT headlines about crypto and the Fed, hourly, kept 30 days. Untrusted data; the first observations, before a Haiku digest exists. |
 | `trader_historical_tests` (implemented) | hypothesis_id, tested_at, data_from, data_to, cases, hits, rate, base_rate, z, verdict | Append-only; written by code only (section 4). |
 | `predictions` | made_at, asset, statement, condition, horizon_until, probability, hypothesis_ids, rationale | Append-only. Resolved by code: resolved_at, outcome, Brier score. |
 | `trades` | opened_at, asset, qty, fill_price, fees, thesis, conviction, probability, invalidation, horizon, hypothesis_ids | Append-only entry; exit, P&L and post-mortem are appended as separate rows. |
@@ -82,7 +85,8 @@ Implemented in step 1 ("Sonni already knows things", src/trader/intake.ts, rules
    halvings) is accepted without a rule and left to forward testing.
 2. **Historical statistics (code only).** A hypothesis may carry a `test_rule` in a small JSON language
    (src/trader/rules.ts): up to three conditions on day t (return over N days, daily range, up or down
-   streak, weekday, volume versus its 20-day average) and one outcome from day t to t+N (return, size
+   streak, weekday, volume versus its 20-day average, an event day of given types with an offset) and
+   one outcome from day t to t+N (return, size
    of the move, or return relative to another asset). Code evaluates it on the stored Kraken daily
    candles (720 days, about two years) and records cases, hits, rate, the base rate (the outcome's
    frequency on all days, or 50 % for a "most of the time" claim), a one-sided z score and a verdict:

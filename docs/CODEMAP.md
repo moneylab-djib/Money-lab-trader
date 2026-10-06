@@ -12,6 +12,8 @@
 | Sonni test rules | src/trader/rules.ts | Rule language for hypotheses and its evaluation on daily candles (z score, verdict) | Conditions, outcomes or verdict thresholds change (keep docs/MEMORY.md section 4 in sync) |
 | Sonni historical tests | src/trader/historical.ts | Append-only historical verdicts per hypothesis, rerun when data moves | How or when history is tested changes |
 | Sonni intake | src/trader/intake.ts | One-time intake of prior knowledge: due rule, attempts, stronger-model turns, instructions | Intake trigger, limits or instructions change |
+| Sonni calendar | src/trader/events.ts | FOMC days from the Fed page, CPI and jobs from FRED, reactions from daily candles | An event source, type or reaction window changes |
+| Sonni headlines | src/trader/news.ts | Hourly GDELT headlines, deduplicated, untrusted data | News source, query or retention changes |
 | Sonni memory pack | src/trader/pack.ts | Deterministic memory pack read before decisions | Retrieval order, indicators or bounds change |
 | Sonni agent tools | src/trader/tools.ts | sonni_memory and record_prediction | The model's tools change |
 | Sonni prompt | src/trader/prompt.ts | Sonni mission and rules block (replaces Money Lab's mission) | The mission or stated rules change |
