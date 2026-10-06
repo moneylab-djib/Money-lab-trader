@@ -6,7 +6,8 @@
 - One-sentence description: an autonomous Claude agent that trains as an apprentice broker on a
   virtual portfolio, with a long-term memory of traps, intuitions and event cycles at its core.
 - Product category: personal research project; supervised AI trading agent.
-- Current status: specification only (2026-10-06). No code, no exchange account, no money involved.
+- Current status: first slice built and verified against fake APIs (2026-10-06); not launched. No
+  exchange account, no money involved.
 
 ## Users and problem
 

@@ -75,6 +75,9 @@ These shares are estimates to be replaced by measured spend after two weeks. Enf
   budget divided by the remaining days, so a busy day cannot spend the month.
 - A dedicated Anthropic API key in its own workspace, with a monthly spend limit set by the owner in
   the Anthropic Console as the hard backstop. Money Lab and the trader never share a key.
+- First slice (2026-10-06): pacing and per-purpose caps are not built yet. Money Lab's daily inference
+  cap and funding balance stand in for them (sonni/automaton.sonni.example.json: $1.90/day, $58 funded
+  per month with /fonds).
 
 ## Decisions and trade-offs
 

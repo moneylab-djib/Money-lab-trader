@@ -1,8 +1,8 @@
 # Sonni — plan pour le propriétaire
 
 Résumé en français de la spécification (les documents techniques sont en anglais : `PROJECT.md`,
-`ARCHITECTURE.md`, `docs/MEMORY.md`). État au 6 octobre 2026 : **spécification seulement**, aucun
-code, aucun compte, aucun argent engagé.
+`ARCHITECTURE.md`, `docs/MEMORY.md`). État au 6 octobre 2026 : **étape 1 construite et vérifiée
+avec de fausses API**, pas encore lancée. Aucun compte, aucun argent engagé.
 
 ## Ce qu'on construit
 
@@ -60,8 +60,8 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
 
 ## Étapes
 
-1. **Première prédiction** : prix BTC/ETH, une décision, une prédiction résolue par le code (détail
-   dans `docs/FIRST-SLICE.md`).
+1. **Première prédiction** ✅ construite le 6 octobre : prix BTC/ETH, une décision, une prédiction
+   résolue par le code (détail dans `docs/FIRST-SLICE.md`). Reste à la lancer en vrai, avec ton accord.
 2. **Portefeuille virtuel** : 1 000 € virtuels au départ, ordres fictifs, frais et glissement
    simulés, versement virtuel de 50 €/mois.
 3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.
@@ -120,7 +120,24 @@ gros au moment du passage au réel.
 - **Écartés** : bases vectorielles et frameworks de mémoire en Python (un deuxième langage, des
   coûts en plus, sans besoin prouvé).
 
-## Question encore ouverte
+## Seuils de passage au réel
 
-**Seuils de passage au réel** : à quel rendement et à quel taux d'autofinancement veux-tu dire
-« il est prêt » ? On peut attendre ses premiers mois de résultats pour les fixer.
+On les fixera ensemble après ses premiers mois de résultats (ta décision du 6 octobre).
+
+## Ce que tu peux déjà faire avec Sonni (une fois lancé)
+
+- `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
+- `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
+- `/statut` : prix, prédictions ouvertes et résolues avec leur score, puis le budget.
+- `/pause`, `/reprendre`, `/sante` : comme pour Money Lab.
+
+Chaque dimanche, il fait sa revue : il compare ses probabilités à ce qui s'est passé, réécrit ses
+leçons et t'envoie un rapport en français avec jusqu'à trois nouvelles intuitions à tester.
+
+## Avant le premier lancement réel (ton accord nécessaire)
+
+- Un utilisateur Linux séparé sur le VPS, pour que Sonni et Money Lab ne se mélangent pas.
+- Une clé API Anthropic dédiée, dans son propre espace avec une limite de dépense mensuelle.
+- Un nouveau bot Telegram (Sonni a son propre canal).
+- Budget de départ : 58 $ (environ 50 €), avec un plafond de 1,90 $ par jour. Tu ajoutes le mois
+  suivant avec `/fonds`. Le lissage exact sur le mois viendra plus tard.

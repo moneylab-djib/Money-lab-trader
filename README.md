@@ -5,7 +5,9 @@ stocks, ETFs). It reads market news, places fictitious trades, and learns from t
 a long-term memory of traps, intuitions and event cycles. Real money is out of scope until the owner
 decides otherwise.
 
-> **Status:** specification only (2026-10-06). No code, no exchange account, no money involved.
+> **Status:** first slice built and verified against fake APIs (2026-10-06): live Kraken prices, owner
+> hypotheses, predictions resolved and scored by code, French status on Telegram. Not launched yet.
+> No exchange account, no money involved.
 
 ## Read first
 
@@ -20,4 +22,5 @@ decides otherwise.
 
 Project methods follow [Likma Dev System](https://github.com/Cloied/likma-dev-system)
 (profile `ai-product`). The runtime is planned to start from
-[Money Lab](https://github.com/Cloied/Money-lab) (decision 0002).
+[Money Lab](https://github.com/Cloied/Money-lab) (decision 0002), imported at a pinned commit; Sonni's
+code is in `src/trader/`. Checks and commands are listed in [AGENTS.md](AGENTS.md).
