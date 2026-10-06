@@ -1,0 +1,50 @@
+{
+  "_comment": "Merge into ~/.automaton/automaton.json after the setup wizard (or use the install script in money-lab/VPS-SETUP.md). The moneyLab block is strict: unknown or missing keys stop startup. Amounts are USD cents; null means no limit. Secrets are NOT stored here: ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN and STRIPE_API_KEY come from the environment file. Replace ownerChatId with your Telegram chat id, set stripe.usdPerUnit to today's EUR->USD rate (1 undercounts EUR revenue, which is conservative), and set the VPS daily cost.",
+  "genesisPrompt": "Owner's optional starting hypotheses (you may ignore all of them): small web tools, practical calculators, printable generators, developer tools, digital templates, narrow APIs, or original niche resources. No revenue model is mandatory.",
+  "maxChildren": 0,
+  "moneyLab": {
+    "enabled": true,
+    "profile": "first-run",
+    "runtime": "self-hosted",
+    "telegram": {
+      "botTokenEnv": "TELEGRAM_BOT_TOKEN",
+      "ownerChatId": 123456789
+    },
+    "stripe": {
+      "apiKeyEnv": "STRIPE_API_KEY",
+      "syncMinutes": 30,
+      "currency": "eur",
+      "usdPerUnit": 1
+    },
+    "inference": {
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "perCallCents": null,
+      "hourlyCents": 100,
+      "dailyCents": 300,
+      "maxOutputTokens": 16000
+    },
+    "payments": "disabled",
+    "paymentLimits": {
+      "perPaymentCents": null,
+      "dailyCents": null
+    },
+    "deniedTools": [],
+    "maxTurnsPerCycle": null,
+    "noProgressCycles": 5,
+    "noProgressSleepMinutes": 120,
+    "resources": [
+      {
+        "id": "vps",
+        "kind": "server",
+        "description": "VPS running Money Lab",
+        "expectedDailyCostCents": null
+      }
+    ],
+    "funding": {
+      "currency": "USD",
+      "provisionedCents": 2000,
+      "heldBackCents": 0
+    }
+  }
+}
