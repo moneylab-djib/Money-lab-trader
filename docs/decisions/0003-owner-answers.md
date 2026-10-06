@@ -20,6 +20,7 @@
      The owner sets the thresholds; real money stays an owner decision (decision 0001).
   5. **Codebase:** start from Money Lab (decision 0002 accepted).
   6. **Research:** look for other projects whose code or ideas help; done in docs/RESEARCH.md.
+  7. **Name:** the bot is called Sonni.
 - Alternatives and trade-offs: a separate data budget (rejected for now: one envelope lets the agent
   trade reading against data, which is part of what it learns).
 - Reversibility and migration: all reversible; no money or account involved.

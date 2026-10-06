@@ -1,4 +1,4 @@
-# Money Lab Trader — plan pour le propriétaire
+# Sonni — plan pour le propriétaire
 
 Résumé en français de la spécification (les documents techniques sont en anglais : `PROJECT.md`,
 `ARCHITECTURE.md`, `docs/MEMORY.md`). État au 6 octobre 2026 : **spécification seulement**, aucun
@@ -81,6 +81,7 @@ Puis plusieurs mois d'entraînement en conditions réelles, sans argent réel.
 | Actifs suivis | Il choisit lui-même | Liste limitée (proposition : 30 actifs), chaque ajout ou retrait noté avec sa raison |
 | Passage au vrai argent | Rendement conséquent, peu d'erreurs, capable de se payer lui-même | Trois mesures suivies chaque semaine (ci-dessous) ; c'est toi qui fixes les seuils |
 | Base technique | Code de Money Lab | Décision 0002 acceptée |
+| Nom du bot | Sonni | Utilisé dans toute la documentation |
 
 Règles de réalisme pour ses choix d'actifs, pour que l'entraînement serve plus tard avec du vrai
 argent : crypto disponible sur une plateforme agréée MiCA, ETF européens (UCITS) car les ETF
@@ -119,8 +120,7 @@ gros au moment du passage au réel.
 - **Écartés** : bases vectorielles et frameworks de mémoire en Python (un deuxième langage, des
   coûts en plus, sans besoin prouvé).
 
-## Questions encore ouvertes
+## Question encore ouverte
 
-1. **Seuils de passage au réel** : à quel rendement et à quel taux d'autofinancement veux-tu dire
-   « il est prêt » ? On peut attendre ses premiers mois de résultats pour les fixer.
-2. **Nom** du bot.
+**Seuils de passage au réel** : à quel rendement et à quel taux d'autofinancement veux-tu dire
+« il est prêt » ? On peut attendre ses premiers mois de résultats pour les fixer.

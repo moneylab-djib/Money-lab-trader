@@ -1,5 +1,5 @@
-# Money Lab Trader — project operating rules
-An autonomous Claude agent that trains as an apprentice broker on a virtual portfolio, with memory as
+# Sonni — project operating rules
+Sonni is an autonomous Claude agent that trains as an apprentice broker on a virtual portfolio, with memory as
 its core. Read PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/STATUS.md and docs/decisions/ first.
 Shared methods come from Likma Dev System (https://github.com/Cloied/likma-dev-system, profile
 `ai-product`, see docs/LIKMA.md); this project's identity, scope and constraints are defined here.

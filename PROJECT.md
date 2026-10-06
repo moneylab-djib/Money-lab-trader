@@ -2,7 +2,7 @@
 
 ## Identity
 
-- Name: Money Lab Trader (working name)
+- Name: Sonni (owner decision 2026-10-06; repository `Money-lab-trader`)
 - One-sentence description: an autonomous Claude agent that trains as an apprentice broker on a
   virtual portfolio, with a long-term memory of traps, intuitions and event cycles at its core.
 - Product category: personal research project; supervised AI trading agent.

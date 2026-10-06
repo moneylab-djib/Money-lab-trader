@@ -18,7 +18,7 @@
   - python <likma>/scripts/likma.py project doctor: only "configure start" and "configure a check"
     actions, expected with no code, 2026-10-06.
 - Blockers and known regressions:
-  - Readiness thresholds and the bot's name are still open (docs/PLAN.fr.md).
+  - Readiness thresholds are still open (docs/PLAN.fr.md). Bot name: Sonni (owner, 2026-10-06).
   - Unverified: Finnhub free rate limit, Twelve Data free-plan delay, Alpaca account availability
     for a French resident.
 - Next concrete action: import Money Lab at the pinned commit, configure real checks in

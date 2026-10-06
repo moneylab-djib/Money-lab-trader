@@ -1,6 +1,6 @@
-# Money Lab Trader
+# Sonni
 
-An autonomous Claude agent that trains as an apprentice broker on a **virtual** portfolio (crypto,
+Sonni is an autonomous Claude agent that trains as an apprentice broker on a **virtual** portfolio (crypto,
 stocks, ETFs). It reads market news, places fictitious trades, and learns from their outcomes through
 a long-term memory of traps, intuitions and event cycles. Real money is out of scope until the owner
 decides otherwise.
