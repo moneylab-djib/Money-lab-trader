@@ -8,6 +8,7 @@
 
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
+import type { TestRule } from "./rules.js";
 
 type DB = Database.Database;
 
@@ -29,6 +30,8 @@ export interface Hypothesis {
   contradicts: number;
   confidence: number;
   recordedAt: string;
+  /** Machine-checkable form of the statement, tested by code on history; null when none. */
+  testRule: TestRule | null;
 }
 
 function rowToHypothesis(row: any): Hypothesis {
@@ -41,6 +44,7 @@ function rowToHypothesis(row: any): Hypothesis {
     contradicts: row.contradicts,
     confidence: row.confidence,
     recordedAt: row.recorded_at,
+    testRule: row.test_rule ? JSON.parse(row.test_rule) : null,
   };
 }
 
@@ -57,7 +61,7 @@ export function computeConfidence(supports: number, contradicts: number): { conf
 
 export function addHypothesis(
   db: DB,
-  input: { statement: string; origin: HypothesisOrigin },
+  input: { statement: string; origin: HypothesisOrigin; testRule?: TestRule | null },
   now: Date = new Date(),
 ): Hypothesis {
   const statement = input.statement.trim();
@@ -68,9 +72,9 @@ export function addHypothesis(
   const id = `h_${ulid()}`;
   const at = now.toISOString();
   db.prepare(
-    `INSERT INTO trader_hypotheses (id, statement, origin, status, supports, contradicts, confidence, valid_from, recorded_at)
-     VALUES (?, ?, ?, 'untested', 0, 0, 0.5, ?, ?)`,
-  ).run(id, statement, input.origin, at, at);
+    `INSERT INTO trader_hypotheses (id, statement, origin, status, supports, contradicts, confidence, valid_from, recorded_at, test_rule)
+     VALUES (?, ?, ?, 'untested', 0, 0, 0.5, ?, ?, ?)`,
+  ).run(id, statement, input.origin, at, at, input.testRule ? JSON.stringify(input.testRule) : null);
   return getHypothesis(db, id)!;
 }
 
@@ -99,4 +103,14 @@ export function refreshHypothesis(db: DB, id: string): Hypothesis | undefined {
     "UPDATE trader_hypotheses SET supports = ?, contradicts = ?, confidence = ?, status = ? WHERE id = ?",
   ).run(counts.supports, counts.contradicts, confidence, status, id);
   return getHypothesis(db, id);
+}
+
+/** Number of hypotheses by origin, and how many the model added on a given UTC day. */
+export function hypothesisCounts(db: DB, now: Date = new Date()): { byOrigin: Record<string, number>; modelToday: number } {
+  const rows = db.prepare("SELECT origin, COUNT(*) AS n FROM trader_hypotheses GROUP BY origin").all() as { origin: string; n: number }[];
+  const today = now.toISOString().slice(0, 10);
+  const modelToday = (db.prepare(
+    "SELECT COUNT(*) AS n FROM trader_hypotheses WHERE origin IN ('observation', 'review') AND substr(recorded_at, 1, 10) = ?",
+  ).get(today) as { n: number }).n;
+  return { byOrigin: Object.fromEntries(rows.map((r) => [r.origin, r.n])), modelToday };
 }

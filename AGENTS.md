@@ -35,7 +35,7 @@ Checks (configured in likma.project.json, run through the Likma checkout):
   - sonni: pnpm exec vitest run src/__tests__/trader
   - money-lab: pnpm exec vitest run src/__tests__/money-lab (imported runtime regression suite)
   - build: pnpm run build
-  - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram, ~85 s)
+  - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram, ~2 min)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/ (keep them in sync
 with config keys and commands).

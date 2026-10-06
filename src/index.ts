@@ -598,8 +598,18 @@ async function run(): Promise<void> {
     // Sonni: price collection and prediction resolution run on timers,
     // without inference (docs/MEMORY.md section 5).
     const traderCfg = config.trader;
-    const { collectTick, resolveTick } = await import("./trader/runtime.js");
+    const { collectTick, historyTick, resolveTick } = await import("./trader/runtime.js");
     every(traderCfg.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, traderCfg));
+    const { intakeDue } = await import("./trader/intake.js");
+    every(6 * 60 * 60_000, "Sonni historique", async () => {
+      const n = await historyTick(db.raw, traderCfg);
+      if (n > 0) logger.info(`[SONNI] ${n} intuition(s) testée(s) sur l'historique.`);
+      // History just became usable: wake Sonni for its intake instead of waiting for the next session.
+      const budgetSleep = String(db.getKV("sleep_reason") ?? "").startsWith("plafond");
+      if (intakeDue(db.raw, traderCfg) && db.getAgentState() === "sleeping" && !budgetSleep) {
+        insertWakeEvent(db.raw, "sonni_history", "Historique disponible : séance d'intuitions initiales");
+      }
+    });
     every(60_000, "Sonni résolution", async () => {
       const n = resolveTick(db.raw, traderCfg);
       if (n > 0) logger.info(`[SONNI] ${n} prédiction(s) résolue(s).`);

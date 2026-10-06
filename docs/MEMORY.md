@@ -3,10 +3,11 @@
 Memory is the core of the project. The agent is a language model whose weights never change: it
 learns only through what it writes down, what code measures, and what it reads back before acting.
 This document defines what is remembered, who may write it, how it is consolidated and how it is
-retrieved. Status (2026-10-06): the first slice implements prices, hypotheses (owner origin),
-predictions limited to "price above/below a threshold at a horizon", forward evidence, computed
-confidence and a memory pack of indicators, hypotheses and predictions (src/trader/). Everything else
-here is still the proposed design.
+retrieved. Status (2026-10-06): implemented so far are prices, daily history, hypotheses (owner,
+prior and observation origins) with optional test rules evaluated by code on history, predictions
+limited to "price above/below a threshold at a horizon", forward evidence, computed confidence, the
+intake of Claude's prior knowledge and a memory pack (src/trader/). Everything else here is still the
+proposed design.
 
 ## 1. Goals
 
@@ -42,6 +43,8 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `observations` | observed_at, published_at, source, url, assets, kind, summary, trust | From news, filings, social, owner notes. `published_at` is mandatory: decisions only see observations published before the decision time. |
 | `events` | type, assets, scheduled_at, occurred_at, expected, actual, surprise, source | Typed: central bank decision, inflation print, jobs report, earnings, token unlock, halving, listing, regulation, hack, index rebalance… |
 | `reactions` | event_id, asset, window, return_pct, volume_ratio, computed_at | Computed by code only, at fixed windows (−24 h, +1 h, +24 h, +7 d). |
+| `trader_candles` (implemented) | asset, day, open, high, low, close, volume | Kraken daily candles, about two years; the unfinished day is skipped. |
+| `trader_historical_tests` (implemented) | hypothesis_id, tested_at, data_from, data_to, cases, hits, rate, base_rate, z, verdict | Append-only; written by code only (section 4). |
 | `predictions` | made_at, asset, statement, condition, horizon_until, probability, hypothesis_ids, rationale | Append-only. Resolved by code: resolved_at, outcome, Brier score. |
 | `trades` | opened_at, asset, qty, fill_price, fees, thesis, conviction, probability, invalidation, horizon, hypothesis_ids | Append-only entry; exit, P&L and post-mortem are appended as separate rows. |
 
@@ -69,21 +72,32 @@ A superseded belief is closed with `valid_to`, never deleted, so the agent can s
 
 ## 4. Turning Claude's knowledge into tested hypotheses
 
-1. **Intake.** Once the semantic stores exist (slice 5 in docs/PLAN.fr.md), the agent runs an intake
-   session with Opus 5.5: it writes what it
-   believes about markets as testable hypotheses, each with a `test_rule`, for example "BTC moves more
-   than 2 % in the 24 h after a Fed decision more often than on other days". Target: 50 to 100
-   hypotheses across event types. Status: `untested`.
-2. **Historical statistics (code only).** Where a hypothesis is about reactions to dated events, code
-   measures it on past price history (for instance every Fed decision since 2018). This is plain
-   statistics on data, not the model predicting a past it remembers, so it is allowed. Evidence is
-   tagged `historical`.
+Implemented in step 1 ("Sonni already knows things", src/trader/intake.ts, rules.ts, historical.ts).
+
+1. **Intake.** Once about 200 days of daily history are stored for every followed asset, the next
+   wake is an intake: Sonni turns what it already knows into hypotheses with `propose_hypothesis`
+   (origin `prior`), up to 10 per turn, 40 to 80 in total. The first 8 turns run on Opus 5.5. The
+   intake repeats on later wakes until 30 prior hypotheses exist, at most 3 attempts; an attempt counts
+   only when a paid turn runs. Knowledge the rule language cannot express (central banks, regulation,
+   halvings) is accepted without a rule and left to forward testing.
+2. **Historical statistics (code only).** A hypothesis may carry a `test_rule` in a small JSON language
+   (src/trader/rules.ts): up to three conditions on day t (return over N days, daily range, up or down
+   streak, weekday, volume versus its 20-day average) and one outcome from day t to t+N (return, size
+   of the move, or return relative to another asset). Code evaluates it on the stored Kraken daily
+   candles (720 days, about two years) and records cases, hits, rate, the base rate (the outcome's
+   frequency on all days, or 50 % for a "most of the time" claim), a one-sided z score and a verdict:
+   `supported` (at least 30 cases and z ≥ 2.33, about a 1 % chance by luck), `refuted` (z ≤ 0),
+   `inconclusive`, or `insufficient` (fewer than 30 cases). Results are append-only, re-run when new
+   days arrive, and shown at once to the model when it proposes the hypothesis. This is plain
+   statistics on data, not the model predicting a past it remembers.
 3. **Forward testing.** The model's own predictive skill is measured only on predictions made from now
    on, with information published before the prediction. Evidence is tagged `forward`.
 4. **Confidence is computed, not claimed.** Code maintains a Beta(α, β) count per hypothesis from
-   supporting and contradicting evidence. Proposed thresholds: `supported` when at least 8 resolved
-   instances and posterior mean ≥ 0.65; `refuted` at ≤ 0.35; otherwise `testing`. The weekly review may
-   propose a status change; code applies it only if the numbers agree.
+   forward evidence only. Proposed thresholds: `supported` when at least 8 resolved instances and
+   posterior mean ≥ 0.65; `refuted` at ≤ 0.35; otherwise `testing`. The historical verdict is kept
+   beside it, not folded in: history says which beliefs held before, predictions measure Sonni.
+5. **Data dredging.** Every proposed hypothesis is kept, refuted ones included, and the memory pack
+   shows how many rules were tested, so a rule found by trying many variants is visible as such.
 
 ## 5. Learning loop
 

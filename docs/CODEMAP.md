@@ -8,13 +8,17 @@
 | Sonni prices | src/trader/prices.ts | Kraken public price collection and price lookups | A data source, timestamp format or lookup changes |
 | Sonni hypotheses | src/trader/hypotheses.ts | Hypotheses and confidence computed from evidence | Confidence rule, thresholds or origins change |
 | Sonni predictions | src/trader/predictions.ts | Prediction validation, recording and resolution by code (Brier, evidence) | Prediction fields, staleness or resolution rules change |
+| Sonni daily history | src/trader/candles.ts | Kraken daily candles (720 days), unfinished day skipped | History source, depth or candle fields change |
+| Sonni test rules | src/trader/rules.ts | Rule language for hypotheses and its evaluation on daily candles (z score, verdict) | Conditions, outcomes or verdict thresholds change (keep docs/MEMORY.md section 4 in sync) |
+| Sonni historical tests | src/trader/historical.ts | Append-only historical verdicts per hypothesis, rerun when data moves | How or when history is tested changes |
+| Sonni intake | src/trader/intake.ts | One-time intake of prior knowledge: due rule, attempts, stronger-model turns, instructions | Intake trigger, limits or instructions change |
 | Sonni memory pack | src/trader/pack.ts | Deterministic memory pack read before decisions | Retrieval order, indicators or bounds change |
 | Sonni agent tools | src/trader/tools.ts | sonni_memory and record_prediction | The model's tools change |
 | Sonni prompt | src/trader/prompt.ts | Sonni mission and rules block (replaces Money Lab's mission) | The mission or stated rules change |
 | Sonni operator | src/trader/status.ts | French status and hypothesis list; CLI and Telegram commands in src/trader/cli.ts | Owner-facing output or commands change |
 | Sonni background work | src/trader/runtime.ts | Collection and resolution ticks scheduled by src/index.ts | Scheduling or failure reporting changes |
 | Runtime integration | src/index.ts | Profile validation, timers, --sonni CLI; loop.ts, system-prompt.ts, guard.ts, telegram.ts and conway/inference.ts carry small Sonni hooks | How Sonni plugs into the Money Lab runtime changes |
-| Sonni tests | src/__tests__/trader/sonni.test.ts | First-slice criteria with network and inference mocked | Any Sonni behaviour changes |
+| Sonni tests | src/__tests__/trader/ | sonni.test.ts (first slice) and knowledge.test.ts (step 1), network and inference mocked | Any Sonni behaviour changes |
 | Sonni end-to-end | sonni/e2e.mjs | Real built process against fake Kraken, Anthropic and Telegram | Startup, timers, prompt, tools or Telegram behaviour change |
 | Sonni example config | sonni/automaton.sonni.example.json | Money Lab block plus trader block for a separate VPS user | Config keys or recommended limits change |
 | Sonni VPS setup | sonni/vps/configure.mjs | Writes Sonni's config on its own VPS; with sonni.service, sonni.env.example and sonni/GUIDE-VPS.fr.md | Deployment layout, config keys, budget rule or owner steps change |

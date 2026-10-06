@@ -72,6 +72,7 @@ import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 import { createTraderTools } from "../trader/tools.js";
 import { SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
 import { ensureTraderSchema } from "../trader/schema.js";
 import { paidCallBlockReason } from "../money-lab/guard.js";
 import { recordHealthEvent } from "../money-lab/health.js";
@@ -441,6 +442,7 @@ export async function runAgentLoop(
   // paused or budget-blocked wake does not skip it.
   let reviewPending = false;
   let reviewModelTurns = 0;
+  let intakePending = false;
   if (moneyLab) {
     const reason = db.getKV(MONEY_LAB_WAKE_REASON_KEY);
     if (reason) {
@@ -448,6 +450,15 @@ export async function runAgentLoop(
       db.deleteKV(MONEY_LAB_WAKE_REASON_KEY);
     }
     ensureReviewClock(db.raw);
+    // Sonni: the one-time intake of prior knowledge comes before anything else.
+    if (trader && intakeDue(db.raw, trader)) {
+      startIntake(db.raw);
+      intakePending = true;
+      reviewModelTurns = INTAKE_MODEL_TURNS;
+      wakeupInput += `\n\n${SONNI_INTAKE_INSTRUCTIONS}`;
+    } else if (trader) {
+      closeIntakeWake(db.raw);
+    }
     if (isReviewDue(db.raw)) {
       reviewPending = true;
       reviewModelTurns = REVIEW_MODEL_TURNS;
@@ -806,6 +817,10 @@ export async function runAgentLoop(
       if (reviewPending && routerResult.finishReason !== "budget_exceeded") {
         markReviewed(db.raw);
         reviewPending = false;
+      }
+      if (intakePending && routerResult.finishReason !== "budget_exceeded") {
+        recordIntakeAttempt(db.raw);
+        intakePending = false;
       }
 
       // Build a compatible response for the rest of the loop

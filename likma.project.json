@@ -79,6 +79,30 @@
       "edit_when": "Prediction fields, staleness or resolution rules change"
     },
     {
+      "area": "Sonni daily history",
+      "path": "src/trader/candles.ts",
+      "purpose": "Kraken daily candles (720 days), unfinished day skipped",
+      "edit_when": "History source, depth or candle fields change"
+    },
+    {
+      "area": "Sonni test rules",
+      "path": "src/trader/rules.ts",
+      "purpose": "Rule language for hypotheses and its evaluation on daily candles (z score, verdict)",
+      "edit_when": "Conditions, outcomes or verdict thresholds change (keep docs/MEMORY.md section 4 in sync)"
+    },
+    {
+      "area": "Sonni historical tests",
+      "path": "src/trader/historical.ts",
+      "purpose": "Append-only historical verdicts per hypothesis, rerun when data moves",
+      "edit_when": "How or when history is tested changes"
+    },
+    {
+      "area": "Sonni intake",
+      "path": "src/trader/intake.ts",
+      "purpose": "One-time intake of prior knowledge: due rule, attempts, stronger-model turns, instructions",
+      "edit_when": "Intake trigger, limits or instructions change"
+    },
+    {
       "area": "Sonni memory pack",
       "path": "src/trader/pack.ts",
       "purpose": "Deterministic memory pack read before decisions",
@@ -116,8 +140,8 @@
     },
     {
       "area": "Sonni tests",
-      "path": "src/__tests__/trader/sonni.test.ts",
-      "purpose": "First-slice criteria with network and inference mocked",
+      "path": "src/__tests__/trader/",
+      "purpose": "sonni.test.ts (first slice) and knowledge.test.ts (step 1), network and inference mocked",
       "edit_when": "Any Sonni behaviour changes"
     },
     {
