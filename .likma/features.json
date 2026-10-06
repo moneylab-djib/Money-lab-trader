@@ -21,8 +21,8 @@
         "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       },
       "verification": {
-        "at": "2026-10-06T21:12:35.966361+00:00",
-        "fingerprint": "8894f554d6fa52021ee9748a0a9a1f0abcb6b592868c45a51f8eb35f993ae55c",
+        "at": "2026-10-06T21:27:46.305589+00:00",
+        "fingerprint": "9ea8aebfd3a6e02c773184de0c92486f779c5c4e9bbefed64a5089689879b9bc",
         "criterion_checks": {
           "1": "sonni-e2e",
           "2": "sonni",
@@ -33,7 +33,7 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/89d5367c929c48cb940a37940d87dc1d.json",
+        "report": ".likma/checks/67aa7f8a29b84b15afeb8480301238c6.json",
         "contract": "54abeb8eebed31610b84714fc2893cbeccfe339b6eee53c789556ee2c9442a30"
       }
     }

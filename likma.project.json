@@ -133,6 +133,12 @@
       "edit_when": "Config keys or recommended limits change"
     },
     {
+      "area": "Sonni VPS setup",
+      "path": "sonni/vps/configure.mjs",
+      "purpose": "Writes Sonni's config on its own VPS; with sonni.service, sonni.env.example and sonni/GUIDE-VPS.fr.md",
+      "edit_when": "Deployment layout, config keys, budget rule or owner steps change"
+    },
+    {
       "area": "Money Lab runtime",
       "path": "src/money-lab/",
       "purpose": "Imported runtime (budgets, Telegram, guards, journal); see docs/upstream/MONEY-LAB-README.md",

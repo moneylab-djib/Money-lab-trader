@@ -17,6 +17,7 @@ decides otherwise.
 - [docs/FIRST-SLICE.md](docs/FIRST-SLICE.md): first deliverable and its acceptance criteria
 - [docs/RESEARCH.md](docs/RESEARCH.md): reusable projects, data sources, realism rules
 - [docs/PLAN.fr.md](docs/PLAN.fr.md): owner summary in French, with open questions
+- [sonni/GUIDE-VPS.fr.md](sonni/GUIDE-VPS.fr.md): installing Sonni on its own VPS (French)
 - [docs/decisions/](docs/decisions/): accepted and proposed decisions
 - [AGENTS.md](AGENTS.md): rules for coding agents
 

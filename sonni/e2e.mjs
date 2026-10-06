@@ -125,15 +125,20 @@ const server = http.createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const PORT = server.address().port;
 
-// ─── Set up like the VPS guide, then add the trader block ───
+// ─── Set up like sonni/GUIDE-VPS.fr.md, with faster timers ───
 const env = { PATH: process.env.PATH, HOME, LANG: "C.UTF-8" };
 const run = (args) => execFileSync("node", args, { cwd: REPO, env, encoding: "utf-8" });
 console.log(`HOME=${HOME}`);
-run(["money-lab/vps/configure.mjs", "--chat-id", String(OWNER), "--vps-cost-per-month", "0", "--eur-usd", "1.16", "--daily-budget", "2", "--no-stripe"]);
+const configured = run(["sonni/vps/configure.mjs", "--chat-id", String(OWNER), "--monthly-budget-eur", "50", "--eur-usd", "1.16"]);
+/Configuration Sonni écrite/.test(configured) && /58\.00 \$, plafond 1\.93 \$\/jour/.test(configured) && /owner_funding 5800/.test(configured)
+  ? ok("sonni/vps/configure.mjs writes the config: 50 EUR = 58.00 $/month, 1.93 $/day")
+  : fail(`configure output unexpected: ${configured}`);
 const configPath = path.join(HOME, ".automaton", "automaton.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-const example = JSON.parse(fs.readFileSync(path.join(HERE, "automaton.sonni.example.json"), "utf-8"));
-config.trader = { ...example.trader, collectMinutes: 1, staleMinutes: 2 };
+if (config.moneyLab.stripe !== null || config.moneyLab.resources[0].expectedDailyCostCents !== 0) fail("configure kept Stripe or a VPS cost");
+if (fs.existsSync(path.join(HOME, ".automaton", "skills", "money-lab-strategy"))) fail("Money Lab strategy skill installed for Sonni");
+// Faster than production (5 / 15 min) so the run fits in two minutes.
+config.trader = { ...config.trader, collectMinutes: 1, staleMinutes: 2 };
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 run(["dist/index.js", "--money-lab", "ledger-add", "owner_funding", "5800", "budget-octobre"]);
 console.log(run(["dist/index.js", "--sonni", "idee", "BTC reste au-dessus de 59 000 EUR quand la semaine est calme"]).trim());

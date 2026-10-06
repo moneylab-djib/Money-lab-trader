@@ -37,6 +37,8 @@ Checks (configured in likma.project.json, run through the Likma checkout):
   - build: pnpm run build
   - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram, ~85 s)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
+Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/ (keep them in sync
+with config keys and commands).
 src/__tests__/context-hardening.test.ts hangs on unmodified upstream: plain `pnpm test` never finishes.
 No start command is configured: starting runs a paid agent and requires owner approval.
 

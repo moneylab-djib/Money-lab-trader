@@ -64,7 +64,7 @@
 
 - Runtime/framework: TypeScript on Node.js, starting from the Money Lab codebase (decision 0002).
 - Data/backend: SQLite (`state.db`) as canonical store; Markdown notebooks exported for the owner.
-- Deployment: the owner's existing VPS, as a separate Linux user and systemd service from Money Lab.
+- Deployment: Sonni's own VPS, separate from Money Lab (decision 0004); guide in sonni/GUIDE-VPS.fr.md.
 - Supported devices: Telegram clients only.
 - Non-negotiable constraints:
   - Budget 50 EUR/month for inference and paid data (decisions 0001 and 0003), enforced in process and

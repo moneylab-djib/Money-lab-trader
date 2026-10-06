@@ -136,8 +136,11 @@ leçons et t'envoie un rapport en français avec jusqu'à trois nouvelles intuit
 
 ## Avant le premier lancement réel (ton accord nécessaire)
 
-- Un utilisateur Linux séparé sur le VPS, pour que Sonni et Money Lab ne se mélangent pas.
-- Une clé API Anthropic dédiée, dans son propre espace avec une limite de dépense mensuelle.
-- Un nouveau bot Telegram (Sonni a son propre canal).
-- Budget de départ : 58 $ (environ 50 €), avec un plafond de 1,90 $ par jour. Tu ajoutes le mois
-  suivant avec `/fonds`. Le lissage exact sur le mois viendra plus tard.
+Sonni aura **son propre VPS** (ta décision du 6 octobre). Tout est expliqué pas à pas dans
+`sonni/GUIDE-VPS.fr.md` :
+
+- un petit VPS Ubuntu 24.04 (2 Go), payé à part, en dehors des 50 € de Sonni (proposition) ;
+- un espace Anthropic `Sonni` avec sa propre clé et une limite de dépense mensuelle (58 $ environ) ;
+- un nouveau bot Telegram ;
+- budget de départ : 58 $ (environ 50 €), plafond de 1,93 $ par jour ; tu ajoutes le mois suivant avec
+  `/fonds 58`. Le lissage exact sur le mois viendra plus tard.

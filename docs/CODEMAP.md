@@ -17,6 +17,7 @@
 | Sonni tests | src/__tests__/trader/sonni.test.ts | First-slice criteria with network and inference mocked | Any Sonni behaviour changes |
 | Sonni end-to-end | sonni/e2e.mjs | Real built process against fake Kraken, Anthropic and Telegram | Startup, timers, prompt, tools or Telegram behaviour change |
 | Sonni example config | sonni/automaton.sonni.example.json | Money Lab block plus trader block for a separate VPS user | Config keys or recommended limits change |
+| Sonni VPS setup | sonni/vps/configure.mjs | Writes Sonni's config on its own VPS; with sonni.service, sonni.env.example and sonni/GUIDE-VPS.fr.md | Deployment layout, config keys, budget rule or owner steps change |
 | Money Lab runtime | src/money-lab/ | Imported runtime (budgets, Telegram, guards, journal); see docs/upstream/MONEY-LAB-README.md | A runtime behaviour Sonni relies on changes |
 
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

@@ -1,0 +1,185 @@
+# Installer Sonni sur son propre serveur (VPS) — guide pas à pas
+
+Guide pour le propriétaire, en français. Aucune étape ne doit être faite par Sonni lui-même.
+Les prix et menus des sites cités changent : vérifie-les au moment de t'inscrire.
+
+Sonni tourne sur **son propre VPS**, séparé de Money Lab : une panne ou une installation de Money Lab ne
+peut pas l'arrêter, et le jour où il aura du vrai argent, ses clés ne seront jamais à côté d'un autre
+agent. Phase actuelle : **portefeuille virtuel uniquement**, aucune plateforme de trading, aucun compte
+à ouvrir hormis Anthropic et Telegram.
+
+**Ce qu'il te faut :** une carte bancaire, ton téléphone avec Telegram, un ordinateur, environ 1 heure.
+
+> Pour toutes les commandes : copie-colle une ligne, appuie sur **Entrée**, attends la fin avant la
+> suivante. Si une ligne affiche une erreur en rouge, arrête-toi et envoie-moi le message (sans clé ni
+> mot de passe).
+
+---
+
+## Étape 1 — Le cerveau : un espace Anthropic rien que pour Sonni
+
+Sonni ne doit jamais utiliser la clé de Money Lab : chaque bot a son budget et sa limite.
+
+1. Va sur https://console.anthropic.com (le même compte que Money Lab convient).
+2. **Workspaces / Espaces de travail** : crée un espace nommé `Sonni`.
+3. Dans cet espace, **Limits / Limites** : fixe une limite de dépense mensuelle, par exemple **58 $**
+   (environ 50 €). C'est ta protection ultime : même en cas de bug, Anthropic ne facturera pas au-delà.
+4. **Billing / Facturation** : vérifie qu'il reste assez de crédits pour le mois.
+5. **API Keys**, dans l'espace `Sonni` : crée une clé. Elle commence par `sk-ant-`. Copie-la dans un
+   endroit sûr (tu ne pourras plus la revoir). **Ne la donne à personne, ni dans un chat.**
+
+## Étape 2 — Son canal : un nouveau bot Telegram
+
+1. Dans Telegram, ouvre **@BotFather**, envoie `/newbot`, choisis un nom (ex : `Sonni`) et un
+   identifiant finissant par `bot` (ex : `sonni_courtier_bot`). BotFather te donne un **token** :
+   garde-le secret. Ce n'est pas le même bot que Money Lab.
+2. Ton **chat id** ne change pas : c'est le même nombre que pour Money Lab (sinon, demande-le à
+   **@userinfobot**).
+3. Ouvre la conversation avec **ton nouveau bot** et appuie sur **Démarrer** (sinon il ne pourra pas
+   t'écrire).
+
+## Étape 3 — Louer le serveur
+
+1. Chez ton hébergeur (le même que Money Lab, c'est plus simple), loue le plus petit VPS avec
+   **Ubuntu 24.04** et **2 Go de mémoire** (la compilation du programme en a besoin ; Sonni lui-même est
+   léger). Note son **adresse IP** et son **mot de passe root** (ou ta clé SSH).
+2. Son prix mensuel est à ta charge, **en dehors** des 50 €/mois de Sonni.
+
+## Étape 4 — Se connecter au serveur
+
+Sur ton ordinateur, ouvre **Terminal** (Mac) ou **PowerShell** (Windows), puis :
+```sh
+ssh root@ADRESSE_IP
+```
+Tape `yes` si on te le demande, puis le mot de passe. Tu es « dans » le serveur de Sonni.
+
+## Étape 5 — Préparer et installer
+
+Colle ces blocs l'un après l'autre :
+```sh
+apt update && apt -y upgrade
+apt -y install git curl ufw sudo
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt -y install nodejs
+node --version
+```
+La dernière ligne doit afficher `v22…`.
+
+```sh
+ufw allow OpenSSH && ufw --force enable
+useradd --create-home --shell /bin/bash sonni
+git clone https://github.com/moneylab-djib/Money-lab-trader /opt/sonni
+chown -R sonni:sonni /opt/sonni
+corepack enable pnpm
+cd /opt/sonni
+sudo -u sonni -H pnpm install --frozen-lockfile
+sudo -u sonni -H pnpm run build
+```
+> Tant que les pull requests #1 et #2 ne sont pas fusionnées dans `main`, remplace la ligne
+> `git clone` par :
+> `git clone -b claude/sonni-first-slice https://github.com/moneylab-djib/Money-lab-trader /opt/sonni`
+
+Aucun port n'est ouvert à part SSH : Sonni n'a besoin de rien recevoir d'internet.
+
+## Étape 6 — Configurer
+
+Remplace `123456789` par ton chat id (étape 2) et `1.16` par le taux euro→dollar du jour (cherche
+« EUR USD » sur internet) :
+```sh
+cd /opt/sonni
+sudo -u sonni -H node sonni/vps/configure.mjs --chat-id 123456789 --monthly-budget-eur 50 --eur-usd 1.16
+```
+Tu dois voir `Configuration Sonni écrite`, le budget en dollars et la commande de l'étape 7 : garde-la.
+
+Ensuite, le fichier des secrets (lisible uniquement par l'administrateur, **pas par Sonni**) :
+```sh
+cp sonni/vps/sonni.env.example /etc/sonni.env
+chown root:root /etc/sonni.env && chmod 600 /etc/sonni.env
+nano /etc/sonni.env
+```
+Remplace les deux `REPLACE_ME` par la clé Anthropic de l'étape 1 et le token Telegram de l'étape 2.
+Enregistre avec **Ctrl+O**, **Entrée**, puis quitte avec **Ctrl+X**.
+
+## Étape 7 — Donner son budget du mois
+
+Colle la commande affichée à l'étape 6 (pour 50 € à 1,16 : `5800` centimes de dollar), puis vérifie :
+```sh
+sudo -u sonni -H node dist/index.js --money-lab ledger-add owner_funding 5800 budget-mois-1
+sudo -u sonni -H node dist/index.js --money-lab status
+```
+Le statut doit montrer **Solde : 58.00 USD**. Chaque mois, ajoute le budget suivant depuis Telegram avec
+`/fonds 58` (et vérifie les crédits chez Anthropic).
+
+## Étape 8 — Ses premières intuitions
+
+Sonni ne peut pas faire de prédiction sans intuition à tester. Donne-lui-en deux ou trois, à ta façon.
+Exemples (à adapter) :
+```sh
+sudo -u sonni -H node dist/index.js --sonni idee "Après une baisse de plus de 3 % en une journée, le BTC remonte souvent dans les 24 heures"
+sudo -u sonni -H node dist/index.js --sonni idee "ETH suit le BTC dans le même sens sur 24 heures, mais en plus fort"
+sudo -u sonni -H node dist/index.js --sonni intuitions
+```
+Tu pourras en ajouter à tout moment depuis Telegram avec `/idee <texte>`, et il t'en proposera chaque
+dimanche.
+
+## Étape 9 — Démarrer Sonni (24 h/24)
+
+```sh
+cp sonni/vps/sonni.service /etc/systemd/system/sonni.service
+systemctl daemon-reload
+systemctl enable --now sonni
+ps -o user= -p $(systemctl show -p MainPID --value sonni)
+journalctl -u sonni -f
+```
+L'avant-dernière commande doit afficher `sonni` (le programme ne tourne jamais en root). La dernière
+affiche ce que fait Sonni en direct ; tu dois voir `[SONNI] Actif : BTC, ETH, prix toutes les 5 min`.
+**Ctrl+C** pour arrêter de regarder ; Sonni continue. Il redémarre tout seul en cas de plantage ou de
+redémarrage du serveur.
+
+## Étape 10 — Lui parler sur Telegram
+
+Envoie `/aide` à ton nouveau bot. Commandes :
+
+| Commande | Effet |
+| --- | --- |
+| `/statut` | prix, prédictions ouvertes et résolues avec leur score, intuitions, puis budget |
+| `/idee <texte>` | lui donner une intuition à tester |
+| `/intuitions` | ses intuitions, avec les preuves pour et contre et sa confiance calculée |
+| `/sante` | rapport de santé (envoyé aussi chaque matin) |
+| `/fonds 58` | ajouter le budget du mois suivant, en dollars |
+| `/pause [raison]` / `/reprendre` | arrêter / relancer ses dépenses |
+| tout autre message | transmis à Sonni comme une conversation |
+
+Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), fait quelques séances de
+décision par jour, note ses prédictions, et le code les juge à l'échéance. Chaque dimanche, il fait sa
+revue et t'envoie un rapport en français.
+
+## Mettre Sonni à jour
+
+```sh
+cd /opt/sonni
+sudo -u sonni -H git pull
+sudo -u sonni -H pnpm install --frozen-lockfile
+sudo -u sonni -H pnpm run build
+systemctl restart sonni
+```
+Ses prix, prédictions et intuitions sont conservés. La pause (`/pause`) aussi : relance avec
+`/reprendre`.
+
+## Arrêter Sonni
+
+1. Telegram : `/pause fin` (plus aucune dépense d'inférence).
+2. Serveur : `systemctl stop sonni` puis `systemctl disable sonni`.
+3. Sauvegarde (sa mémoire) : `cp /home/sonni/.automaton/state.db /root/sonni-state.db`, puis
+   télécharge-la chez toi.
+4. **La pause n'arrête pas les factures** : supprime le VPS chez l'hébergeur quand tu n'en as plus besoin.
+
+## Limites à connaître
+
+- Phase virtuelle : aucun argent réel, aucune clé de plateforme sur ce serveur. Ne mets **jamais** une
+  clé de trading sur ce serveur sans qu'on ait préparé ensemble la phase réelle.
+- Les plafonds de dépense sont appliqués dans le programme ; une commande shell détournée pourrait les
+  contourner. Ta vraie protection est la limite de l'espace `Sonni` chez Anthropic.
+- Le budget est lissé par un plafond quotidien (1/30 du mois) ; le lissage exact sur le mois viendra
+  dans une prochaine étape.
+- Sonni s'arrête quand son solde passe sous zéro, jusqu'à ce que tu ajoutes le budget suivant.
