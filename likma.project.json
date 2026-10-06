@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "name": "money-lab-trader",
+  "commands": {
+    "start": [],
+    "check": {}
+  },
+  "required_env": [],
+  "required_paths": [],
+  "check_timeout_seconds": 120,
+  "budget": {
+    "max_failed_attempts": 3,
+    "max_minutes": 60,
+    "max_cost": null,
+    "currency": "EUR"
+  },
+  "code_map": []
+}
