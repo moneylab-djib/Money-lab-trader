@@ -51,7 +51,19 @@ Sur ton ordinateur, ouvre **Terminal** (Mac) ou **PowerShell** (Windows), puis :
 ```sh
 ssh root@ADRESSE_IP
 ```
-Tape `yes` si on te le demande, puis le mot de passe. Tu es « dans » le serveur de Sonni.
+Tape `yes` si on te le demande, puis le mot de passe (il ne s'affiche pas quand tu tapes, c'est
+normal ; pour coller dans PowerShell, fais un clic droit). Tu es « dans » le serveur de Sonni.
+
+**Mot de passe refusé ?** Chez plusieurs hébergeurs (OVH notamment), on ne se connecte pas en `root`
+sur Ubuntu mais avec l'utilisateur `ubuntu` :
+```sh
+ssh ubuntu@ADRESSE_IP
+sudo -i
+```
+La première connexion peut demander de changer le mot de passe (l'ancien, puis deux fois le nouveau).
+Après `sudo -i`, la ligne finit par `root@…:~#` : continue le guide normalement. Si c'est encore refusé,
+vérifie l'adresse IP (celle du **nouveau** VPS) ou réinitialise le mot de passe depuis l'espace client
+de l'hébergeur.
 
 ## Étape 5 — Préparer et installer
 
