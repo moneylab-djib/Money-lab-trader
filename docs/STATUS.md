@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-07
-- Branch / commit: claude/sonni-alive (step 3, stacked on claude/sonni-world, PR #4)
+- Branch / commit: main (PRs #1 to #5 merged on 2026-10-07; this follow-up: claude/sonni-guide-main)
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
@@ -127,6 +127,8 @@
   - Money Lab's experiment-oriented texts remain in some owner commands (/aides, /resume).
 - First live run (owner's VPS, 2026-10-06 22:12 UTC): two predictions due 2026-10-07 22:12 UTC.
 - Blockers: none for code. The owner must create free reader keys (optional) and update the VPS.
+- PRs #1 to #5 were merged into main by the owner on 2026-10-07 (05:32 to 05:38 UTC, merge commits);
+  main now carries the whole of Sonni and the guide points the VPS at main.
 - Next concrete action: owner re-runs `sudo -u sonni -H node sonni/vps/configure.mjs ...` on the VPS
   (without adding budget), adds GEMINI_API_KEY / GROQ_API_KEY to /etc/sonni.env if wanted, restarts,
   checks /lecteurs, /sources, /identite. Proposed next engineering task: a guard map for Sonni per the
