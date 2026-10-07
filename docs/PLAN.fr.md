@@ -1,8 +1,9 @@
 # Sonni — plan pour le propriétaire
 
 Résumé en français de la spécification (les documents techniques sont en anglais : `PROJECT.md`,
-`ARCHITECTURE.md`, `docs/MEMORY.md`). État au 6 octobre 2026 : **étape 1 construite et vérifiée
-avec de fausses API**, pas encore lancée. Aucun compte, aucun argent engagé.
+`ARCHITECTURE.md`, `docs/MEMORY.md`). État au 7 octobre 2026 : **étapes 1, 1 bis, 1 ter et
+1 quater construites et vérifiées avec de fausses API** ; la première tranche tourne sur son VPS
+depuis le 6 octobre. Aucun compte créé par Sonni, aucun argent réel engagé.
 
 ## Ce qu'on construit
 
@@ -74,6 +75,31 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    bougé ces jours-là, et Sonni peut tester des intuitions du type « le BTC bouge de plus de 3 % les
    jours de Fed ou d'inflation ». Nouvelle commande : `/agenda`. La lecture des articles par Haiku est
    remise à plus tard : Sonni lit les titres directement, ce qui ne coûte rien de plus.
+1 quater. **Sonni vivant** ✅ construite le 7 octobre (ta demande : « le plus vivant possible »).
+   - *Il se connaît* : une identité qu'il écrit lui-même en français (chaque version est gardée, une
+     révision par jour au plus, `/identite`), un journal (post-mortem de chaque prédiction notée,
+     notes de séance, `/journal`), des leçons appuyées sur des preuves que tu peux retirer
+     (`/lecons`, `/veto <id>`), et un **bilan calculé par le code** (calibration, score par actif et
+     par horizon, dépense du jour, `/bilan`) qu'il lit avant de réfléchir : il se juge sur des mesures,
+     pas sur des impressions.
+   - *Il est curieux* : le code le réveille (au plus 6 fois par jour, espacées de 30 min, jamais en
+     pause ni sous plafond) quand un actif bouge de 3 % en une heure, le matin d'un événement et le
+     lendemain, quand des prédictions sont résolues, ou quand une « veille » qu'il a posée se
+     déclenche (un niveau de prix, un mouvement, une date pour revoir une question). `/reveils`.
+   - *Il cherche ses outils* : un catalogue de sources de données gratuites qu'il active ou
+     désactive avec une raison (peur et avidité, capitalisation du marché, carnet d'ordres Kraken,
+     frais Bitcoin, et avec ta clé FRED les taux et l'inflation) ; il peut te proposer une nouvelle
+     source publique que tu acceptes ou refuses (`/sources`, `/source ok|non <id>`) ; il lit une page
+     publique quand il en a besoin (20 par jour au plus, hôtes privés interdits) ; il choisit ses
+     actifs parmi les paires Kraken en euros, chaque changement motivé (`/actifs`).
+   - *Il utilise des IA gratuites pour lire* : avec une clé gratuite Google AI Studio (Gemini) ou
+     Groq que tu ajoutes dans `/etc/sonni.env`, un modèle « lecteur » transforme chaque heure les
+     titres en observations datées (actif, type, sentiment) et résume les pages lues. Ces modèles
+     lisent, ils ne décident jamais ; tout ce qu'ils produisent est de la donnée non fiable, vérifiée
+     champ par champ par le code. Sans clé, Sonni lit les titres bruts comme avant. `/lecteurs`.
+   - Au passage : les couches « survie » et d'orchestration du runtime Automaton ne sont plus dans
+     son prompt, et le bloc qui change à chaque tour est placé en dernier, pour que le cache couvre
+     presque tout (moins cher à chaque tour).
 2. **Portefeuille virtuel** : 1 000 € virtuels au départ, ordres fictifs, frais et glissement
    simulés, versement virtuel de 50 €/mois.
 3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.
@@ -141,6 +167,9 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 - `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
 - `/statut` : prix, prédictions ouvertes et résolues avec leur score, puis le budget.
+- `/bilan`, `/identite`, `/journal`, `/lecons`, `/veto <id>` : ce qu'il mesure sur lui-même et ce
+  qu'il écrit sur lui-même.
+- `/reveils`, `/lecteurs`, `/sources`, `/source ok|non <id>`, `/actifs` : sa curiosité et ses outils.
 - `/pause`, `/reprendre`, `/sante` : comme pour Money Lab.
 
 Chaque dimanche, il fait sa revue : il compare ses probabilités à ce qui s'est passé, réécrit ses

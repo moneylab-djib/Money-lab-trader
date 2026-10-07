@@ -35,7 +35,7 @@ Checks (configured in likma.project.json, run through the Likma checkout):
   - sonni: pnpm exec vitest run src/__tests__/trader
   - money-lab: pnpm exec vitest run src/__tests__/money-lab (imported runtime regression suite)
   - build: pnpm run build
-  - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram, ~2 min)
+  - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~4 min)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/ (keep them in sync
 with config keys and commands).
@@ -43,10 +43,15 @@ src/__tests__/context-hardening.test.ts hangs on unmodified upstream: plain `pnp
 No start command is configured: starting runs a paid agent and requires owner approval.
 
 ## Code layout
-Sonni lives in src/trader/ with small hooks in src/index.ts, src/agent/loop.ts,
-src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts
-and src/conway/inference.ts. The rest is the Money Lab runtime imported at a pinned commit
-(docs/upstream/): prefer changes under src/trader/ over edits to imported modules.
+Sonni lives in src/trader/ (config, schema, prices, candles, rules, historical, hypotheses,
+predictions, intake, events, news, readers, pages, sources + catalog, universe, soul, curiosity, pack,
+prompt, tools, status, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
+src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts,
+src/money-lab/recall.ts and src/conway/inference.ts. The rest is the Money Lab runtime imported at a
+pinned commit (docs/upstream/): prefer changes under src/trader/ over edits to imported modules.
+Sonni's prompt: automaton survival/orchestration layers are skipped; the stable part (mission, identity,
+lessons, tools) is cached and the "--- SONNI RULES" block is last (volatile). Reader models (free,
+OpenAI-compatible) only read; their keys and the data-source keys are sealed secrets.
 
 ## Likma tracking
 Track features in .likma/features.json and docs/FEATURES.md; keep docs/CODEMAP.md current via

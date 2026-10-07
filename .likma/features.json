@@ -102,6 +102,74 @@
         "report": ".likma/checks/bdffe1945d194ed18aca4006421b52a9.json",
         "contract": "127a4a9aa0f5aea74b707ef0b99970f1fcd7ae6040e1a453a4459cb124f20f85"
       }
+    },
+    {
+      "id": "identity-journal",
+      "title": "Sonni knows itself: versioned identity, append-only journal, lessons with evidence, self-report computed by code",
+      "criteria": [
+        "The identity starts from a code-written seed; the model may revise it at most once per UTC day, keeping the anchor words; every version is kept and the owner can read them",
+        "A post-mortem can only be written for a scored prediction, once; reflections are append-only and capped per day",
+        "A lesson needs at least one existing prediction or hypothesis as evidence, is capped per day and in number, and is retired (never deleted) by the model or by the owner's /veto",
+        "The self-report (calibration buckets, Brier by asset, horizon and direction, counts, spend) is computed by code and shown in the memory pack and /bilan",
+        "After a prediction resolves, the next wake carries the reflection instructions and code marks the reflection done once a paid turn ran",
+        "Identity and active lessons sit in the cached part of the system prompt; the rules block with the day's counters is the last, volatile part",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "built",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.416055+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      }
+    },
+    {
+      "id": "curiosity-wakes",
+      "title": "Sonni is curious: code-evaluated triggers and model-set watches wake it from sleep within owner caps",
+      "criteria": [
+        "A move of moveAlertPct within an hour, an event day morning, the morning after an event, resolved predictions, or a fired watch produce a trigger; triggers are logged delivered or not",
+        "At most one wake per tick, at most maxSelfWakesPerDay delivered per UTC day, spaced by minMinutesBetweenWakes, and only while sleeping, unpaused and not on a budget cap",
+        "The model's watches (price level, move over a window, date) are validated, fire once, cannot fire at once, and their conditions cannot be edited",
+        "Sonni's own wake events end a Money Lab sleep (fixing the ignored intake wake) and the wake reason reaches the model",
+        "The memory pack lists what happened since the last session and /reveils shows the wakes in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "built",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.514420+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      }
+    },
+    {
+      "id": "free-readers",
+      "title": "Sonni uses free reader models for reading, never for deciding: headlines and pages become validated observations",
+      "criteria": [
+        "Readers are OpenAI-compatible endpoints configured with a key environment variable sealed at startup; a reader without a key is skipped and the key never appears in errors or logs",
+        "Calls are counted per reader and per UTC day against the configured cap; a failing reader rests and the next one is tried",
+        "Every digest item is validated (index, assets, kind, sentiment range, summary length, prompt-boundary patterns) and stored as an untrusted observation; headlines are marked digested only when a reader answered",
+        "read_page accepts only https public hosts (private and link-local addresses, redirects into them and the runtime's own hosts refused), caps bytes and characters, is limited per day, and returns untrusted data",
+        "The memory pack shows observations per asset with code-averaged sentiment; /lecteurs shows reader status in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "built",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.609771+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      }
+    },
+    {
+      "id": "own-sources",
+      "title": "Sonni finds its own tools: a catalog of free data sources it enables, sources it proposes to the owner, and the assets it chooses",
+      "criteria": [
+        "The catalog is loaded once with safe defaults enabled; the model enables or disables a source with a logged reason and may propose a keyless public endpoint that waits for the owner's /source ok or non",
+        "Sources are polled by code on their own cadence; metrics are extracted by JSON path, keys are substituted without leaking, failures are counted and a source is disabled after MAX_FAILURES with the owner told",
+        "A followed asset must be a Kraken EUR pair checked against the public pair list; changes are logged with reasons, at least one asset stays, an asset with open predictions cannot be dropped, and every tick, tool, status and pack uses the live universe",
+        "The memory pack shows the latest source values with 24 h and 7 d references; /sources and /actifs answer in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "built",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.709300+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      }
     }
   ]
 }

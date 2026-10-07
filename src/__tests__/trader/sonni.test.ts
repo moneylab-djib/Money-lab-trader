@@ -234,7 +234,13 @@ describe("Criterion 3: prediction validation", () => {
 
 describe("Criterion 4: predictions are append-only", () => {
   it("offers the agent no tool to change a prediction", () => {
-    expect(createTraderTools().map((t) => t.name)).toEqual(["propose_hypothesis", "sonni_memory", "record_prediction"]);
+    const names = createTraderTools().map((t) => t.name);
+    expect(names).toEqual([
+      "propose_hypothesis", "sonni_memory", "record_prediction", "write_reflection", "add_lesson", "retire_lesson",
+      "revise_identity", "set_watch", "read_page", "manage_source", "follow_asset",
+    ]);
+    // Only record_prediction touches predictions, and it only inserts.
+    expect(names.filter((n) => /predict|resolve|outcome|confidence/.test(n))).toEqual(["record_prediction"]);
   });
 
   it("refuses updates and deletes at the database level, except the single resolution by code", () => {

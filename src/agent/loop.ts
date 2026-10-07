@@ -71,7 +71,8 @@ import { seedAnthropicModels, survivalBalance } from "../money-lab/selfhosted.js
 import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 import { createTraderTools } from "../trader/tools.js";
-import { SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { markReflectionDone, reflectionDue, startReflection } from "../trader/soul.js";
 import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
 import { ensureTraderSchema } from "../trader/schema.js";
 import { paidCallBlockReason } from "../money-lab/guard.js";
@@ -443,6 +444,7 @@ export async function runAgentLoop(
   let reviewPending = false;
   let reviewModelTurns = 0;
   let intakePending = false;
+  let reflectionPending = false;
   if (moneyLab) {
     const reason = db.getKV(MONEY_LAB_WAKE_REASON_KEY);
     if (reason) {
@@ -458,10 +460,17 @@ export async function runAgentLoop(
       wakeupInput += `\n\n${SONNI_INTAKE_INSTRUCTIONS}`;
     } else if (trader) {
       closeIntakeWake(db.raw);
+      // Sonni: predictions resolved since the last reflection get their post-mortems first.
+      if (reflectionDue(db.raw)) {
+        startReflection(db.raw);
+        reflectionPending = true;
+        wakeupInput += `\n\n${SONNI_REFLECTION_INSTRUCTIONS}`;
+      }
     }
     if (isReviewDue(db.raw)) {
       reviewPending = true;
-      reviewModelTurns = REVIEW_MODEL_TURNS;
+      // A review due on an intake wake does not cut the intake's longer run on the stronger model.
+      reviewModelTurns = Math.max(reviewModelTurns, REVIEW_MODEL_TURNS);
       wakeupInput += `\n\n${trader ? SONNI_REVIEW_INSTRUCTIONS : REVIEW_INSTRUCTIONS}`;
     }
   }
@@ -633,17 +642,21 @@ export async function runAgentLoop(
       });
 
       // Phase 2.2: Pre-turn memory retrieval
+      // Sonni: its memory lives in its own stores (docs/MEMORY.md), read through
+      // sonni_memory; Automaton's generic extraction would split it and add noise.
       let memoryBlock: string | undefined;
-      try {
-        const sessionId = db.getKV("session_id") || "default";
-        const retriever = new MemoryRetriever(db.raw, DEFAULT_MEMORY_BUDGET);
-        const memories = retriever.retrieve(sessionId, pendingInput?.content);
-        if (memories.totalTokens > 0) {
-          memoryBlock = formatMemoryBlock(memories);
+      if (!trader) {
+        try {
+          const sessionId = db.getKV("session_id") || "default";
+          const retriever = new MemoryRetriever(db.raw, DEFAULT_MEMORY_BUDGET);
+          const memories = retriever.retrieve(sessionId, pendingInput?.content);
+          if (memories.totalTokens > 0) {
+            memoryBlock = formatMemoryBlock(memories);
+          }
+        } catch (error) {
+          logger.error("Memory retrieval failed", error instanceof Error ? error : undefined);
+          // Memory failure must not block the agent loop
         }
-      } catch (error) {
-        logger.error("Memory retrieval failed", error instanceof Error ? error : undefined);
-        // Memory failure must not block the agent loop
       }
 
       let messages = buildContextMessages(
@@ -822,6 +835,11 @@ export async function runAgentLoop(
         recordIntakeAttempt(db.raw);
         intakePending = false;
       }
+      // Sonni: the reflection counts as done once a paid turn ran with its instructions.
+      if (reflectionPending && routerResult.finishReason !== "budget_exceeded") {
+        markReflectionDone(db.raw);
+        reflectionPending = false;
+      }
 
       // Build a compatible response for the rest of the loop
       const response = {
@@ -916,14 +934,16 @@ export async function runAgentLoop(
       });
       onTurnComplete?.(turn);
 
-      // Phase 2.2: Post-turn memory ingestion (non-blocking)
-      try {
-        const sessionId = db.getKV("session_id") || "default";
-        const ingestion = new MemoryIngestionPipeline(db.raw);
-        ingestion.ingest(sessionId, turn, turn.toolCalls);
-      } catch (error) {
-        logger.error("Memory ingestion failed", error instanceof Error ? error : undefined);
-        // Memory failure must not block the agent loop
+      // Phase 2.2: Post-turn memory ingestion (non-blocking); not for Sonni (see retrieval above).
+      if (!trader) {
+        try {
+          const sessionId = db.getKV("session_id") || "default";
+          const ingestion = new MemoryIngestionPipeline(db.raw);
+          ingestion.ingest(sessionId, turn, turn.toolCalls);
+        } catch (error) {
+          logger.error("Memory ingestion failed", error instanceof Error ? error : undefined);
+          // Memory failure must not block the agent loop
+        }
       }
 
       // ── create_goal BLOCKED fast-break ──

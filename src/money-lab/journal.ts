@@ -533,10 +533,21 @@ export function journalFingerprint(db: DB): string {
   const help = db.prepare("SELECT COALESCE(MAX(resolved_at), '') AS t FROM money_lab_help_requests").get() as any;
   // Discovery work (the idea pipeline) is progress too.
   const ideas = createHash("sha256").update(getKV(db, "money_lab.ideas") ?? "").digest("hex").slice(0, 16);
-  // Sonni: a recorded prediction is progress.
+  // Sonni: a recorded prediction is progress, and so is any write to its
+  // own memory (hypothesis, reflection, lesson, identity, watch, source
+  // decision, asset choice): a cycle spent reflecting is not an idle one.
   const hasTrader = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_predictions'").get();
   const predictions = hasTrader ? (db.prepare("SELECT COUNT(*) AS n FROM trader_predictions").get() as any).n : 0;
-  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}`;
+  const hasAlive = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_reflections'").get();
+  const memory = hasAlive
+    ? (db.prepare(
+        `SELECT (SELECT COUNT(*) FROM trader_hypotheses) || '/' || (SELECT COUNT(*) FROM trader_reflections) || '/' ||
+                (SELECT COUNT(*) FROM trader_lessons) || '/' || (SELECT COALESCE(MAX(retired_at), '') FROM trader_lessons) || '/' ||
+                (SELECT COUNT(*) FROM trader_identity) || '/' || (SELECT COUNT(*) FROM trader_watches) || '/' ||
+                (SELECT COUNT(*) FROM trader_source_log) || '/' || (SELECT COUNT(*) FROM trader_universe) AS m`,
+      ).get() as any).m
+    : "";
+  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}`;
 }
 
 /** Closed help requests, most recently resolved first. */

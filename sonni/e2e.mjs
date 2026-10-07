@@ -9,7 +9,10 @@
 // pack and records a prediction linked to the owner's hypothesis; Money
 // Lab's web-business tools not offered; daily history fetched and the
 // intake run on the stronger model with code's historical verdict;
-// /statut answered in French.
+// headlines digested by a (fake) free reader into an observation shown in
+// the pack; data sources polled into indicators; a watch and a reflection
+// written by the model; a self-wake on a large price move; /statut,
+// /identite, /sources and /bilan answered in French.
 import http from "http";
 import { spawn, execFileSync } from "child_process";
 import fs from "fs";
@@ -64,19 +67,34 @@ function intakeModel(body, results) {
   return reply([use("sleep", { duration_seconds: 3600, reason: "intake done" })]);
 }
 
+let wokenByMove = false;
 function model(body) {
   const results = toolResults(body);
   const lastUser = [...body.messages].reverse().find((m) => m.role === "user");
-  const inIntake = JSON.stringify(lastUser ?? "").includes("SONNI INTAKE") || (intake.proposed && !intake.done);
+  const lastUserText = JSON.stringify(lastUser ?? "");
+  const inIntake = lastUserText.includes("SONNI INTAKE") || (intake.proposed && !intake.done);
   if (inIntake) return intakeModel(body, results);
+  // The self-wake after the price jump: the runtime says why it woke the model.
+  if (/Wake-up reason: BTC \+\d/.test(lastUserText) && !wokenByMove) {
+    wokenByMove = true;
+    ok("woken by code after the BTC move, with the reason in the wake message");
+    return reply([use("sleep", { duration_seconds: 3600, reason: "nothing to add after the move" })]);
+  }
   const system = (body.system ?? []).map((b) => b.text).join("") + JSON.stringify(body.messages.filter((m) => m.role === "system"));
   switch (step) {
     case 0: {
       system.includes("## Sonni Mission") ? ok("Sonni mission in the system prompt") : fail("Sonni mission missing");
       if (system.includes("## Money Lab Mission")) fail("Money Lab mission still in the prompt");
+      if (system.includes("Pay for compute or die")) fail("automaton survival rules still in Sonni's prompt");
+      /## Your identity \(version 1/.test(system) ? ok("seed identity in the system prompt") : fail("identity block missing");
+      // Everything up to the rules block is cacheable: the rules block must be the last system text.
+      const rulesAt = system.indexOf("--- SONNI RULES");
+      rulesAt > 0 && system.indexOf("--- AVAILABLE TOOLS ---") < rulesAt ? ok("rules block after the tool list (cached prefix)") : fail("rules block not last in the system prompt");
       const offered = new Set(body.tools.map((t) => t.name));
-      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep"]) if (!offered.has(t)) fail(`tool ${t} not offered`);
-      for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child"]) if (offered.has(t)) fail(`tool ${t} offered`);
+      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson"]) {
+        if (!offered.has(t)) fail(`tool ${t} not offered`);
+      }
+      for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal"]) if (offered.has(t)) fail(`tool ${t} offered`);
       step++;
       return reply([use("sonni_memory", {})]);
     }
@@ -84,6 +102,11 @@ function model(body) {
       const pack = results.find((r) => r.includes("MEMORY PACK")) ?? "";
       /news\.example: Spot ETF inflows reach a record/.test(pack) && /UNTRUSTED DATA/.test(pack)
         ? ok("memory pack shows the fetched headline as untrusted data") : fail("headline missing from the memory pack");
+      /Observations, last 24 h \(1,[^\n]*\n- BTC: 1 item\(s\), mean sentiment \+0\.60\n\s+[^\n]*\[etf\] Record inflows into spot bitcoin ETFs/.test(pack)
+        ? ok("memory pack shows the observation the fake reader extracted") : fail("observation from the reader missing from the memory pack");
+      /Indicators from your sources[^\n]*\n(- [^\n]*\n)*- Crypto Fear & Greed \(alternative\.me\) index: 27\.00/.test(pack)
+        ? ok("memory pack shows the Fear & Greed index polled from the fake source") : fail("source indicator missing from the memory pack");
+      /SELF-REPORT \(computed by code/.test(pack) ? ok("memory pack carries the self-report") : fail("self-report missing");
       /Upcoming events[^\n]*\n- \d{4}-\d{2}-\d{2} fomc/.test(pack) ? ok("memory pack shows the next Fed decision") : fail("Fed decision missing from the memory pack");
       hypothesisId = pack.match(/h_[0-9A-Z]+/)?.[0] ?? null;
       /BTC: \d+\.\d\d EUR/.test(pack) ? ok("memory pack shows the collected BTC price") : fail("memory pack has no BTC price");
@@ -97,6 +120,15 @@ function model(body) {
     }
     case 2: {
       results.some((r) => /Prediction p_\w+ recorded/.test(r)) ? ok("prediction recorded through the agent loop") : fail(`prediction not recorded: ${results.at(-1)}`);
+      step++;
+      return reply([
+        use("set_watch", { action: "add", kind: "price", asset: "BTC", direction: "above", value: 70000, note: "Si BTC dépasse 70 000, revoir mon hypothèse de marché calme" }),
+        use("write_reflection", { kind: "session", content: "Première séance : marché calme, une prédiction prudente à 24 h et une veille au-dessus de 70 000 EUR." }),
+      ]);
+    }
+    case 3: {
+      results.some((r) => /Watch set: w_\w+ \[price\] BTC above 70000 EUR/.test(r)) ? ok("watch set through the agent loop") : fail(`watch not set: ${results.at(-1)}`);
+      results.some((r) => /Reflection r_\w+ \(session\) recorded/.test(r)) ? ok("reflection written through the agent loop") : fail(`reflection not written: ${results.at(-1)}`);
       step++;
       return reply([use("sleep", { duration_seconds: 3600, reason: "next session" })]);
     }
@@ -117,7 +149,11 @@ const tgSend = (text) => tgQueue.push({
 const krakenCalls = [];
 const ohlcCalls = [];
 let gdeltCalls = 0;
+let readerCalls = 0;
+const sourceCalls = { fng: 0, coingecko: 0, mempool: 0, depth: 0 };
 let tick = 0;
+/** Once set, the fake ticker jumps 4 % so code wakes the sleeping agent. */
+let jump = false;
 
 const server = http.createServer(async (req, res) => {
   let raw = "";
@@ -146,6 +182,32 @@ const server = http.createServer(async (req, res) => {
     const seen = new Date(Date.now() - 1_800_000).toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
     return send(200, { articles: [{ url: "https://news.example/etf", title: "Spot ETF inflows reach a record", domain: "news.example", seendate: seen }] });
   }
+  if (url.pathname.startsWith("/gemini/")) {
+    // Fake free reader: an OpenAI-compatible completion that digests the single headline.
+    readerCalls++;
+    if (req.headers.authorization !== "Bearer gem-e2e") fail(`reader called without the sealed key (${req.headers.authorization})`);
+    const body = JSON.parse(raw);
+    if (body.model !== "gemini-2.5-flash" || body.response_format?.type !== "json_object") fail(`reader request unexpected: ${JSON.stringify(body).slice(0, 200)}`);
+    const content = JSON.stringify({ items: [{ i: 0, assets: ["BTC"], kind: "etf", sentiment: 0.6, summary: "Record inflows into spot bitcoin ETFs." }] });
+    return send(200, { id: "chatcmpl-e2e", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] });
+  }
+  if (url.pathname.startsWith("/groq/")) return send(401, { error: { message: "no key" } });
+  if (url.pathname.startsWith("/fng/")) {
+    sourceCalls.fng++;
+    return send(200, { name: "Fear and Greed Index", data: [{ value: "27", value_classification: "Fear", timestamp: String(Math.floor(Date.now() / 1000)) }] });
+  }
+  if (url.pathname.startsWith("/coingecko/")) {
+    sourceCalls.coingecko++;
+    return send(200, { data: { total_market_cap: { eur: 2.1e12 }, market_cap_percentage: { btc: 58.2, eth: 12.1 }, market_cap_change_percentage_24h_usd: -1.4 } });
+  }
+  if (url.pathname.startsWith("/mempool/")) {
+    sourceCalls.mempool++;
+    return send(200, { fastestFee: 12, halfHourFee: 10, hourFee: 8, economyFee: 4, minimumFee: 2 });
+  }
+  if (url.pathname.startsWith("/kraken/0/public/Depth")) {
+    sourceCalls.depth++;
+    return send(200, { error: [], result: { XXBTZEUR: { asks: [["60010.0", "1.000", 1]], bids: [["59990.0", "1.000", 1]] } } });
+  }
   if (url.pathname.startsWith("/kraken/0/public/OHLC")) {
     // 400 committed days in a 5-day cycle (+1, -1, +1, -4, +5 %), then the unfinished day.
     const pair = url.searchParams.get("pair");
@@ -166,7 +228,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith("/kraken/0/public/Ticker")) {
     const pair = url.searchParams.get("pair");
     krakenCalls.push({ at: Date.now(), pair });
-    const price = pair === "XBTEUR" ? 60000 + 10 * ++tick : 2400 + tick;
+    const price = pair === "XBTEUR" ? (jump ? 62500 : 60000 + 10 * ++tick) : 2400 + tick;
     return send(200, { error: [], result: { [`X${pair}Z`]: { c: [String(price), "0.01"] } } });
   }
   if (url.pathname.startsWith("/telegram/")) {
@@ -210,7 +272,7 @@ let out = "";
 function start() {
   child = spawn("node", ["dist/index.js", "--run"], {
     cwd: REPO,
-    env: { ...env, ANTHROPIC_API_KEY: "sk-ant-e2e", TELEGRAM_BOT_TOKEN: "123:e2e", E2E_PORT: String(PORT),
+    env: { ...env, ANTHROPIC_API_KEY: "sk-ant-e2e", TELEGRAM_BOT_TOKEN: "123:e2e", GEMINI_API_KEY: "gem-e2e", E2E_PORT: String(PORT),
       NODE_OPTIONS: `--import ${path.join(HERE, "e2e-preload.mjs")}` },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -243,9 +305,19 @@ intake.model === "claude-opus-5-5" ? ok("intake runs on the stronger model") : f
   ? ok("propose_hypothesis returns code's historical verdict")
   : fail(`unexpected intake verdict: ${intake.verdict}`);
 
+readerCalls >= 1 ? ok("headline digested by the fake free reader at startup") : fail("reader never called");
+sourceCalls.fng >= 1 && sourceCalls.coingecko >= 1 && sourceCalls.mempool >= 1 && sourceCalls.depth >= 1
+  ? ok("default data sources polled at startup") : fail(`sources not polled: ${JSON.stringify(sourceCalls)}`);
+
 // The owner's message wakes Sonni for a normal decision session.
 tgSend("Bonjour Sonni, regarde le marché.");
-await until(() => step >= 3, 60000) || fail(`decision session stopped at step ${step}`);
+await until(() => step >= 4, 60000) || fail(`decision session stopped at step ${step}`);
+
+// A 4 % jump in the next collections: code wakes the sleeping agent (at most one wake per 30 min).
+await until(() => /Agent chose to sleep|Entering sleep mode/.test(out) && step >= 4, 20000);
+jump = true;
+await until(() => wokenByMove, 150000) || fail("no self-wake after the 4 % move within 150 s");
+/\[SONNI\] Réveil : BTC \+\d/.test(out) ? ok("runtime logged the curiosity wake") : fail("curiosity wake not logged");
 
 tgSend("/agenda");
 await until(() => tgOutbox.some((m) => /décision de taux de la Fed/.test(m.text)), 30000)
@@ -256,14 +328,28 @@ tgSend("/statut");
 await until(() => tgOutbox.some((m) => /SONNI/.test(m.text)), 30000) || fail("/statut got no Sonni answer");
 const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 /Prédictions ouvertes \(1\)/.test(statut) ? ok("/statut shows the open prediction in French") : fail("/statut lacks the open prediction");
-/BTC : 60\s?0\d\d,00 €/.test(statut) ? ok("/statut shows the BTC price in euros") : fail("/statut lacks the BTC price");
+// 62 500 EUR after the jump (narrow no-break space from the French locale).
+/BTC : 62\s?500,00 €/.test(statut) ? ok("/statut shows the BTC price in euros") : fail("/statut lacks the BTC price");
 /confirmée par l'historique/.test(statut) ? ok("/statut shows the historical verdict in French") : fail("/statut lacks the historical verdict");
+/Vie de Sonni : 1 réveil\(s\) sur 6 aujourd'hui/.test(statut) ? ok("/statut counts the self-wake") : fail("/statut does not count the self-wake");
+
+tgSend("/identite");
+await until(() => tgOutbox.some((m) => /Identité de Sonni — version 1, écrite par le code/.test(m.text)), 30000)
+  ? ok("/identite shows the seed identity in French") : fail("/identite got no answer");
+tgSend("/sources");
+await until(() => tgOutbox.some((m) => /fear_greed \[active\]/.test(m.text) && /index: 27\.00/.test(m.text)), 30000)
+  ? ok("/sources lists the sources and the polled value") : fail("/sources got no answer");
+tgSend("/journal");
+await until(() => tgOutbox.some((m) => /Première séance : marché calme/.test(m.text)), 30000)
+  ? ok("/journal shows the reflection written by the model") : fail("/journal lacks the reflection");
+tgSend("/bilan");
+await until(() => tgOutbox.some((m) => /BILAN DE SONNI/.test(m.text)), 30000) ? ok("/bilan answers in French") : fail("/bilan got no answer");
 
 // Restart: stored prices and the prediction survive, collection resumes.
 child.kill("SIGTERM");
 await wait(2000);
 const afterStop = pricesStored();
-/Prédictions ouvertes \(1\)/.test(afterStop) && /BTC : 60/.test(afterStop)
+/Prédictions ouvertes \(1\)/.test(afterStop) && /BTC : 62/.test(afterStop)
   ? ok("prices and prediction kept after the process stopped")
   : fail("state lost after stopping the process");
 const callsBefore = krakenCalls.length;
@@ -276,7 +362,8 @@ child.kill("SIGTERM");
 await wait(1500);
 
 if (tgOutbox.some((m) => m.chat_id !== OWNER)) fail("message sent to someone other than the owner");
-if (tgOutbox.some((m) => /123:e2e|sk-ant-e2e/.test(m.text))) fail("a secret leaked into Telegram");
+if (tgOutbox.some((m) => /123:e2e|sk-ant-e2e|gem-e2e/.test(m.text))) fail("a secret leaked into Telegram");
+if (/gem-e2e/.test(out)) fail("the reader key leaked into the logs");
 if (/blocked network call/.test(out)) fail("the process tried to reach an unexpected host");
 fs.writeFileSync(path.join(HOME, "e2e-run.log"), out);
 console.log(`Logs: ${HOME}/e2e-run.log`);

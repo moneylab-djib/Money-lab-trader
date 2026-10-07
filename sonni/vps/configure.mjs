@@ -86,6 +86,8 @@ const usd = (cents) => `${(cents / 100).toFixed(2)} $`;
 console.log(`Configuration Sonni écrite : ${file}`);
 console.log(`  Modèle : ${lab.inference.model} — budget : ${monthlyEur} €/mois ≈ ${usd(monthlyCents)}, plafond ${usd(dailyCents)}/jour`);
 console.log(`  Actifs suivis : ${example.trader.assets.map((a) => a.symbol).join(", ")} — prix toutes les ${example.trader.collectMinutes} min`);
+console.log(`  Réveils spontanés : ${example.trader.curiosity.maxSelfWakesPerDay}/jour au plus, mouvement de ${example.trader.curiosity.moveAlertPct} % en 1 h`);
+console.log(`  IA lectrices (gratuites, facultatives) : ${example.trader.readers.map((r) => `${r.id} (clé ${r.keyEnv})`).join(", ")} — clés dans /etc/sonni.env`);
 console.log(`  Telegram : chat ${chatId}`);
 console.log(`  Étape suivante : donner le budget du mois (en centimes de dollar) :`);
 console.log(`    node dist/index.js --money-lab ledger-add owner_funding ${monthlyCents} budget-mois-1`);

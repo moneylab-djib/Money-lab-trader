@@ -158,14 +158,46 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/idee <texte>` | lui donner une intuition à tester |
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
 | `/agenda` | les événements des 30 prochains jours (Fed, et inflation et emploi avec la clé FRED) |
+| `/bilan` | sa calibration et ses scores, calculés par le code |
+| `/identite` | l'identité qu'il s'est écrite, et ses versions précédentes |
+| `/journal [n]` | ses n dernières réflexions (post-mortems, notes de séance, revue) |
+| `/lecons` / `/veto <id> [raison]` | ses leçons ; en retirer une |
+| `/reveils` | ses réveils spontanés et les déclencheurs notés |
+| `/lecteurs` | l'état des IA lectrices gratuites (voir plus bas) |
+| `/sources` / `/source ok\|non <id>` | ses sources de données ; accepter ou refuser une source qu'il propose |
+| `/actifs` | les actifs qu'il suit et ses changements motivés |
 | `/sante` | rapport de santé (envoyé aussi chaque matin) |
 | `/fonds 58` | ajouter le budget du mois suivant, en dollars |
 | `/pause [raison]` / `/reprendre` | arrêter / relancer ses dépenses |
 | tout autre message | transmis à Sonni comme une conversation |
 
-Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), fait quelques séances de
-décision par jour, note ses prédictions, et le code les juge à l'échéance. Chaque dimanche, il fait sa
+Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), interroge ses sources de
+données, fait quelques séances de décision par jour, note ses prédictions, et le code les juge à
+l'échéance. Le code le réveille quand un actif bouge de 3 % en une heure, les jours d'événement,
+quand des prédictions sont résolues ou quand une de ses veilles se déclenche (6 réveils par jour au
+plus). Après chaque résultat, il écrit un post-mortem dans son journal. Chaque dimanche, il fait sa
 revue et t'envoie un rapport en français.
+
+## Facultatif — Des IA gratuites pour lire l'actualité
+
+Sonni peut confier la lecture (jamais les décisions) à un modèle gratuit : chaque heure, il
+transforme les titres en observations datées, et résume les pages que Sonni demande à lire. Deux
+services ont une offre gratuite sans carte bancaire ; une clé suffit, deux donnent une roue de
+secours. **N'active aucune facturation** sur ces comptes : Sonni est plafonné en appels par jour, mais
+ta vraie protection est l'absence de moyen de paiement.
+
+1. Google AI Studio (Gemini) : https://aistudio.google.com → *Get API key* → *Create API key*, avec
+   ton compte Google. Copie la clé.
+2. Groq : https://console.groq.com → *API Keys* → *Create API Key*. Copie la clé.
+3. Sur le serveur : `nano /etc/sonni.env`, mets les clés après `GEMINI_API_KEY=` et `GROQ_API_KEY=`
+   (laisse vide celle que tu n'as pas), enregistre (Ctrl+O, Entrée, Ctrl+X), puis
+   `systemctl restart sonni`.
+4. Vérifie sur Telegram avec `/lecteurs` : chaque lecteur doit être « disponible ». Une heure plus
+   tard, `/statut` compte les observations extraites. Sonni ne peut pas lire ces clés.
+
+Les limites gratuites changent souvent ; les plafonds de Sonni (150 appels par jour pour Gemini, 300
+pour Groq) sont en dessous des limites publiées au 7 octobre 2026. Si un lecteur répond « quota »,
+Sonni le met au repos et passe au suivant.
 
 ## Facultatif — Les dates d'inflation et d'emploi américains
 
@@ -188,9 +220,12 @@ cd /opt/sonni
 sudo -u sonni -H git pull
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
+sudo -u sonni -H node sonni/vps/configure.mjs --chat-id <ton identifiant> --monthly-budget-eur 50 --eur-usd 1.17
 systemctl restart sonni
 ```
-Ses prix, prédictions et intuitions sont conservés. La pause (`/pause`) aussi : relance avec
+La ligne `configure.mjs` réécrit la configuration avec les nouveaux réglages (sources, lecteurs,
+réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Ses prix, prédictions,
+intuitions, journal et identité sont conservés. La pause (`/pause`) aussi : relance avec
 `/reprendre`.
 
 ## Arrêter Sonni

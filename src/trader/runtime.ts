@@ -12,6 +12,7 @@ import { collectCandles } from "./candles.js";
 import { runAllHistoricalTests, runEventRuleTests } from "./historical.js";
 import { collectEvents } from "./events.js";
 import { collectHeadlines } from "./news.js";
+import { digestHeadlines, type DigestOutcome } from "./readers.js";
 
 type FetchFn = typeof fetch;
 
@@ -53,4 +54,15 @@ export async function calendarTick(db: Database.Database, fredApiKey: string | u
 /** Fetch new headlines; returns how many were new. */
 export async function newsTick(db: Database.Database, fetchFn: FetchFn = fetch): Promise<number> {
   return collectHeadlines(db, fetchFn);
+}
+
+/** Turn the headlines fetched since the last digest into observations, through a free reader model. */
+export async function digestTick(
+  db: Database.Database,
+  cfg: TraderConfig,
+  env: NodeJS.ProcessEnv,
+  fetchFn: FetchFn = fetch,
+  now: Date = new Date(),
+): Promise<DigestOutcome> {
+  return digestHeadlines(db, cfg, env, fetchFn, now);
 }

@@ -1,5 +1,5 @@
 {
-  "_comment": "Sonni on the Money Lab self-hosted runtime. On Sonni's own VPS, sonni/vps/configure.mjs writes this into ~/.automaton/automaton.json (see sonni/GUIDE-VPS.fr.md). Secrets are NOT stored here: ANTHROPIC_API_KEY (a dedicated key, in its own Anthropic workspace with a monthly spend limit) and TELEGRAM_BOT_TOKEN (a separate bot from Money Lab's) come from the environment file. Amounts are USD cents. funding.provisionedCents is the monthly inference envelope (about 50 EUR at the owner's rate); the owner adds the next month with /fonds. dailyCents paces it (1/30 of the month). The VPS is paid by the owner outside Sonni's budget, so its cost here is 0. Replace ownerChatId. Code denies Money Lab's web-business tools when the trader block is present.",
+  "_comment": "Sonni on the Money Lab self-hosted runtime. On Sonni's own VPS, sonni/vps/configure.mjs writes this into ~/.automaton/automaton.json (see sonni/GUIDE-VPS.fr.md). Secrets are NOT stored here: ANTHROPIC_API_KEY (a dedicated key, in its own Anthropic workspace with a monthly spend limit) and TELEGRAM_BOT_TOKEN (a separate bot from Money Lab's) come from the environment file. Amounts are USD cents. funding.provisionedCents is the monthly inference envelope (about 50 EUR at the owner's rate); the owner adds the next month with /fonds. dailyCents paces it (1/30 of the month). The VPS is paid by the owner outside Sonni's budget, so its cost here is 0. Replace ownerChatId. Code denies Money Lab's web-business tools when the trader block is present. readers are free assistant models (OpenAI-compatible endpoints) used only to read headlines and pages: their keys (GEMINI_API_KEY, GROQ_API_KEY) are optional and live in the environment file; a reader whose key is absent is skipped. curiosity caps Sonni's self-wakes.",
   "maxChildren": 0,
   "moneyLab": {
     "enabled": true,
@@ -49,6 +49,28 @@
       { "symbol": "ETH", "krakenPair": "ETHEUR" }
     ],
     "collectMinutes": 5,
-    "staleMinutes": 15
+    "staleMinutes": 15,
+    "curiosity": {
+      "moveAlertPct": 3,
+      "maxSelfWakesPerDay": 6,
+      "minMinutesBetweenWakes": 30
+    },
+    "readers": [
+      {
+        "id": "gemini",
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model": "gemini-2.5-flash",
+        "keyEnv": "GEMINI_API_KEY",
+        "dailyRequests": 150
+      },
+      {
+        "id": "groq",
+        "baseUrl": "https://api.groq.com/openai/v1",
+        "model": "llama-3.3-70b-versatile",
+        "keyEnv": "GROQ_API_KEY",
+        "dailyRequests": 300
+      }
+    ],
+    "readPagesPerDay": 20
   }
 }

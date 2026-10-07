@@ -112,6 +112,17 @@ export function recall(query: string, options: { home: string; db?: Database.Dat
     for (const exp of listExperiments(options.db)) {
       consider(`experiment ${exp.id}`, JSON.stringify(exp, null, 1).split("\n"));
     }
+    // Sonni: its own memory stores (identity, journal, lessons, hypotheses) are searchable too.
+    const hasTrader = options.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_reflections'").get();
+    if (hasTrader) {
+      const rows = options.db.prepare(
+        `SELECT 'identity v' || version AS source, content AS text FROM trader_identity
+         UNION ALL SELECT 'reflection ' || id || ' (' || kind || ')', content FROM trader_reflections
+         UNION ALL SELECT 'lesson ' || id || ' [' || status || ']', text FROM trader_lessons
+         UNION ALL SELECT 'hypothesis ' || id || ' [' || status || ']', statement FROM trader_hypotheses`,
+      ).all() as { source: string; text: string }[];
+      for (const row of rows) consider(row.source, row.text.split("\n"));
+    }
   }
   hits.sort((a, b) => b.score - a.score);
   // One passage per overlapping window of the same source.

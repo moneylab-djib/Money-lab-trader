@@ -39,6 +39,9 @@ import { keccak256, toHex } from "viem";
 import { applyMoneyLabProfile, automaticTopupsAllowed, MoneyLabConfigError } from "./money-lab/profile.js";
 import { applyTraderProfile, TraderConfigError } from "./trader/config.js";
 import { ensureTraderSchema } from "./trader/schema.js";
+import { isSonniWake } from "./trader/curiosity.js";
+import { SOURCE_CATALOG } from "./trader/catalog.js";
+import { ensureCatalog } from "./trader/sources.js";
 import { installMoneyLabPaymentGuard } from "./money-lab/guard.js";
 import { ensureMoneyLabSchema, getKV, getPauseState, journalFingerprint, queueOwnerNotification, setKV } from "./money-lab/journal.js";
 import { afterWakeCycle, inferenceCallCount, isOperatorWake } from "./money-lab/cycle.js";
@@ -263,6 +266,7 @@ async function sonniCommand(argv: string[]): Promise<number> {
   const db = createDatabase(resolvePath(config.dbPath));
   try {
     ensureTraderSchema(db.raw);
+    ensureCatalog(db.raw);
     return runSonniCommand(argv, db.raw, config.trader);
   } finally {
     db.close();
@@ -308,7 +312,12 @@ async function run(): Promise<void> {
   // starts, so none inherits them (skill checks run `which`, upstream checks
   // run git...); the runtime reads them through withSecrets().
   if (selfHosted) {
-    registerSecretEnvNames([moneyLab?.telegram?.botTokenEnv, moneyLab?.stripe?.apiKeyEnv, config.trader ? "FRED_API_KEY" : null]);
+    registerSecretEnvNames([
+      moneyLab?.telegram?.botTokenEnv,
+      moneyLab?.stripe?.apiKeyEnv,
+      // Sonni: the free data and reader keys are sealed too; the model never sees them.
+      ...(config.trader ? ["FRED_API_KEY", ...config.trader.readers.map((r) => r.keyEnv), ...SOURCE_CATALOG.map((s) => s.keyEnv ?? null)] : []),
+    ]);
     sealSecrets();
   }
   if (!selfHosted && !apiKey) {
@@ -320,7 +329,10 @@ async function run(): Promise<void> {
   const dbPath = resolvePath(config.dbPath);
   const db = createDatabase(dbPath);
   if (moneyLab) ensureMoneyLabSchema(db.raw);
-  if (config.trader) ensureTraderSchema(db.raw);
+  if (config.trader) {
+    ensureTraderSchema(db.raw);
+    ensureCatalog(db.raw);
+  }
   // Messages claimed by a turn that a restart or crash interrupted.
   const recovered = recoverInboxClaims(db.raw);
   if (recovered > 0) logger.info(`[INBOX] ${recovered} message(s) interrompu(s) remis en attente.`);
@@ -595,34 +607,62 @@ async function run(): Promise<void> {
     }
   }
   if (config.trader) {
-    // Sonni: price collection and prediction resolution run on timers,
-    // without inference (docs/MEMORY.md section 5).
-    const traderCfg = config.trader;
-    const { calendarTick, collectTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
-    every(traderCfg.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, traderCfg));
+    // Sonni: collection, resolution, history, calendar, headlines and their
+    // digest, data sources and curiosity run on timers without inference
+    // (docs/MEMORY.md section 5). The followed assets are the config plus
+    // Sonni's own choices, read at each tick (activeConfig).
+    const traderBase = config.trader;
+    const { activeConfig } = await import("./trader/universe.js");
+    const live = () => activeConfig(db.raw, traderBase);
+    const { calendarTick, collectTick, digestTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
     const { intakeDue } = await import("./trader/intake.js");
+    const { curiosityTick } = await import("./trader/curiosity.js");
+    const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
+    // A wake starts a paid cycle: only while sleeping, unpaused and not on a budget cap.
+    const canWake = () =>
+      db.getAgentState() === "sleeping" && !getPauseState(db.raw) && !String(db.getKV("sleep_reason") ?? "").startsWith("plafond");
+    every(traderBase.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, live()));
     every(6 * 60 * 60_000, "Sonni historique", async () => {
-      const n = await historyTick(db.raw, traderCfg);
+      const n = await historyTick(db.raw, live());
       if (n > 0) logger.info(`[SONNI] ${n} intuition(s) testée(s) sur l'historique.`);
       // History just became usable: wake Sonni for its intake instead of waiting for the next session.
-      const budgetSleep = String(db.getKV("sleep_reason") ?? "").startsWith("plafond");
-      if (intakeDue(db.raw, traderCfg) && db.getAgentState() === "sleeping" && !budgetSleep) {
+      if (intakeDue(db.raw, live()) && canWake()) {
         insertWakeEvent(db.raw, "sonni_history", "Historique disponible : séance d'intuitions initiales");
       }
     });
     every(60_000, "Sonni résolution", async () => {
-      const n = resolveTick(db.raw, traderCfg);
+      const n = resolveTick(db.raw, live());
       if (n > 0) logger.info(`[SONNI] ${n} prédiction(s) résolue(s).`);
     });
-    // Calendar once a day; headlines every hour (GDELT asks for one request per 5 s at most).
+    every(60_000, "Sonni curiosité", async () => {
+      const outcome = curiosityTick(db.raw, live(), { canWake, wake: (source, reason) => insertWakeEvent(db.raw, source, reason) });
+      if (outcome.delivered) logger.info(`[SONNI] Réveil : ${outcome.reason}`);
+      else if (outcome.triggered.length) logger.info(`[SONNI] Déclencheur noté : ${outcome.triggered.map((t) => t.reason).join("; ")}`);
+    });
+    // Calendar once a day; headlines every hour (GDELT asks for one request per 5 s at most),
+    // digested by a free reader when one is configured; sources on their own cadence.
     const fredKey = withSecrets().FRED_API_KEY || undefined;
     every(24 * 60 * 60_000, "Sonni calendrier", async () => {
       const n = await calendarTick(db.raw, fredKey);
       if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);
     });
-    every(60 * 60_000, "Sonni actualité", () => newsTick(db.raw));
-    logger.info(`[SONNI] Actif : ${traderCfg.assets.map((a) => a.symbol).join(", ")}, prix toutes les ${traderCfg.collectMinutes} min` +
-      `, calendrier ${fredKey ? "Fed + CPI + emploi" : "Fed (ajoute FRED_API_KEY pour CPI et emploi)"}.`);
+    every(60 * 60_000, "Sonni actualité", async () => {
+      const added = await newsTick(db.raw);
+      const digest = await digestTick(db.raw, live(), withSecrets());
+      if (digest.stored > 0) logger.info(`[SONNI] ${digest.stored} observation(s) extraite(s) de ${digest.sent} titre(s) par ${digest.readerId}.`);
+      return added;
+    });
+    every(5 * 60_000, "Sonni sources", async () => {
+      const r = await sourcesTick(db.raw, { env: withSecrets() });
+      for (const e of r.errors) logger.warn(`[SONNI] Source : ${e}`);
+      for (const id of r.disabled) {
+        queueOwnerNotification(db.raw, `⚠️ Source ${id} désactivée après ${MAX_FAILURES} échecs consécutifs. /sources pour le détail.`);
+      }
+    });
+    const readers = traderBase.readers.map((r) => `${r.id}${withSecrets()[r.keyEnv] ? "" : " (clé absente)"}`);
+    logger.info(`[SONNI] Actif : ${live().assets.map((a) => a.symbol).join(", ")}, prix toutes les ${traderBase.collectMinutes} min` +
+      `, calendrier ${fredKey ? "Fed + CPI + emploi" : "Fed (ajoute FRED_API_KEY pour CPI et emploi)"}` +
+      `, lecteurs : ${readers.join(", ") || "aucun"}, réveils ${traderBase.curiosity.maxSelfWakesPerDay}/jour au plus.`);
   }
   if (moneyLab?.stripe) {
     const stripeCfg = moneyLab.stripe;
@@ -746,7 +786,9 @@ async function run(): Promise<void> {
           const wakeEvent = consumeNextWakeEvent(db.raw);
           // Money Lab: only the operator can cut a sleep short. Heartbeat
           // distress/inbox wakes would otherwise start paid cycles.
-          if (wakeEvent && moneyLab && !isOperatorWake(wakeEvent)) {
+          // Sonni's own wakes (history for the intake, curiosity triggers) are gated at their
+          // source: they are only inserted while sleeping, unpaused and not on a budget cap.
+          if (wakeEvent && moneyLab && !isOperatorWake(wakeEvent) && !(config.trader && isSonniWake(wakeEvent))) {
             logger.info(`[MONEY LAB] Réveil ignoré pendant le sommeil (${wakeEvent.source}) : ${wakeEvent.reason}`);
             continue;
           }

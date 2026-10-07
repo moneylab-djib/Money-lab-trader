@@ -11,6 +11,10 @@ import { rankHypotheses } from "./pack.js";
 import { EVENT_LABEL_FR, upcomingEvents } from "./events.js";
 import { brierSummary, listOpenPredictions, listResolvedPredictions } from "./predictions.js";
 import { ageMinutes, latestPrice } from "./prices.js";
+import { wakesDeliveredToday } from "./curiosity.js";
+import { listSources } from "./sources.js";
+import { activeLessons, currentIdentity, identityHistory, listLessons, listReflections } from "./soul.js";
+import { activeConfig } from "./universe.js";
 
 type DB = Database.Database;
 
@@ -48,7 +52,8 @@ function sens(direction: string): string {
   return direction === "above" ? "au-dessus de" : "en dessous de";
 }
 
-export function formatSonniStatus(db: DB, cfg: TraderConfig, now: Date = new Date()): string {
+export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new Date()): string {
+  const cfg = activeConfig(db, baseCfg);
   const out: string[] = ["=== SONNI — portefeuille virtuel, phase d'entraînement ==="];
 
   out.push("", "Prix (Kraken) :");
@@ -65,6 +70,16 @@ export function formatSonniStatus(db: DB, cfg: TraderConfig, now: Date = new Dat
 
   const next = upcomingEvents(db, now, 30)[0];
   out.push("", next ? `Prochain événement : ${EVENT_LABEL_FR[next.type]} le ${next.day} (/agenda pour la liste)` : "Prochain événement : aucun connu");
+
+  const observations = (db.prepare("SELECT COUNT(*) AS n FROM trader_observations WHERE published_at >= ?")
+    .get(new Date(now.getTime() - 86_400_000).toISOString()) as { n: number }).n;
+  const sources = listSources(db, "enabled").length;
+  const proposed = listSources(db, "proposed").length;
+  out.push(
+    `Vie de Sonni : ${wakesDeliveredToday(db, now)} réveil(s) sur ${cfg.curiosity.maxSelfWakesPerDay} aujourd'hui (/reveils), ` +
+      `${observations} observation(s) sur 24 h (/lecteurs), ${sources} source(s) active(s)${proposed ? `, ${proposed} proposée(s) à décider` : ""} (/sources), ` +
+      `identité v${currentIdentity(db, now).version}, ${activeLessons(db).length} leçon(s) (/identite, /journal, /lecons).`,
+  );
 
   const open = listOpenPredictions(db);
   out.push("", `Prédictions ouvertes (${open.length}) :`);
@@ -126,4 +141,40 @@ export function formatAgenda(db: DB, now: Date = new Date()): string {
       "pour l'inflation et l'emploi américains, ajoute une clé FRED (voir le guide).";
   }
   return ["Événements des 30 prochains jours :", ...events.map((e) => `- ${e.day} : ${EVENT_LABEL_FR[e.type]}`)].join("\n");
+}
+
+const KIND_FR: Record<string, string> = { postmortem: "post-mortem", session: "séance", daily: "quotidienne", weekly: "hebdomadaire" };
+
+export function formatIdentityFr(db: DB): string {
+  const current = currentIdentity(db);
+  const history = identityHistory(db, 6).slice(1);
+  const who = current.source === "seed" ? "le code (version de départ)" : current.source === "model" ? "Sonni" : "toi";
+  const lines = [`Identité de Sonni — version ${current.version}, écrite par ${who} le ${current.recordedAt.slice(0, 10)} :`, "", current.content];
+  if (history.length) {
+    lines.push("", "Versions précédentes :");
+    for (const v of history) lines.push(`- v${v.version} (${v.recordedAt.slice(0, 10)}, ${v.source === "model" ? "Sonni" : v.source === "owner" ? "toi" : "code"}) : ${v.reason}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatJournalFr(db: DB, limit = 5): string {
+  const reflections = listReflections(db, limit);
+  if (reflections.length === 0) return "Journal vide : Sonni écrit un post-mortem après chaque prédiction résolue et une note après ses séances.";
+  return [`Journal de Sonni (${reflections.length} dernière(s) réflexion(s)) :`, ...reflections.map((r) =>
+    `\n— ${r.recordedAt.slice(0, 16).replace("T", " ")} UTC, ${KIND_FR[r.kind] ?? r.kind}${r.subjectId ? ` (${r.subjectId})` : ""} —\n${r.content}`)].join("\n");
+}
+
+export function formatLessonsFr(db: DB): string {
+  const lessons = listLessons(db, true);
+  const active = lessons.filter((l) => l.status === "active");
+  const retired = lessons.filter((l) => l.status === "retired");
+  if (lessons.length === 0) return "Aucune leçon encore. Sonni en ajoute quand plusieurs post-mortems et son bilan vont dans le même sens.";
+  const lines = [`Leçons actives (${active.length}) — /veto <id> [raison] pour en retirer une :`];
+  if (active.length === 0) lines.push("- aucune");
+  for (const l of active) lines.push(`- ${l.id} (${l.recordedAt.slice(0, 10)}) : ${l.text} [preuves : ${l.evidenceIds.join(", ")}]`);
+  if (retired.length) {
+    lines.push("", `Retirées (${retired.length}) :`);
+    for (const l of retired.slice(-5)) lines.push(`- ${l.id} : ${l.text} — retirée par ${l.retiredBy === "owner" ? "toi" : "Sonni"} : ${l.retireReason}`);
+  }
+  return lines.join("\n");
 }
