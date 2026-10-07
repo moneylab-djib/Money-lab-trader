@@ -50,8 +50,10 @@
     Automaton soul/memory/relay tools denied; Automaton memory retrieval and ingestion skipped for
     Sonni; the volatile rules block is the last system text so the tool list and the mission are cached.
   - Checks (run 2026-10-07, this sandbox): typecheck PASS; sonni suite 82/82 (sonni 20, knowledge 13,
-    world 9, soul 9, curiosity 8, readers 9, sources 8, alive 6); build and sonni-e2e: see the Likma
-    check report once run (`likma project check`); money-lab suite: to run.
+    world 9, soul 9, curiosity 8, readers 9, sources 8, alive 6); money-lab suite 110/110; build PASS;
+    sonni-e2e PASS (35 checks, about 4 min: fake Kraken, Anthropic, Telegram, reader and sources;
+    self-wake after a 4 % move observed end to end). Likma `project check` and the four feature
+    verifications: after the adversarial review (see below).
   - Research (free LLM APIs, free data APIs, liveness patterns, reader safety) by web agents: in
     progress at the time of writing; the catalog's URLs and the example readers' model names are to be
     confirmed against it (a wrong path shows as "metric absent" in /sources, never as a wrong number).
