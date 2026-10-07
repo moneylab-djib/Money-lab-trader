@@ -21,8 +21,19 @@
         "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       },
       "verification": {
-        "at": "2026-10-06T23:30:45.588228+00:00",
-        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "at": "2026-10-07T04:44:57.515748+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni-e2e",
           "2": "sonni",
@@ -33,9 +44,38 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/fcd819cffb38439089e836b6e3622927.json",
-        "contract": "54abeb8eebed31610b84714fc2893cbeccfe339b6eee53c789556ee2c9442a30"
-      }
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/502b09d9cc004d0fb35963ff36d50e32.json",
+        "contract": "30356d0bf5c772617ad3fd14836400d34f98e3a2c87003b8f74cd699753d2e2e",
+        "results": [
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 263.663,
+            "output_bytes": 2181,
+            "output_sha256": "1322e567ef310be157c7f593b7f4b3ed960caf5ba7a9350f972ecaf8c2d7395c"
+          },
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.962,
+            "output_bytes": 9105,
+            "output_sha256": "a5165c2d0e92e71f181fce0c883f893db5036b43ffac0a8059ccca77256c43d7"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "knowledge-intake",
@@ -70,7 +110,17 @@
         },
         "report": ".likma/checks/b571aa7bb3484942aea5e86278c22491.json",
         "contract": "8cf39faf47876773d6b22da40e3250de1e7982491a381296bfce4013bf60527b"
-      }
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "sees-the-world",
@@ -101,7 +151,17 @@
         },
         "report": ".likma/checks/bdffe1945d194ed18aca4006421b52a9.json",
         "contract": "127a4a9aa0f5aea74b707ef0b99970f1fcd7ae6040e1a453a4459cb124f20f85"
-      }
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "identity-journal",
@@ -134,7 +194,17 @@
         },
         "report": ".likma/checks/ac73ec9c7e894450951706fb9ab3cd6d.json",
         "contract": "88330250b30d790e8c930b81e84fa2c8fda3a116f4517ef0b04389a8916f2bf6"
-      }
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "curiosity-wakes",
@@ -165,7 +235,17 @@
         },
         "report": ".likma/checks/27f4a60fb55b41b2a7faacaed905f444.json",
         "contract": "45411f2ce61d048ddb37a6bc928911c3f12758114da974089e3bf9129c73e9f7"
-      }
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "free-readers",
@@ -196,7 +276,17 @@
         },
         "report": ".likma/checks/ae47a196ad45469985ddf68d860b1878.json",
         "contract": "47231d04281bb3d7ffd1b431324d90bfcf953be7e7b9e4d59b9f120e50a46a3b"
-      }
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "own-sources",
@@ -225,7 +315,17 @@
         },
         "report": ".likma/checks/7f58d0614ef14f7aa8dae0abc5cc32a8.json",
         "contract": "c8aea13a223c15f7a6b3e19f1dfe969eaa1d8708853a503bca0a282920bd7913"
-      }
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     }
   ]
 }
