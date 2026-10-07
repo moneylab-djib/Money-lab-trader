@@ -308,7 +308,7 @@ async function run(): Promise<void> {
   // starts, so none inherits them (skill checks run `which`, upstream checks
   // run git...); the runtime reads them through withSecrets().
   if (selfHosted) {
-    registerSecretEnvNames([moneyLab?.telegram?.botTokenEnv, moneyLab?.stripe?.apiKeyEnv]);
+    registerSecretEnvNames([moneyLab?.telegram?.botTokenEnv, moneyLab?.stripe?.apiKeyEnv, config.trader ? "FRED_API_KEY" : null]);
     sealSecrets();
   }
   if (!selfHosted && !apiKey) {
@@ -598,7 +598,7 @@ async function run(): Promise<void> {
     // Sonni: price collection and prediction resolution run on timers,
     // without inference (docs/MEMORY.md section 5).
     const traderCfg = config.trader;
-    const { collectTick, historyTick, resolveTick } = await import("./trader/runtime.js");
+    const { calendarTick, collectTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
     every(traderCfg.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, traderCfg));
     const { intakeDue } = await import("./trader/intake.js");
     every(6 * 60 * 60_000, "Sonni historique", async () => {
@@ -614,7 +614,15 @@ async function run(): Promise<void> {
       const n = resolveTick(db.raw, traderCfg);
       if (n > 0) logger.info(`[SONNI] ${n} prédiction(s) résolue(s).`);
     });
-    logger.info(`[SONNI] Actif : ${traderCfg.assets.map((a) => a.symbol).join(", ")}, prix toutes les ${traderCfg.collectMinutes} min.`);
+    // Calendar once a day; headlines every hour (GDELT asks for one request per 5 s at most).
+    const fredKey = withSecrets().FRED_API_KEY || undefined;
+    every(24 * 60 * 60_000, "Sonni calendrier", async () => {
+      const n = await calendarTick(db.raw, fredKey);
+      if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);
+    });
+    every(60 * 60_000, "Sonni actualité", () => newsTick(db.raw));
+    logger.info(`[SONNI] Actif : ${traderCfg.assets.map((a) => a.symbol).join(", ")}, prix toutes les ${traderCfg.collectMinutes} min` +
+      `, calendrier ${fredKey ? "Fed + CPI + emploi" : "Fed (ajoute FRED_API_KEY pour CPI et emploi)"}.`);
   }
   if (moneyLab?.stripe) {
     const stripeCfg = moneyLab.stripe;

@@ -156,7 +156,8 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | --- | --- |
 | `/statut` | prix, prédictions ouvertes et résolues avec leur score, intuitions, puis budget |
 | `/idee <texte>` | lui donner une intuition à tester |
-| `/intuitions` | ses intuitions, avec les preuves pour et contre et sa confiance calculée |
+| `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
+| `/agenda` | les événements des 30 prochains jours (Fed, et inflation et emploi avec la clé FRED) |
 | `/sante` | rapport de santé (envoyé aussi chaque matin) |
 | `/fonds 58` | ajouter le budget du mois suivant, en dollars |
 | `/pause [raison]` / `/reprendre` | arrêter / relancer ses dépenses |
@@ -165,6 +166,20 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), fait quelques séances de
 décision par jour, note ses prédictions, et le code les juge à l'échéance. Chaque dimanche, il fait sa
 revue et t'envoie un rapport en français.
+
+## Facultatif — Les dates d'inflation et d'emploi américains
+
+Sonni connaît déjà les dates des décisions de la Fed (page publique, sans compte). Pour qu'il connaisse
+aussi les dates des chiffres de l'inflation (CPI) et de l'emploi américains, il faut une clé gratuite de
+la Réserve fédérale de Saint-Louis (FRED) :
+
+1. Crée un compte sur https://fred.stlouisfed.org (bouton *My Account*), à ton nom.
+2. Va dans *My Account → API Keys → Request API Key*, décris l'usage (« calendrier personnel ») :
+   tu obtiens une clé de 32 caractères.
+3. Sur le serveur : `nano /etc/sonni.env`, mets la clé après `FRED_API_KEY=`, enregistre (Ctrl+O,
+   Entrée, Ctrl+X), puis `systemctl restart sonni`.
+4. Vérifie sur Telegram avec `/agenda` : les lignes « inflation américaine (CPI) » et « emploi
+   américain » apparaissent. Sonni ne peut pas lire cette clé.
 
 ## Mettre Sonni à jour
 

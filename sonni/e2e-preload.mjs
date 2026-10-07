@@ -1,7 +1,10 @@
 // Route Sonni's external APIs to the local fake server; everything else fails.
 const PORT = process.env.E2E_PORT;
 const realFetch = globalThis.fetch;
-const MAP = { "api.anthropic.com": "anthropic", "api.telegram.org": "telegram", "api.kraken.com": "kraken" };
+const MAP = {
+  "api.anthropic.com": "anthropic", "api.telegram.org": "telegram", "api.kraken.com": "kraken",
+  "www.federalreserve.gov": "fed", "api.gdeltproject.org": "gdelt",
+};
 globalThis.fetch = async (input, init) => {
   const req = input instanceof Request ? input : null;
   const url = new URL(req ? req.url : String(input));

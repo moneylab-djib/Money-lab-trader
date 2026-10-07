@@ -8,6 +8,7 @@ import type { TraderConfig } from "./config.js";
 import { listHypotheses, type HypothesisStatus } from "./hypotheses.js";
 import { latestHistoricalTest, verdictCounts, type HistoricalTest } from "./historical.js";
 import { rankHypotheses } from "./pack.js";
+import { EVENT_LABEL_FR, upcomingEvents } from "./events.js";
 import { brierSummary, listOpenPredictions, listResolvedPredictions } from "./predictions.js";
 import { ageMinutes, latestPrice } from "./prices.js";
 
@@ -62,6 +63,9 @@ export function formatSonniStatus(db: DB, cfg: TraderConfig, now: Date = new Dat
     out.push(`- ${asset.symbol} : ${eur(last.price)} (il y a ${age} min)${stale}`);
   }
 
+  const next = upcomingEvents(db, now, 30)[0];
+  out.push("", next ? `Prochain événement : ${EVENT_LABEL_FR[next.type]} le ${next.day} (/agenda pour la liste)` : "Prochain événement : aucun connu");
+
   const open = listOpenPredictions(db);
   out.push("", `Prédictions ouvertes (${open.length}) :`);
   if (open.length === 0) out.push("- aucune");
@@ -113,4 +117,13 @@ export function formatHypotheses(db: DB, limit = 40): string {
   );
   if (hypotheses.length > limit) lines.push(`(${hypotheses.length - limit} autres, les moins étayées)`);
   return lines.join("\n");
+}
+
+export function formatAgenda(db: DB, now: Date = new Date()): string {
+  const events = upcomingEvents(db, now, 30);
+  if (events.length === 0) {
+    return "Aucun événement connu pour les 30 prochains jours. Les dates de la Fed se mettent à jour chaque jour ; " +
+      "pour l'inflation et l'emploi américains, ajoute une clé FRED (voir le guide).";
+  }
+  return ["Événements des 30 prochains jours :", ...events.map((e) => `- ${e.day} : ${EVENT_LABEL_FR[e.type]}`)].join("\n");
 }

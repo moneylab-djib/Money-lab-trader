@@ -6,11 +6,12 @@
 import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
 import { addHypothesis } from "./hypotheses.js";
-import { formatHypotheses, formatSonniStatus } from "./status.js";
+import { formatAgenda, formatHypotheses, formatSonniStatus } from "./status.js";
 
 export const SONNI_USAGE = `Commandes Sonni :
   statut                 état de Sonni (prix, prédictions, intuitions)
   intuitions             liste des intuitions
+  agenda                 événements des 30 prochains jours
   idee "<texte>"         ajouter une intuition à tester (origine : propriétaire)`;
 
 export function runSonniCommand(
@@ -27,6 +28,9 @@ export function runSonniCommand(
       return 0;
     case "intuitions":
       print(formatHypotheses(db));
+      return 0;
+    case "agenda":
+      print(formatAgenda(db));
       return 0;
     case "idee":
     case "idée": {

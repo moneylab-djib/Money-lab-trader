@@ -21,8 +21,8 @@
         "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       },
       "verification": {
-        "at": "2026-10-06T23:12:00.040914+00:00",
-        "fingerprint": "47e2fbae23eb07bd5a641bc10ec13b8139fadd4ca743c83f79fa0621269af32d",
+        "at": "2026-10-06T23:30:45.588228+00:00",
+        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
         "criterion_checks": {
           "1": "sonni-e2e",
           "2": "sonni",
@@ -33,7 +33,7 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/417a277d8d194f86bbbadf7a8959d429.json",
+        "report": ".likma/checks/fcd819cffb38439089e836b6e3622927.json",
         "contract": "54abeb8eebed31610b84714fc2893cbeccfe339b6eee53c789556ee2c9442a30"
       }
     },
@@ -56,8 +56,8 @@
         "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
       },
       "verification": {
-        "at": "2026-10-06T23:09:50.940776+00:00",
-        "fingerprint": "47e2fbae23eb07bd5a641bc10ec13b8139fadd4ca743c83f79fa0621269af32d",
+        "at": "2026-10-06T23:28:25.839602+00:00",
+        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -68,8 +68,39 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/6df224a4717644a48355afd11e138a9e.json",
+        "report": ".likma/checks/b571aa7bb3484942aea5e86278c22491.json",
         "contract": "8cf39faf47876773d6b22da40e3250de1e7982491a381296bfce4013bf60527b"
+      }
+    },
+    {
+      "id": "sees-the-world",
+      "title": "Sonni sees the world: event calendar, headlines and event reactions",
+      "criteria": [
+        "FOMC decision days are read from the Fed calendar page without notation votes; CPI and jobs dates come from FRED only with a key that never appears in errors",
+        "Headlines are fetched hourly from GDELT, deduplicated by URL, cleaned, stored with their publication time and purged after 30 days; a plain-text rate-limit answer is reported as an error",
+        "Test rules accept event conditions; code evaluates them with the stored calendar and re-tests them when the calendar changes",
+        "The memory pack shows upcoming events, reactions to past events computed by code, and recent headlines marked as untrusted data",
+        "/agenda and /statut show upcoming events in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-06T23:21:32.647703+00:00",
+        "note": "src/trader/events.ts, news.ts; event condition in rules.ts; calendar and news ticks; pack, status, /agenda; guide FRED step"
+      },
+      "verification": {
+        "at": "2026-10-06T23:26:06.041938+00:00",
+        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni"
+        },
+        "report": ".likma/checks/bdffe1945d194ed18aca4006421b52a9.json",
+        "contract": "127a4a9aa0f5aea74b707ef0b99970f1fcd7ae6040e1a453a4459cb124f20f85"
       }
     }
   ]
