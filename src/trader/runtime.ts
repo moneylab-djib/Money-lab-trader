@@ -4,6 +4,7 @@
  * the event calendar and headlines. index.ts schedules them.
  */
 
+import { reactionsTick } from "./cycles.js";
 import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
 import { collectPrices } from "./prices.js";
@@ -39,6 +40,8 @@ export function resolveTick(db: Database.Database, cfg: TraderConfig, now: Date 
 export async function historyTick(db: Database.Database, cfg: TraderConfig, fetchFn: FetchFn = fetch): Promise<number> {
   const { errors } = await collectCandles(db, cfg, fetchFn);
   const tested = runAllHistoricalTests(db, cfg);
+  // Step C2: reactions around past events are measured once the candles are there.
+  reactionsTick(db, cfg);
   if (errors.length > 0) throw new Error(errors.join("; "));
   return tested;
 }

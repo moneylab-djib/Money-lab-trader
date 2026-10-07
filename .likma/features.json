@@ -716,6 +716,53 @@
           }
         ]
       }
+    },
+    {
+      "id": "event-cycles",
+      "title": "Step C2: reactions measured around events and cycles named by the model with code-computed verdicts",
+      "criteria": [
+        "Code measures once per past event, asset and window (run-up, day, week, first hour) the price reaction from candles and 5-minute prices; rows are append-only and future events are not measured",
+        "The model names a cycle (event type, asset, window, direction, note) and code computes its cases, hits, base rate over all days, z score and verdict; names are unique and capped",
+        "The memory pack shows the measured windows and named cycles for the event types due within 7 days, and every type on request; /cycles and cycles.md give them to the owner in French without identifiers",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "paths": [
+        "src",
+        "sonni"
+      ],
+      "implementation": {
+        "at": "2026-10-07T11:21:34.690412+00:00",
+        "note": "src/trader/cycles.ts, schema, runtime (history tick), index (calendar), tools (name_pattern), pack, cli, telegram, notebooks, prompt; tests src/__tests__/trader/cycles.test.ts (3); e2e past Fed day and /cycles"
+      },
+      "verification": {
+        "at": "2026-10-07T11:34:03.698439+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "12b2f48ec975c85b9ad355f99be736be696e1462a8acff8a230654d8b71dc039",
+        "scope": [
+          "src",
+          "sonni"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni"
+        },
+        "checks_hash": "ab9894fc0a2b326fd9cbdb573819ed6281b875178298c6733712cf287927f685",
+        "report": ".likma/checks/0e609baabeee4767be626fe37befe776.json",
+        "contract": "6d40388d599271b46ef3207802494317f36ccf1baa3811f16a7d447ec18bda08",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 13.666,
+            "output_bytes": 11535,
+            "output_sha256": "210f0ebe811e7ecb10d12509329e645ec88cb064904ea458edfcfb820779c6f8"
+          }
+        ]
+      }
     }
   ]
 }

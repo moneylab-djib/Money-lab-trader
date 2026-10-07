@@ -61,6 +61,7 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /note <texte> — lui laisser une note fiable, lue à sa prochaine séance
 /memoire <sujet> — ce qu'il sait sur un sujet
 /carnets — écrire ses carnets Markdown dans ~/carnet (aussi chaque dimanche)
+/cycles — réactions mesurées autour des événements (Fed, inflation, emploi) et cycles nommés par Sonni
 /idee <texte> — ajouter une intuition à tester
 /intuitions — liste des intuitions
 /agenda — événements à venir (Fed, inflation, emploi)
@@ -88,7 +89,7 @@ const SONNI_SUBCOMMANDS: Record<string, string> = {
   "/identite": "identite", "/identité": "identite", "/journal": "journal", "/lecons": "lecons", "/leçons": "lecons",
   "/veto": "veto", "/reveils": "reveils", "/réveils": "reveils", "/lecteurs": "lecteurs", "/sources": "sources",
   "/source": "source", "/actifs": "actifs", "/portefeuille": "portefeuille", "/journee": "journee", "/journée": "journee",
-  "/dossier": "dossier", "/note": "note", "/memoire": "memoire", "/mémoire": "memoire", "/carnets": "carnets",
+  "/dossier": "dossier", "/note": "note", "/memoire": "memoire", "/mémoire": "memoire", "/carnets": "carnets", "/cycles": "cycles",
 };
 
 type FetchFn = typeof fetch;
@@ -216,7 +217,8 @@ export class TelegramChannel {
       case "/note":
       case "/memoire":
       case "/mémoire":
-      case "/carnets": {
+      case "/carnets":
+      case "/cycles": {
         if (!this.config.trader) return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
         ensureTraderSchema(this.raw);
         const sub = SONNI_SUBCOMMANDS[command];

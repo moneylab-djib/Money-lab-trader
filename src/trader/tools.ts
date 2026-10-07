@@ -13,6 +13,8 @@
  * description is enforced in the module it calls.
  */
 
+import { DEFAULT_BIG_MOVE_PCT, describePatternStats, DIRECTIONS, MAX_PATTERNS, MIN_PATTERN_CASES, namePattern, WINDOWS } from "./cycles.js";
+import { EVENT_TYPES } from "./events.js";
 import { DOSSIER_MAX_CHARS, MAX_DOSSIER_REVISIONS_PER_DAY, updateDossier } from "./dossiers.js";
 import type { AutomatonTool } from "../types.js";
 import { withSecrets } from "../money-lab/selfhosted.js";
@@ -41,7 +43,7 @@ const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 /** Sonni tools that write to its memory or fetch the world: work, never idle turns (src/agent/loop.ts). */
 export const SONNI_WORK_TOOLS: ReadonlySet<string> = new Set([
   "propose_hypothesis", "record_prediction", "write_reflection", "add_lesson", "retire_lesson", "revise_identity",
-  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier",
+  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier", "name_pattern",
 ]);
 
 function str(v: unknown): string {
@@ -286,6 +288,39 @@ export function createTraderTools(): AutomatonTool[] {
         const db = ctx.db.raw;
         const r = updateDossier(db, activeConfig(db, ctx.config.trader), { asset: args.asset, content: args.content, reason: args.reason });
         return r.ok ? `Dossier ${r.value.asset} version ${r.value.version} recorded.` : `Refused: ${r.error}`;
+      },
+    },
+    {
+      name: "name_pattern",
+      description:
+        "Name a cycle: a claim about how one asset reacts around one event type in one window (run_up = close two days " +
+        "before to close the day before; day = close before to close of the event day; week = close before to the close a week " +
+        "later; hour = the first hour after the release). direction up, down or big_move (|move| at least threshold_pct, default " +
+        DEFAULT_BIG_MOVE_PCT + " %). Code counts the measured reactions for and against it, against all days of the same window, " +
+        "with a z score like your hypotheses (at least " + MIN_PATTERN_CASES + " cases for a verdict); you cannot set the numbers. " +
+        "Every cycle is kept and shown with its verdict in your pack and to the owner (/cycles). At most " + MAX_PATTERNS + ".",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Short name, e.g. \"Fed: BTC rallies the week after\"" },
+          event_type: { type: "string", enum: [...EVENT_TYPES], description: "fomc, cpi or jobs" },
+          asset: { type: "string", description: "A followed asset symbol" },
+          window: { type: "string", enum: [...WINDOWS] },
+          direction: { type: "string", enum: [...DIRECTIONS] },
+          threshold_pct: { type: "number", description: "For big_move: the move size in percent (default " + DEFAULT_BIG_MOVE_PCT + ")" },
+          note: { type: "string", description: "Why this cycle would exist, in French, 10 to 300 characters" },
+        },
+        required: ["name", "event_type", "asset", "window", "direction", "note"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const db = ctx.db.raw;
+        const r = namePattern(db, activeConfig(db, ctx.config.trader), {
+          name: args.name, eventType: args.event_type, asset: args.asset, window: args.window, direction: args.direction, thresholdPct: args.threshold_pct, note: args.note,
+        });
+        return r.ok ? `Cycle « ${r.value.pattern.name} » recorded: ${describePatternStats(r.value.stats)}` : `Refused: ${r.error}`;
       },
     },
     {

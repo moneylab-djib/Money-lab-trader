@@ -142,6 +142,7 @@ function model(body) {
         use("write_reflection", { kind: "session", content: "Première séance : marché calme, une prédiction prudente à 24 h et une veille au-dessus de 70 000 EUR." }),
         use("place_order", { asset: "BTC", side: "buy", amount_eur: 100, invalidation: 55000, horizon_hours: 72, probability: 0.6,
           thesis: "Marché calme et BTC au-dessus de 59 000 : une petite position de test, stop à 55 000 si je me trompe." }),
+        use("name_pattern", { name: "Fed : BTC monte le jour", event_type: "fomc", asset: "BTC", window: "day", direction: "up", note: "La Fed rassure et le BTC suit le jour même." }),
         use("update_dossier", { asset: "BTC", reason: "Premier dossier après la première séance.",
           content: "Thèse : le BTC tient au-dessus de 59 000 EUR dans un marché calme. Catalyseur : décision de la Fed dans 9 jours. Niveaux : 55 000 (invalidation), 70 000 (à revoir)." }),
       ]);
@@ -151,6 +152,7 @@ function model(body) {
       results.some((r) => /Reflection r_\w+ \(session\) recorded/.test(r)) ? ok("reflection written through the agent loop") : fail(`reflection not written: ${results.at(-1)}`);
       results.some((r) => /Order o_\w+ pending: market buy 100 EUR of BTC, stop at 55000 EUR/.test(r)) ? ok("virtual order placed through the agent loop, pending until the next price") : fail(`order not placed: ${results.at(-1)}`);
       results.some((r) => /Dossier BTC version 1 recorded\./.test(r)) ? ok("asset dossier written through the agent loop") : fail(`dossier not written: ${results.at(-1)}`);
+      results.some((r) => /Cycle « Fed : BTC monte le jour » recorded: \d\/1 = \d+ % vs \d+ % on all days/.test(r)) ? ok("cycle named through the agent loop, counted by code against the measured Fed day") : fail(`cycle not named or not counted: ${results.at(-1)}`);
       step++;
       return reply([use("sleep", { duration_seconds: 3600, reason: "next session" })]);
     }
@@ -201,12 +203,16 @@ const server = http.createServer(async (req, res) => {
     return send(200, model(body));
   }
   if (url.pathname.startsWith("/fed/")) {
-    // Next FOMC decision in 9 days, in the page's own markup.
+    // A past FOMC decision 20 days ago (its reactions get measured from the daily history) and the
+    // next one in 9 days, in the page's own markup.
     const d = new Date(Date.now() + 9 * 86_400_000);
+    const past = new Date(Date.now() - 20 * 86_400_000);
     const month = d.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+    const pastMonth = past.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
     res.writeHead(200, { "content-type": "text/html" });
-    return res.end(`<h4>${d.getUTCFullYear()} FOMC Meetings</h4><div class="fomc-meeting__month col-xs-5"><strong>${month}</strong></div>` +
-      `<div class="fomc-meeting__date col-xs-4">${d.getUTCDate()}</div>`);
+    return res.end(`<h4>${d.getUTCFullYear()} FOMC Meetings</h4>` +
+      `<div class="fomc-meeting__month col-xs-5"><strong>${pastMonth}</strong></div><div class="fomc-meeting__date col-xs-4">${past.getUTCDate()}</div>` +
+      `<div class="fomc-meeting__month col-xs-5"><strong>${month}</strong></div><div class="fomc-meeting__date col-xs-4">${d.getUTCDate()}</div>`);
   }
   if (url.pathname.startsWith("/rss/")) {
     // Fake RSS feed (same item for every feed; stored once by URL).
@@ -447,6 +453,9 @@ await until(() => tgOutbox.some((m) => /📁 Dossier BTC — version 1, écrite 
 tgSend("/memoire catalyseur");
 await until(() => tgOutbox.some((m) => /🧠 Ce que Sonni sait sur « catalyseur »/.test(m.text) && /\[dossier BTC v1\]/.test(m.text)), 30000)
   ? ok("/memoire finds the dossier by a word it contains") : fail("/memoire lacks the dossier");
+tgSend("/cycles");
+await until(() => tgOutbox.some((m) => /décision de taux de la Fed — 1 cas/.test(m.text) && /- BTC : la veille [+−]\d+,\d\d % en moyenne/.test(m.text) && /« Fed : BTC monte le jour »/.test(m.text)), 30000)
+  ? ok("/cycles shows the reactions measured around the past Fed day and the named cycle with code's verdict") : fail("/cycles lacks the measured reactions");
 tgSend("/carnets");
 await until(() => tgOutbox.some((m) => /📚 Carnets écrits dans/.test(m.text)), 30000) ? ok("/carnets writes the notebooks") : fail("/carnets got no answer");
 const btcNotebook = path.join(HOME, "carnet", "btc.md");

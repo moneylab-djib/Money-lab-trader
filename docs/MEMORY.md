@@ -46,7 +46,7 @@ Markdown notebooks are exported from them for the owner (section 8).
 | --- | --- | --- |
 | `observations` | observed_at, published_at, source, url, assets, kind, summary, trust | From news, filings, social, owner notes. `published_at` is mandatory: decisions only see observations published before the decision time. |
 | `events` | type, assets, scheduled_at, occurred_at, expected, actual, surprise, source | Typed: central bank decision, inflation print, jobs report, earnings, token unlock, halving, listing, regulation, hack, index rebalance… |
-| `reactions` | event_id, asset, window, return_pct, volume_ratio, computed_at | Computed by code only, at fixed windows (−24 h, +1 h, +24 h, +7 d). |
+| `trader_reactions` (implemented, step C2) | type, day, asset, window (run_up / day / week / hour), return_pct, computed_at | Computed by code only, once per past event, asset and window: close two days before to the close before (run-up), close before to the close of the event day, close before to the first close a week later, and the first hour after the release (18:00 UTC for the Fed, 12:30 UTC for CPI and jobs; from 5-minute prices within 20 minutes). Measured after each daily history and calendar update. Append-only. |
 | `trader_candles` (implemented) | asset, day, open, high, low, close, volume | Kraken daily candles, about two years; the unfinished day is skipped. |
 | `trader_events` (implemented) | type (fomc, cpi, jobs), day, source | Fed decisions from the public FOMC calendar; CPI and jobs dates from FRED with the owner's free key. Code only. |
 | `trader_headlines` (implemented) | url, title, domain, published_at, digested_at | Headlines about crypto and the Fed from GDELT and from five keyless RSS feeds (Cointelegraph, The Block, Decrypt filtered by keywords, the Fed's press releases, a Google News search; fixed in src/trader/news.ts, items of the last 48 h, 40 per feed), hourly (5, 10, 20 then 30 minutes after a failed or rate-limited fetch; the schedule is kept in KV so a restart does not call GDELT again at once), kept 30 days. Untrusted data. `digested_at` is set by code only once a reader has answered for the batch, so a failed or capped reader leaves the headline for the next digest. |
@@ -74,7 +74,7 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `trader_traps` (implemented, step 4 B) | name, description, warning_signs, recorded_at | Named mistakes, for example "buying a rumour already priced in"; at most 40, one per name; the names are in every memory pack. Append-only. |
 | `trader_trap_hits` (implemented, step 4 B) | trap_id, trade_id, note, recorded_at | A closed trade counted against a trap, once per pair, written by the model at post-mortem time (`note_trap hit`); append-only. |
 | `trader_positions` (implemented, step 4 B) | asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at | The current holding per asset: quantity and average cost are changed only by code on fills; the model moves `invalidation` and `horizon_until` with a logged reason (`manage_position`). Not append-only: it is state, and the ledger, orders and trades are its record. |
-| `patterns` (cycles) | name, event_type, sequence, stats, n, last_seen | Recurring event → reaction sequences; `stats` and `n` are computed by code from `reactions`. |
+| `trader_patterns` (cycles; implemented, step C2) | name, event_type, asset, window, direction (up / down / big_move), threshold_pct, note, recorded_at | A cycle the model names (`name_pattern`): a claim about one asset's reaction around one event type in one window. Its statistics are computed by code from `trader_reactions` each time they are shown: cases, hits, rate against all days of the same window, z score and verdict (supported at z ≥ 2.33, refuted at z ≤ 0, insufficient under 10 cases; events are rare, so fewer cases than the hypotheses' 30). At most 30, names unique, append-only. |
 | `trader_dossiers` (implemented, step C1) | asset, version, content, reason, source (model / owner), recorded_at | One dossier per followed asset, in French: long-term thesis, catalysts, levels, what it learned. The model rewrites it with `update_dossier` (at most one revision per asset and UTC day, 40 to 1,500 characters, prompt-boundary patterns refused); the owner's `/dossier` reads it; every version is kept, append-only. The latest version per asset is in every memory pack (400 characters each; `sonni_memory {"section": "dossiers"}` for the full texts). |
 | `trader_owner_notes` (implemented, step C1) | at, text, assets | The owner's notes (`/note <texte>`), the one trusted writer besides code: shown in the pack for 7 days as information to weigh, never as orders to trade; the followed symbols a note mentions are tagged. Append-only. |
 | `trader_universe` (implemented) | asset, kraken_pair, action (follow / unfollow), reason, recorded_at | The watch list the agent chooses (decision 0003): a Kraken EUR pair checked against the public pair list, every change with a reason, append-only; the followed set is the config plus this log replayed. The owner's configuration keeps authority: at startup code compares the configured assets with the previous start (KV `sonni.config_assets`) and logs a follow for an added asset, a follow with the new pair when the owner corrects the pair of an asset an older follow entry carries, and an unfollow for a removed one; a removed asset with open predictions stays followed until they resolve (retried at the next start), and the last followed asset is never dropped. |
@@ -190,7 +190,9 @@ budget runs out, cuts the section with a note naming how many lines were not sho
 omitted sections; nothing is silently dropped. The model reads any group in full with
 `sonni_memory {"section": ...}` (dossiers, notes, portfolio with trades and traps, trades, traps,
 hypotheses, predictions, observations, headlines, reflections, watches, sources, events); ranked
-hypotheses are followed by the latest dossier per followed asset; a detail view does not move the "since the previous session" reference.
+hypotheses are followed by the latest dossier per followed asset; the event cycles section (measured
+windows per asset for the event types due within 7 days, then the named cycles with code's verdicts)
+replaces the step 2 "event reactions" lines, and `sonni_memory {"section": "cycles"}` shows every type; a detail view does not move the "since the previous session" reference.
 The identity text and the active lessons are not in the pack: they sit in the cached part of the
 system prompt. `recall` searches the identity versions, reflections, lessons and hypotheses by terms
 (no FTS5 index yet), and since step C1 the dossiers, traps, the owner's notes and the theses behind
@@ -218,13 +220,14 @@ orders; the owner searches the same stores with `/memoire <sujet>` (labels in Fr
 - Weekly export to `~/carnet/` as Markdown (implemented, step C1, src/trader/notebooks.ts: every
   Sunday in the owner's time zone and on `/carnets`, files rewritten whole from the stores):
   `journal.md`, `intuitions.md`, `pieges.md`, `lecons.md`, `identite.md`, `portefeuille.md`, one file
-  per followed asset (dossier versions, predictions, closed trades). `cycles.md` comes with step C2.
+  per followed asset (dossier versions, predictions, closed trades), and `cycles.md` (step C2).
 - Size caps per store; duplicates merged at weekly review; hypotheses untouched for 90 days retired
   with a reason, never deleted.
 - Owner commands (French): `/note <texte>` stores a trusted owner note (step C1); `/idee <texte>`
   creates a hypothesis with origin `owner`; `/memoire <sujet>` shows what it knows on a topic (step
   C1); `/dossier [actif]` shows a dossier and its versions (step C1); `/carnets` writes the
-  notebooks now (step C1); `/veto <règle>` retires a lesson. Step 4 A: `/statut` is four short blocks in French and in the
+  notebooks now (step C1); `/cycles` shows the measured reactions and the named cycles with their
+  verdicts (step C2); `/veto <règle>` retires a lesson. Step 4 A: `/statut` is four short blocks in French and in the
   owner's time zone (`trader.timeZone`, default Europe/Paris) without identifiers, `/technique` keeps
   the runtime's technical state, and the daily message is Sonni's own morning report (yesterday,
   today, real alerts only; src/trader/report.ts). Step 4 B: `/portefeuille` (value, positions with

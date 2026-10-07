@@ -15,6 +15,7 @@ import { type BudgetView, formatAgenda, formatHypotheses, formatIdentityFr, form
 import { buildSonniEveningSummary } from "./report.js";
 import { addOwnerNote, formatDossierFr, listDossiers, listOwnerNotes, refusalFr } from "./dossiers.js";
 import { exportNotebooks, notebooksDir } from "./notebooks.js";
+import { formatCyclesFr } from "./cycles.js";
 import { fmtWhen } from "./format.js";
 import { recall, type RecallHit } from "../money-lab/recall.js";
 import type { MoneyLabConfig } from "../money-lab/profile.js";
@@ -43,6 +44,7 @@ export const SONNI_USAGE = `Commandes Sonni :
   note <texte>           lui laisser une note (information fiable, lue à sa prochaine séance)
   memoire <sujet>        ce qu'il sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, notes)
   carnets                écrire ses carnets Markdown dans ~/carnet (aussi chaque dimanche)
+  cycles                 réactions mesurées autour des événements et cycles nommés par Sonni
   portefeuille           son portefeuille virtuel : valeur, positions, ordres, résultats
   journee                le résumé du jour (envoyé chaque soir)
   agenda                 événements des 30 prochains jours
@@ -133,6 +135,9 @@ export function runSonniCommand(
       print(formatMemoireFr(query, recall(query, { home: options.home ?? process.env.HOME ?? "/root", db, limit: 8 })));
       return 0;
     }
+    case "cycles":
+      print(formatCyclesFr(db, live));
+      return 0;
     case "carnets": {
       const dir = notebooksDir(options.home ?? process.env.HOME ?? "/root");
       const files = exportNotebooks(db, live, dir);

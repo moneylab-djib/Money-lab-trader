@@ -124,8 +124,12 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
      chaque dimanche et sur `/carnets` (journal, intuitions, pièges, leçons, identité, portefeuille, un
      fichier par actif). Au passage, le scénario « chaos » du test bout-en-bout (garde-fou G8) : API,
      Telegram et Kraken en panne pendant 40 s, ton message pendant la panne traité une seule fois après.
-   - *C2 — Cycles* : réactions mesurées autour des événements, cycles nommés par Sonni et chiffrés par
-     le code, `/cycles`.
+   - *C2 — Cycles* ✅ construit le 7 octobre : pour chaque décision de la Fed, chiffre d'inflation ou
+     d'emploi passé, le code mesure une fois comment chaque actif a bougé la veille, le jour, la
+     semaine d'après et la première heure. Sonni peut nommer un cycle (« la Fed rassure, le BTC monte
+     le jour même ») : le code compte les cas pour et contre, les compare aux jours ordinaires et donne
+     un verdict comme pour les intuitions (il faut au moins 10 cas ; les événements sont rares). Tu les
+     lis avec `/cycles` et dans `cycles.md` ; il les voit dans son pack avant chaque événement.
    - *C3 — Autopsie du soir* : un réveil programmé chaque soir (1 tour payé par jour).
 5. **Ce que Claude sait déjà** : séance d'intuitions initiales + statistiques sur l'historique.
 6. **Revue hebdo** : rapport du dimanche sur Telegram, carnets lisibles dans `~/carnet/`.
@@ -214,7 +218,8 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 - `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
 - `/dossier <actif>`, `/note <texte>`, `/memoire <sujet>`, `/carnets` : ses dossiers par actif, tes
-  notes, sa mémoire en recherche, ses carnets Markdown (étape C1).
+  notes, sa mémoire en recherche, ses carnets Markdown (étape C1). `/cycles` : les réactions mesurées
+  autour des événements et les cycles qu'il a nommés, avec le verdict du code (étape C2).
 - `/portefeuille` : son portefeuille virtuel (valeur, positions avec leur raison, ordres en attente
   et récents, résultats calculés par le code, opérations closes, pièges nommés). `/journee` : le
   résumé du jour, que tu reçois aussi chaque soir à 20 h.

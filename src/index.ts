@@ -638,6 +638,7 @@ async function run(): Promise<void> {
     const { translateHypothesesTick } = await import("./trader/readers.js");
     const { brokerTick } = await import("./trader/portfolio.js");
     const { exportNotebooks, markNotebooksExported, notebooksDir, notebooksDue } = await import("./trader/notebooks.js");
+    const { reactionsTick } = await import("./trader/cycles.js");
     const { intakeDue } = await import("./trader/intake.js");
     const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
@@ -695,6 +696,8 @@ async function run(): Promise<void> {
     every(24 * 60 * 60_000, "Sonni calendrier", async () => {
       const n = await calendarTick(db.raw, fredKey);
       if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);
+      const measured = reactionsTick(db.raw, live());
+      if (measured > 0) logger.info(`[SONNI] ${measured} réaction(s) mesurée(s) autour des événements passés.`);
     });
     every(5 * 60_000, "Sonni actualité", async () => {
       // newsTick fetches hourly, sooner after a GDELT failure; the digest runs on every pass

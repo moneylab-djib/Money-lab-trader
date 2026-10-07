@@ -11,6 +11,7 @@ import type Database from "better-sqlite3";
 import { getKV, setKV } from "../money-lab/journal.js";
 import type { TraderConfig } from "./config.js";
 import { dossierHistory } from "./dossiers.js";
+import { formatCyclesFr } from "./cycles.js";
 import { fmtDayLong, fmtWhen } from "./format.js";
 import { listTrades, listTraps } from "./portfolio.js";
 import { getPrediction } from "./predictions.js";
@@ -73,6 +74,8 @@ export function exportNotebooks(db: DB, cfg: TraderConfig, dir: string, now: Dat
   files["portefeuille.md"] = header("Portefeuille virtuel de Sonni", now, tz) + formatPortfolioFr(db, cfg, now) + "\n" +
     (trades.length ? "\n## Toutes les opérations closes\n\n" + trades.map((t) =>
       `- ${fmtWhen(t.closedAt, tz)} ${t.asset} : ${t.pnlEur >= 0 ? "+" : "−"}${Math.abs(t.pnlEur).toFixed(2)} € (${t.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.pnlPct).toFixed(2)} %)${t.closeReason === "stop" ? ", par le stop" : ""} — ${t.thesis}`).join("\n") + "\n" : "");
+
+  files["cycles.md"] = header("Cycles de Sonni", now, tz) + formatCyclesFr(db, cfg) + "\n";
 
   for (const a of activeAssets(db, cfg)) {
     const history = dossierHistory(db, a.symbol, 50);
