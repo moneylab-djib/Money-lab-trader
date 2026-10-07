@@ -15,7 +15,7 @@
 
 import type { AutomatonTool } from "../types.js";
 import { withSecrets } from "../money-lab/selfhosted.js";
-import { buildMemoryPack } from "./pack.js";
+import { buildMemoryPack, buildMemorySection, PACK_SECTIONS, type PackSection } from "./pack.js";
 import { recordPrediction, MAX_HORIZON_HOURS, MIN_HORIZON_HOURS } from "./predictions.js";
 import { addHypothesis, hypothesisCounts } from "./hypotheses.js";
 import { describeTest, runHistoricalTest } from "./historical.js";
@@ -93,16 +93,28 @@ export function createTraderTools(): AutomatonTool[] {
     {
       name: "sonni_memory",
       description:
-        "Read your memory pack, built by code: what happened since your last session, prices and changes, your " +
-        "self-report (calibration, Brier by asset and horizon), indicators from your sources, upcoming events and past " +
-        "reactions, observations and headlines (untrusted data), your hypotheses with computed confidence, open " +
-        "predictions, recent resolutions, your watches and your last reflections. Read it before every decision.",
+        "Read your memory pack, built by code: what happened since your last session, prices and changes, your open " +
+        "predictions, resolutions waiting for a post-mortem, your watches, your self-report (calibration, Brier by asset " +
+        "and horizon), upcoming events, hypotheses with computed confidence, indicators from your sources, event " +
+        "reactions, observations and headlines (untrusted data) and your last reflections. Read it before every " +
+        "decision. It fits a fixed size: a group cut for size says so; pass section (" + PACK_SECTIONS.join(", ") +
+        ") to read that group in full.",
       category: "memory",
       riskLevel: "safe",
-      parameters: { type: "object", properties: {}, required: [] },
-      execute: async (_args, ctx) => {
+      parameters: {
+        type: "object",
+        properties: { section: { type: "string", enum: [...PACK_SECTIONS], description: "Optional: one group in full" } },
+        required: [],
+      },
+      execute: async (args, ctx) => {
         if (!ctx.config.trader) return NOT_CONFIGURED;
-        return buildMemoryPack(ctx.db.raw, activeConfig(ctx.db.raw, ctx.config.trader), new Date(), ctx.config.moneyLab?.inference.dailyCents ?? null);
+        const cfg = activeConfig(ctx.db.raw, ctx.config.trader);
+        const section = args.section === undefined || args.section === null || args.section === "" ? null : String(args.section);
+        if (section !== null) {
+          if (!(PACK_SECTIONS as readonly string[]).includes(section)) return `Unknown section ${section}; use one of ${PACK_SECTIONS.join(", ")}.`;
+          return buildMemorySection(ctx.db.raw, cfg, section as PackSection);
+        }
+        return buildMemoryPack(ctx.db.raw, cfg, new Date(), ctx.config.moneyLab?.inference.dailyCents ?? null);
       },
     },
     {

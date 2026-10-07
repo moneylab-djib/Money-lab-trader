@@ -17,8 +17,8 @@ import { isoSeconds } from "../../trader/prices.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
 import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
 import {
-  cancelWatch, curiosityTick, evaluateTriggers, formatWakesFr, isSonniWake, MAX_OPEN_WATCHES, openWatches, setWatch,
-  SONNI_WAKE_SOURCE, wakesDeliveredToday, wakesSince, type WakeGate,
+  canDeliverWake, cancelWatch, curiosityTick, evaluateTriggers, formatWakesFr, isSonniWake, MAX_OPEN_WATCHES, openWatches,
+  setWatch, SONNI_WAKE_SOURCE, wakesDeliveredToday, wakesSince, type WakeGate,
 } from "../../trader/curiosity.js";
 import { runSonniCommand } from "../../trader/cli.js";
 
@@ -226,6 +226,18 @@ describe("Wake delivery", () => {
     expect(out.join("\n")).toContain("réveillé");
     expect(out.join("\n")).toContain("noté");
     expect(formatWakesFr(db.raw, cfg, hours(17))).toContain("aujourd'hui 1 sur 2");
+  });
+
+  it("delivers only to a sleeping, unpaused agent off any budget cap, once the loop really slept", () => {
+    const ok = { state: "sleeping", paused: false, sleepReason: "next session", loopSlept: true };
+    expect(canDeliverWake(ok)).toBe(true);
+    expect(canDeliverWake({ ...ok, sleepReason: undefined })).toBe(true);
+    expect(canDeliverWake({ ...ok, state: "running" })).toBe(false);
+    expect(canDeliverWake({ ...ok, state: "dead" })).toBe(false);
+    expect(canDeliverWake({ ...ok, paused: true })).toBe(false);
+    expect(canDeliverWake({ ...ok, sleepReason: "plafond journalier atteint" })).toBe(false);
+    // The state persisted by a shutdown says "sleeping" before the first cycle: no wake until the loop slept.
+    expect(canDeliverWake({ ...ok, loopSlept: false })).toBe(false);
   });
 
   it("recognises Sonni's own wake sources", () => {

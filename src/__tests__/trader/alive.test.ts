@@ -33,7 +33,10 @@ import { isoSeconds } from "../../trader/prices.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
 import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
 import { createTraderTools } from "../../trader/tools.js";
-import { buildMemoryPack } from "../../trader/pack.js";
+import { buildMemoryPack, PACK_BUDGET } from "../../trader/pack.js";
+import { listHypotheses } from "../../trader/hypotheses.js";
+
+const listHypothesesIds = (db: AutomatonDatabase) => listHypotheses(db.raw).map((h) => h.id);
 import { buildSonniIdentityBlock, buildSonniPromptBlock, SONNI_REFLECTION_INSTRUCTIONS } from "../../trader/prompt.js";
 import { activeLessons, listReflections, reflectionDue, reflectionOpen, reviseIdentity, IDENTITY_ANCHOR } from "../../trader/soul.js";
 import { openWatches, recordWake, SONNI_WAKE_SOURCE } from "../../trader/curiosity.js";
@@ -76,9 +79,13 @@ function toolRunner(db: AutomatonDatabase) {
 beforeEach(() => {
   tmpDirs = [];
   vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("tests must not reach the network"); }));
+  // The example config names two readers; the shell running the tests must not lend them keys.
+  vi.stubEnv("GEMINI_API_KEY", "");
+  vi.stubEnv("GROQ_API_KEY", "");
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -133,12 +140,13 @@ describe("Prompt and memory pack", () => {
     expect(stable).toContain("## Your identity (version 2, written by you)");
     expect(stable).toContain("rebonds trop rapides");
     expect(stable).toContain("## Your lessons (0 active");
-    const rules = buildSonniPromptBlock(db.raw, config.moneyLab!, config.trader!);
+    const rules = buildSonniPromptBlock(db.raw, config.moneyLab!, config.trader!, {});
     expect(rules.startsWith("--- SONNI RULES")).toBe(true);
     expect(rules).toContain("Curiosity: 0 of 6 self-wakes used today (move alert 3 % in 1 h");
-    // The example config names two readers; without keys in this test they are reported as such.
+    // The example config names two readers; the environment given here holds no key.
     expect(rules).toContain("Pages read today: 0 of 20. Readers: gemini no key, groq no key.");
-    expect(buildSonniPromptBlock(db.raw, config.moneyLab!, { ...config.trader!, readers: [] })).toContain("Readers: none configured");
+    expect(buildSonniPromptBlock(db.raw, config.moneyLab!, config.trader!, { GEMINI_API_KEY: "x" })).toContain("Readers: gemini 0/200 calls today, groq no key.");
+    expect(buildSonniPromptBlock(db.raw, config.moneyLab!, { ...config.trader!, readers: [] }, {})).toContain("Readers: none configured");
     expect(rules).toContain("Followed assets: BTC, ETH");
     db.close();
   });
@@ -167,11 +175,63 @@ describe("Prompt and memory pack", () => {
     expect(second).toContain(`Since your last pack (${T0.toISOString().slice(0, 16).replace("T", " ")} UTC; computed by code):`);
     expect(second).toContain("trigger (woke you): 1 prediction(s) resolved");
     expect(second).toContain(`1 prediction(s) resolved: ${p.prediction.id} BTC happened Brier 0.090`);
-    expect(second).toContain(`Resolved predictions without a post-mortem yet: ${p.prediction.id}`);
+    expect(second).toContain(`Waiting for your post-mortem (write_reflection kind postmortem): ${p.prediction.id}`);
     expect(second).toContain("Observations, last 24 h (1, extracted by reader models");
     expect(second).toContain("- BTC: 1 item(s), mean sentiment +0.50");
     expect(second).toContain("Indicators from your sources");
     expect(second).toContain("- Crypto Fear & Greed (alternative.me) index: 27.00 (1 h old)");
+    db.close();
+  });
+});
+
+describe("Memory pack size", () => {
+  it("fits the tool-result budget with every store full, keeps Sonni's own state first, and offers each group in full", async () => {
+    const db = openDb();
+    ensureCatalog(db.raw, T0);
+    const now = new Date();
+    for (let i = 0; i < 40; i++) {
+      addHypothesis(db.raw, { statement: `Hypothesis number ${i}: ${"a long statement about how BTC and ETH react to macro surprises ".repeat(4)}`, origin: "prior" }, now);
+    }
+    const h = listHypothesesIds(db)[0];
+    price(db, "BTC", now, 60000);
+    price(db, "ETH", now, 2400);
+    for (let i = 0; i < 25; i++) {
+      const r = recordPrediction(db.raw, TRADER, { asset: "BTC", direction: "above", threshold: 50000 + i, horizonHours: 48, probability: 0.6, hypothesisId: h, statement: `p${i}`, rationale: "r" }, now);
+      if (!r.ok) throw new Error(r.error);
+    }
+    for (let i = 0; i < 80; i++) {
+      insertObservation(db.raw, { publishedAt: now.toISOString(), source: "reader:gemini", url: `https://n.example/${i}`, assets: [i % 2 ? "BTC" : "ETH"], kind: "market", sentiment: 0.1, summary: `Observation ${i} ${"x".repeat(200)}`, eventDate: null }, now);
+      db.raw.prepare("INSERT INTO trader_headlines (url, title, domain, published_at, fetched_at) VALUES (?, ?, 'n.example', ?, ?)")
+        .run(`https://n.example/h${i}`, `Headline ${i} ${"y".repeat(150)}`, isoSeconds(now), now.toISOString());
+    }
+    insertObservation(db.raw, { publishedAt: now.toISOString(), source: "page", url: "https://fed.example/minutes", assets: [], kind: "other", sentiment: null, summary: "Fed minutes: rates unchanged.", eventDate: null }, now);
+    const pack = buildMemoryPack(db.raw, TRADER, now, 193);
+    expect(pack.length).toBeLessThanOrEqual(PACK_BUDGET);
+    // What Sonni itself must see is never cut away by long lists of hypotheses or headlines.
+    expect(pack).toContain("Open predictions (25):");
+    expect(pack).toContain("(10 more open: sonni_memory with {\"section\": \"predictions\"})");
+    expect(pack).toContain("Open watches (0;");
+    expect(pack).toContain("SELF-REPORT (computed by code");
+    expect(pack).toMatch(/Hypotheses \(40;/);
+    expect(pack).toMatch(/sonni_memory with \{"section": "(hypotheses|headlines|observations|reflections)"\}/);
+    // The detail views return one group, within the same budget, without moving the "since" reference.
+    const run = toolRunner(db);
+    const hyp = await run("sonni_memory", { section: "hypotheses" });
+    expect(String(hyp.result)).toContain('MEMORY SECTION "hypotheses"');
+    expect(String(hyp.result).length).toBeLessThanOrEqual(PACK_BUDGET);
+    const obs = await run("sonni_memory", { section: "observations" });
+    expect(String(obs.result)).toContain("page other: Fed minutes: rates unchanged.");
+    expect(String((await run("sonni_memory", { section: "nope" })).result)).toContain("Unknown section nope");
+    db.close();
+  });
+
+  it("shows the pages Sonni read even though they carry no asset", () => {
+    const db = openDb();
+    const now = new Date();
+    insertObservation(db.raw, { publishedAt: now.toISOString(), source: "page", url: "https://fed.example/minutes", assets: [], kind: "other", sentiment: null, summary: "Fed minutes: rates unchanged.", eventDate: null }, now);
+    const pack = buildMemoryPack(db.raw, TRADER, now, null);
+    expect(pack).toContain("- Pages you read (1):");
+    expect(pack).toContain("fed.example: Fed minutes: rates unchanged.");
     db.close();
   });
 });

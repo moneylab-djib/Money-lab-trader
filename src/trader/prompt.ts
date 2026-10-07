@@ -135,7 +135,12 @@ export function buildSonniIdentityBlock(db: Database.Database): string {
   return lines.join("\n");
 }
 
-export function buildSonniPromptBlock(db: Database.Database, lab: MoneyLabConfig, cfg: TraderConfig): string {
+export function buildSonniPromptBlock(
+  db: Database.Database,
+  lab: MoneyLabConfig,
+  cfg: TraderConfig,
+  env: NodeJS.ProcessEnv = withSecrets(),
+): string {
   const now = new Date();
   const i = lab.inference;
   const limits = [
@@ -147,7 +152,7 @@ export function buildSonniPromptBlock(db: Database.Database, lab: MoneyLabConfig
   const hypotheses = listHypotheses(db);
   const open = listOpenPredictions(db);
   const summary = brierSummary(db);
-  const readers = readerStatuses(db, cfg, withSecrets(), now);
+  const readers = readerStatuses(db, cfg, env, now);
   const readerLine = readers.length === 0
     ? "Readers: none configured (headlines stay raw; read_page returns raw text)."
     : "Readers: " + readers.map((r) => `${r.id} ${!r.keyPresent ? "no key" : r.restingUntil ? "resting" : r.callsToday >= r.dailyRequests ? "daily cap reached" : `${r.callsToday}/${r.dailyRequests} calls today`}`).join(", ") + ".";

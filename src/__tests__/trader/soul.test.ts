@@ -15,10 +15,10 @@ import { parseTraderConfig, type TraderConfig } from "../../trader/config.js";
 import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
-import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
+import { getPrediction, recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
 import {
   activeLessons, addLesson, currentIdentity, formatSelfReport, formatSelfReportFr, IDENTITY_ANCHOR, identityHistory,
-  identityRevisionsToday, listReflections, MAX_IDENTITY_REVISIONS_PER_DAY, MAX_LESSONS_PER_DAY, MAX_REFLECTIONS_PER_DAY,
+  identityRevisionsToday, listReflections, MAX_ACTIVE_LESSONS, MAX_IDENTITY_REVISIONS_PER_DAY, MAX_LESSONS_PER_DAY, MAX_REFLECTIONS_PER_DAY,
   markReflectionDone, predictionsAwaitingPostmortem, reflectionDue, reflectionOpen, retireLesson, reviseIdentity, SEED_IDENTITY,
   selfReport, startReflection, writeReflection,
 } from "../../trader/soul.js";
@@ -120,8 +120,18 @@ describe("Reflections", () => {
       .toMatchObject({ ok: false, error: expect.stringContaining("already has its post-mortem") });
     expect(writeReflection(db.raw, { kind: "session", subjectId: "p_unknown", content: "Note de séance assez longue." }, hours(25)))
       .toMatchObject({ ok: false, error: expect.stringContaining("Unknown subject_id") });
-    expect(writeReflection(db.raw, { kind: "session", subjectId: h.id, content: "Note de séance liée à une intuition." }, hours(25)).ok).toBe(true);
+    // A minute later, so the journal order does not depend on two ids made in the same millisecond.
+    expect(writeReflection(db.raw, { kind: "session", subjectId: h.id, content: "Note de séance liée à une intuition." }, new Date(hours(25).getTime() + 60_000)).ok).toBe(true);
     expect(listReflections(db.raw, 10).map((r) => r.kind)).toEqual(["session", "postmortem"]);
+    // A void prediction (no price at the horizon) is resolved but not scored: nothing to judge.
+    price(db, "BTC", hours(26), 60000);
+    const voided = recordPrediction(db.raw, TRADER, { asset: "BTC", direction: "above", threshold: 59000, horizonHours: 1, probability: 0.6, hypothesisId: h.id, statement: "s", rationale: "r" }, hours(26));
+    if (!voided.ok) throw new Error(voided.error);
+    resolveDuePredictions(db.raw, TRADER, hours(30));
+    expect(getPrediction(db.raw, voided.prediction.id)!.voidReason).toContain("no BTC price");
+    expect(predictionsAwaitingPostmortem(db.raw).map((p) => p.id)).not.toContain(voided.prediction.id);
+    expect(writeReflection(db.raw, { kind: "postmortem", subjectId: voided.prediction.id, content: "Il n'y a rien à juger ici, mais j'essaie quand même." }, hours(30)))
+      .toMatchObject({ ok: false, error: expect.stringContaining("void") });
     expect(() => db.raw.prepare("DELETE FROM trader_reflections").run()).toThrow(/append-only/);
     expect(() => db.raw.prepare("UPDATE trader_reflections SET content = 'x'").run()).toThrow(/append-only/);
   });
@@ -178,6 +188,26 @@ describe("Lessons", () => {
     expect(runSonniCommand(["lecons"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
     expect(out.join("\n")).toMatch(/Leçons actives \(1\)/);
     expect(out.join("\n")).toContain("retirée par toi : pas d'accord");
+  });
+});
+
+describe("Lesson count cap", () => {
+  it("refuses the 41st active lesson until one is retired", () => {
+    const db = openDb();
+    const h = addHypothesis(db.raw, { statement: "BTC holds above 50k in calm weeks", origin: "owner" }, T0);
+    let added = 0;
+    for (let day = 0; added < MAX_ACTIVE_LESSONS; day++) {
+      for (let i = 0; i < MAX_LESSONS_PER_DAY && added < MAX_ACTIVE_LESSONS; i++) {
+        const r = addLesson(db.raw, { text: `Leçon numéro ${added} assez longue pour passer.`, evidenceIds: [h.id] }, hours(24 * day));
+        if (!r.ok) throw new Error(r.error);
+        added++;
+      }
+    }
+    expect(activeLessons(db.raw)).toHaveLength(MAX_ACTIVE_LESSONS);
+    const tooMany = addLesson(db.raw, { text: "Une de trop pour la mémoire active.", evidenceIds: [h.id] }, hours(24 * 20));
+    expect(tooMany).toMatchObject({ ok: false, error: expect.stringContaining("lessons are active; retire one") });
+    expect(retireLesson(db.raw, activeLessons(db.raw)[0].id, "model", "doublon", hours(24 * 20)).ok).toBe(true);
+    expect(addLesson(db.raw, { text: "Une de trop pour la mémoire active.", evidenceIds: [h.id] }, hours(24 * 20)).ok).toBe(true);
   });
 });
 

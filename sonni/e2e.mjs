@@ -314,9 +314,14 @@ tgSend("Bonjour Sonni, regarde le marché.");
 await until(() => step >= 4, 60000) || fail(`decision session stopped at step ${step}`);
 
 // A 4 % jump in the next collections: code wakes the sleeping agent (at most one wake per 30 min).
-await until(() => /Agent chose to sleep|Entering sleep mode/.test(out) && step >= 4, 20000);
+// Wait for the decision cycle itself to end (the intake cycle ended earlier): two loop ends.
+const loopEnds = () => (out.match(/Agent loop finished\. State: sleeping/g) ?? []).length;
+await until(() => loopEnds() >= 2, 20000) || fail("decision cycle did not end in a sleep");
 jump = true;
-await until(() => wokenByMove, 150000) || fail("no self-wake after the 4 % move within 150 s");
+const jumpedAt = Date.now();
+await until(() => wokenByMove, 150000)
+  ? ok(`self-wake ${Math.round((Date.now() - jumpedAt) / 1000)} s after the 4 % move (collection, trigger, 30-s sleep poll)`)
+  : fail("no self-wake after the 4 % move within 150 s");
 /\[SONNI\] Réveil : BTC \+\d/.test(out) ? ok("runtime logged the curiosity wake") : fail("curiosity wake not logged");
 
 tgSend("/agenda");

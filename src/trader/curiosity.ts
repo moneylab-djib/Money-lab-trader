@@ -338,6 +338,25 @@ export interface WakeGate {
   wake(source: string, reason: string): void;
 }
 
+export interface WakeGateState {
+  /** The agent state persisted by the runtime ("sleeping", "running", "dead"...). */
+  state: string;
+  paused: boolean;
+  /** KV sleep_reason; a budget sleep starts with "plafond" (src/agent/loop.ts). */
+  sleepReason: string | undefined;
+  /** True once the main loop has entered its sleep loop after a cycle (not the state left by a shutdown). */
+  loopSlept: boolean;
+}
+
+/**
+ * The one rule for delivering a self-wake, shared by index.ts and the
+ * tests: only a sleeping, unpaused agent that is not resting on a budget
+ * cap, and only once the loop has really slept in this process.
+ */
+export function canDeliverWake(s: WakeGateState): boolean {
+  return s.loopSlept && s.state === "sleeping" && !s.paused && !String(s.sleepReason ?? "").startsWith("plafond");
+}
+
 export interface CuriosityOutcome {
   triggered: Trigger[];
   delivered: boolean;

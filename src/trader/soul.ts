@@ -191,6 +191,7 @@ export function writeReflection(
     const p = subjectId ? getPrediction(db, subjectId) : undefined;
     if (!p) return { ok: false, error: "A post-mortem needs subject_id: the id of a resolved prediction." };
     if (!p.resolvedAt) return { ok: false, error: `Prediction ${p.id} is not resolved yet: no post-mortem before the outcome.` };
+    if (p.brier === null) return { ok: false, error: `Prediction ${p.id} was void (no price at the horizon): nothing to judge; write a session note if the gap matters.` };
     const done = db.prepare("SELECT 1 FROM trader_reflections WHERE kind = 'postmortem' AND subject_id = ?").get(p.id);
     if (done) return { ok: false, error: `Prediction ${p.id} already has its post-mortem; write a session reflection instead.` };
   } else if (input.subjectId !== undefined && input.subjectId !== null && String(input.subjectId).trim() !== "") {

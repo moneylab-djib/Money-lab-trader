@@ -618,14 +618,17 @@ async function run(): Promise<void> {
     const live = () => activeConfig(db.raw, traderBase);
     const { calendarTick, collectTick, digestTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
     const { intakeDue } = await import("./trader/intake.js");
-    const { curiosityTick } = await import("./trader/curiosity.js");
+    const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
     // A wake starts a paid cycle: only while sleeping, unpaused and not on a budget cap, and only
     // once the main loop has actually slept (the state persisted by the last shutdown says
     // "sleeping" before the first cycle, which would drain the event and waste a wake).
-    const canWake = () =>
-      sonniLoopSlept && db.getAgentState() === "sleeping" && !getPauseState(db.raw) &&
-      !String(db.getKV("sleep_reason") ?? "").startsWith("plafond");
+    const canWake = () => canDeliverWake({
+      state: db.getAgentState(),
+      paused: !!getPauseState(db.raw),
+      sleepReason: db.getKV("sleep_reason"),
+      loopSlept: sonniLoopSlept,
+    });
     every(traderBase.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, live()));
     every(6 * 60 * 60_000, "Sonni historique", async () => {
       const n = await historyTick(db.raw, live());
