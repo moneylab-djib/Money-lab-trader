@@ -71,6 +71,16 @@
     (agent liveness patterns, reader safety checklist) were lost in a container restart and not
     re-run: the design already follows the project's own rules (observations only, validation,
     caps, public hosts); nothing from them is claimed.
+  - Adversarial review (five reviewer agents over the diff, 2026-10-07): 14 findings, 13 fixed with a
+    test each (model-proposed sources followed redirects; the owner never saw a proposed source's URL;
+    reader keys could be sent to any https host named in the editable config; watch notes and reasons
+    unchecked; raw page title stored unchecked; provider bodies in error texts; identity text could forge
+    the runtime's prompt sections; the "resolved" trigger re-fired after 6 h on a timestamp-precision
+    mismatch; the move trigger re-fired on stale prices; the startup tick wasted a wake; a GDELT error
+    skipped the digest; digest capacity below the headline inflow; intake checked on the base config in
+    the loop). Not fixed, documented: the agent's shell runs as the same OS user as the runtime, so it
+    could edit state.db or the config (known limitation, AGENTS.md; a second OS user is deployment work
+    for the real-money phase).
 - Known gaps (deliberate, later slices):
   - Monthly budget pacing is approximated by Money Lab's daily cap (1/30 of the month) and funding balance.
   - Only price-threshold predictions; no virtual orders, traps or cycles yet; readiness thresholds left
