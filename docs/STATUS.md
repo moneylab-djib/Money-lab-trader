@@ -56,9 +56,10 @@
     recorded check session opened for steps 1-2 (all attempts passed) both reached their 60-minute
     limit before the final `project check`; the run was ended with its summary and a new run and a new
     check session were begun deliberately for the verification phase (no failure budget was evaded;
-    the previous session is archived under .likma/sessions/). Likma `project check` (types, sonni,
-    money-lab, build, sonni-e2e 263 s): PASS, 2026-10-07 00:50 UTC, report
-    .likma/checks/5df38e141a1a4b4cb3b4eed392df5069.json. Feature verifications: see docs/FEATURES.md.
+    the previous session is archived under .likma/sessions/). Likma `project check` (types, sonni 84,
+    money-lab 110, build, sonni-e2e 263 s): PASS, 2026-10-07 01:09 UTC after the review fixes, report
+    .likma/checks/36ce9c9dbfad44fb9fb7fa670d4448b0.json (an earlier PASS before the fixes:
+    5df38e141a1a4b4cb3b4eed392df5069). Feature verifications: see docs/FEATURES.md.
   - Research by web agents (2026-10-07, reports kept in the session scratchpad, conclusions applied):
     free LLM APIs: Gemini free tier is the primary reader (`gemini-3.5-flash-lite`; limits no longer
     published, EEA users get the no-training terms; auth keys since May 2026), Groq free plan the
