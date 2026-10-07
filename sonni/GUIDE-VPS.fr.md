@@ -151,6 +151,8 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | Commande | Effet |
 | --- | --- |
 | `/statut` | l'essentiel en quatre blocs (portefeuille, marché et prédictions, apprentissage, budget), heure de Paris |
+| `/portefeuille` | son portefeuille virtuel : valeur, positions avec leur raison, ordres, résultats calculés par le code, pièges |
+| `/journee` | le résumé du jour (ordres et raisons, valeur, prédictions, journal, dépense) ; tu le reçois aussi chaque soir à 20 h |
 | `/technique` | état technique du programme (budget détaillé, pauses, cycles) |
 | `/idee <texte>` | lui donner une intuition à tester |
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
@@ -170,10 +172,15 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 
 Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), interroge ses sources de
 données, fait quelques séances de décision par jour, note ses prédictions, et le code les juge à
-l'échéance. Le code le réveille quand un actif bouge de 3 % en une heure, les jours d'événement,
-quand des prédictions sont résolues ou quand une de ses veilles se déclenche (6 réveils par jour au
-plus). Après chaque résultat, il écrit un post-mortem dans son journal. Chaque dimanche, il fait sa
-revue et t'envoie un rapport en français.
+l'échéance. Son portefeuille virtuel (1 000 € au premier relevé de prix, puis 50 € par mois, réglable
+dans `trader.portfolio`) : il passe des ordres fictifs avec une raison, un niveau d'invalidation et un
+horizon ; le code vérifie (au plus 30 % par actif, 10 € minimum, prix frais) et exécute au prix suivant
+avec les frais Kraken ; il vend tout seul si le niveau d'invalidation est atteint. Le code le réveille
+quand un actif bouge de 3 % en une heure, les jours d'événement, quand des prédictions sont résolues,
+quand un ordre est exécuté ou une position arrive à son horizon, ou quand une de ses veilles se
+déclenche (6 réveils par jour au plus). Après chaque résultat et chaque opération close, il écrit un
+post-mortem dans son journal. Chaque soir à 20 h, tu reçois son résumé du jour. Chaque dimanche, il
+fait sa revue et t'envoie un rapport en français.
 
 ## Facultatif — Des IA gratuites pour lire l'actualité
 
@@ -233,7 +240,8 @@ sudo -u sonni -H node sonni/vps/configure.mjs --monthly-budget-eur 50 --eur-usd 
 systemctl restart sonni
 ```
 Ton identifiant Telegram est repris de la configuration précédente : `--chat-id` ne sert qu'à la
-première installation. Tape ou colle ces lignes une par une plutôt qu'en bloc.
+première installation. Tape ou colle ces lignes une par une plutôt qu'en bloc. Le taux `--eur-usd`
+sert aussi à convertir ce que coûte l'IA pour la mesure d'autofinancement du portefeuille.
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.

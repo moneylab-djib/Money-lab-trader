@@ -16,11 +16,12 @@
 
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
-import { getKV, setKV } from "../money-lab/journal.js";
+import { getKV, setKV, summarizeFinances } from "../money-lab/journal.js";
 import { containsInjectionPatterns } from "../soul/validator.js";
 import { inferenceGetDailyCost } from "../state/database.js";
 import type { TraderConfig } from "./config.js";
 import { getHypothesis, listHypotheses } from "./hypotheses.js";
+import { getTrade, type Performance, performance } from "./portfolio.js";
 import { getPrediction, type Prediction } from "./predictions.js";
 
 type DB = Database.Database;
@@ -39,7 +40,7 @@ export const MAX_IDENTITY_REVISIONS_PER_DAY = 1;
 /** The identity must keep saying who it is. */
 export const IDENTITY_ANCHOR = "Je suis Sonni";
 
-export const REFLECTION_KINDS = ["postmortem", "session", "daily", "weekly"] as const;
+export const REFLECTION_KINDS = ["postmortem", "trade", "session", "daily", "weekly"] as const;
 export type ReflectionKind = (typeof REFLECTION_KINDS)[number];
 
 /** Version 1, written by code: the model revises it from here. */
@@ -194,9 +195,15 @@ export function writeReflection(
     if (p.brier === null) return { ok: false, error: `Prediction ${p.id} was void (no price at the horizon): nothing to judge; write a session note if the gap matters.` };
     const done = db.prepare("SELECT 1 FROM trader_reflections WHERE kind = 'postmortem' AND subject_id = ?").get(p.id);
     if (done) return { ok: false, error: `Prediction ${p.id} already has its post-mortem; write a session reflection instead.` };
+  } else if (kind === "trade") {
+    subjectId = String(input.subjectId ?? "").trim();
+    const t = subjectId ? getTrade(db, subjectId) : undefined;
+    if (!t) return { ok: false, error: "A trade post-mortem needs subject_id: the id of a closed trade (t_...)." };
+    const done = db.prepare("SELECT 1 FROM trader_reflections WHERE kind = 'trade' AND subject_id = ?").get(t.id);
+    if (done) return { ok: false, error: `Trade ${t.id} already has its post-mortem; write a session reflection instead.` };
   } else if (input.subjectId !== undefined && input.subjectId !== null && String(input.subjectId).trim() !== "") {
     const s = String(input.subjectId).trim();
-    if (!getPrediction(db, s) && !getHypothesis(db, s)) return { ok: false, error: `Unknown subject_id ${s}.` };
+    if (!getPrediction(db, s) && !getHypothesis(db, s) && !getTrade(db, s)) return { ok: false, error: `Unknown subject_id ${s}.` };
     subjectId = s;
   }
   const id = `r_${ulid()}`;
@@ -312,6 +319,8 @@ const KV_REFLECTION_MARKER = "sonni.reflection_marker";
 const KV_REFLECTION_OPEN = "sonni.reflection_open";
 /** The latest resolution the open reflection covers: a prediction resolved during the wake stays due. */
 const KV_REFLECTION_UPTO = "sonni.reflection_upto";
+const KV_TRADE_MARKER = "sonni.trade_reflection_marker";
+const KV_TRADE_UPTO = "sonni.trade_reflection_upto";
 
 /**
  * A reflection is due when a prediction was resolved after the last one.
@@ -321,12 +330,17 @@ const KV_REFLECTION_UPTO = "sonni.reflection_upto";
 export function reflectionDue(db: DB): boolean {
   const marker = getKV(db, KV_REFLECTION_MARKER) ?? "";
   const row = db.prepare("SELECT 1 FROM trader_predictions WHERE brier IS NOT NULL AND resolved_at > ? LIMIT 1").get(marker);
-  return !!row;
+  if (row) return true;
+  // A closed trade (profit or loss realised by code) deserves its post-mortem too.
+  const tradeMarker = getKV(db, KV_TRADE_MARKER) ?? "";
+  return !!db.prepare("SELECT 1 FROM trader_trades WHERE closed_at > ? LIMIT 1").get(tradeMarker);
 }
 
 export function startReflection(db: DB): void {
   const row = db.prepare("SELECT MAX(resolved_at) AS m FROM trader_predictions WHERE brier IS NOT NULL").get() as { m: string | null };
   setKV(db, KV_REFLECTION_UPTO, row.m ?? "");
+  const trades = db.prepare("SELECT MAX(closed_at) AS m FROM trader_trades").get() as { m: string | null };
+  setKV(db, KV_TRADE_UPTO, trades.m ?? "");
   setKV(db, KV_REFLECTION_OPEN, "1");
 }
 
@@ -342,6 +356,8 @@ export function reflectionOpen(db: DB): boolean {
 export function markReflectionDone(db: DB, now: Date = new Date()): void {
   const upto = getKV(db, KV_REFLECTION_UPTO);
   setKV(db, KV_REFLECTION_MARKER, upto ? upto : now.toISOString().slice(0, 19) + "Z");
+  const tradeUpto = getKV(db, KV_TRADE_UPTO);
+  setKV(db, KV_TRADE_MARKER, tradeUpto ? tradeUpto : now.toISOString());
   setKV(db, KV_REFLECTION_OPEN, "0");
 }
 
@@ -379,6 +395,8 @@ export interface SelfReport {
   identityVersion: number;
   spentTodayCents: number;
   dailyCapCents: number | null;
+  /** Virtual portfolio results, computed by code (decision 0003's proof metrics). */
+  portfolio: Performance;
 }
 
 const BUCKETS = [
@@ -448,8 +466,13 @@ export function selfReport(db: DB, cfg: TraderConfig, dailyCapCents: number | nu
     identityVersion: currentIdentity(db, now).version,
     spentTodayCents: inferenceGetDailyCost(db, now.toISOString().slice(0, 10)),
     dailyCapCents,
+    portfolio: performance(db, cfg, summarizeFinances(db).inferenceConsumedCents, now),
   };
 }
+
+const pctSigned = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)} %`;
+const pctSignedFr = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2).replace(".", ",")} %`;
+const eurFr = (v: number) => `${v >= 0 ? "" : "−"}${Math.abs(v).toFixed(2).replace(".", ",")} €`;
 
 const f3 = (v: number | null) => (v === null ? "n/a" : v.toFixed(3));
 const pct = (v: number) => `${Math.round(v * 100)} %`;
@@ -481,6 +504,17 @@ export function formatSelfReport(r: SelfReport): string {
   const hyp = Object.entries(r.hypotheses).map(([k, v]) => `${v} ${k}`).join(", ") || "none";
   lines.push(`- Hypotheses: ${hyp}. Active lessons: ${r.lessonsActive}. Reflections written: ${r.reflections}. Identity version ${r.identityVersion}.`);
   lines.push(`- Spend today: $${(r.spentTodayCents / 100).toFixed(2)}${r.dailyCapCents !== null ? ` of $${(r.dailyCapCents / 100).toFixed(2)}` : ""}.`);
+  const p = r.portfolio;
+  if (p.contributedEur === 0) {
+    lines.push("- Portfolio: not funded yet (opens at the first price).");
+  } else {
+    lines.push(`- Portfolio: equity ${p.equityEur.toFixed(2)} EUR on ${p.contributedEur.toFixed(2)} contributed (${pctSigned(p.pnlPct)} after fees` +
+      `${p.change7dPct !== null ? `, 7 d ${pctSigned(p.change7dPct)}` : ""}${p.change30dPct !== null ? `, 30 d ${pctSigned(p.change30dPct)}` : ""}` +
+      `${p.maxDrawdownPct !== null ? `, max drawdown ${p.maxDrawdownPct.toFixed(2)} %` : ""}).`);
+    lines.push(`- Trades closed: ${p.tradesClosed}${p.winRate !== null ? `, win rate ${Math.round(p.winRate * 100)} %, mean ${pctSigned(p.avgTradePct!)} per trade` : ""}; ` +
+      `fees ${p.feesEur.toFixed(2)} EUR; stops hit ${p.stops}; ` +
+      `self-funding ratio ${p.selfFundingRatio === null ? "n/a" : p.selfFundingRatio.toFixed(2)} (virtual gain / inference spend; 1 = paid for itself).`);
+  }
   return lines.join("\n");
 }
 
@@ -508,5 +542,16 @@ export function formatSelfReportFr(r: SelfReport): string {
   const hyp = Object.entries(r.hypotheses).map(([k, v]) => `${v} ${k}`).join(", ") || "aucune";
   lines.push(`Intuitions : ${hyp}. Leçons actives : ${r.lessonsActive}. Réflexions : ${r.reflections}. Identité version ${r.identityVersion}.`);
   lines.push(`Dépense du jour : ${(r.spentTodayCents / 100).toFixed(2)} $${r.dailyCapCents !== null ? ` sur ${(r.dailyCapCents / 100).toFixed(2)} $` : ""}.`);
+  const p = r.portfolio;
+  lines.push("", "Portefeuille virtuel (les trois preuves de la décision 0003, calculées par le code) :");
+  if (p.contributedEur === 0) {
+    lines.push("- pas encore ouvert : il s'ouvre au premier relevé de prix.");
+  } else {
+    lines.push(`- Rendement après frais : ${pctSignedFr(p.pnlPct)} (${eurFr(p.pnlEur)} sur ${eurFr(p.contributedEur)} versés)` +
+      `${p.change30dPct !== null ? `, ${pctSignedFr(p.change30dPct)} sur 30 jours` : ""}${p.maxDrawdownPct !== null ? `, pire recul ${pctSignedFr(-p.maxDrawdownPct)}` : ""}.`);
+    lines.push(`- Erreurs : ${p.tradesClosed} opération${p.tradesClosed > 1 ? "s" : ""} close${p.tradesClosed > 1 ? "s" : ""}` +
+      `${p.winRate !== null ? `, ${Math.round(p.winRate * 100)} % gagnantes, ${pctSignedFr(p.avgTradePct!)} en moyenne` : ""}, ${p.stops} stop${p.stops > 1 ? "s" : ""} déclenché${p.stops > 1 ? "s" : ""}, frais ${eurFr(p.feesEur)}.`);
+    lines.push(`- Autofinancement : ${p.selfFundingRatio === null ? "pas encore mesurable" : `${p.selfFundingRatio.toFixed(2).replace(".", ",")} (gain virtuel / coût de l'IA ; 1 = il paie sa propre IA)`}.`);
+  }
   return lines.join("\n");
 }

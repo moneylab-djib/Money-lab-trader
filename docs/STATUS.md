@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-07
-- Branch / commit: claude/sonni-clarity (step 4 A, on main after PRs #1 to #9)
+- Branch / commit: claude/sonni-portfolio (step 4 B, based on claude/sonni-clarity = PR #10, on main after PRs #1 to #9)
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
@@ -126,7 +126,7 @@
     rest state is process memory (a restart retries); daily caps count UTC days.
   - Money Lab's experiment-oriented texts remain in some owner commands (/aides, /resume).
 - First live run (owner's VPS, 2026-10-06 22:12 UTC): two predictions due 2026-10-07 22:12 UTC.
-- Blockers: none for code. The owner must create free reader keys (optional) and update the VPS.
+- Blockers: none for code. The owner must update the VPS after merging PRs #10 and the step 4 B PR.
 - PRs #1 to #5 were merged into main by the owner on 2026-10-07 (05:32 to 05:38 UTC, merge commits);
   main now carries the whole of Sonni and the guide points the VPS at main.
 - Step 4 A (clarity, owner's request of 2026-10-07 after reading /statut): `/statut` rewritten as four
@@ -137,10 +137,22 @@
   12 times in 24 h and still, no reader available with headlines waiting), hypotheses written in
   French by the model and translated for display by a reader otherwise (`statement_fr`, set once,
   checked like any reader output), `trader.timeZone` setting. Tests: src/__tests__/trader/clarity
-  (6) plus updated status assertions. Step 4 B (virtual portfolio) follows on its own branch.
-- Next concrete action: owner re-runs `sudo -u sonni -H node sonni/vps/configure.mjs ...` on the VPS
-  (without adding budget), adds GEMINI_API_KEY / GROQ_API_KEY to /etc/sonni.env if wanted, restarts,
-  checks /lecteurs, /sources, /identite. Proposed next engineering task: a guard map for Sonni per the
+  (6) plus updated status assertions. PR #10 (draft) carries it.
+- Step 4 B (virtual portfolio, owner's order of 2026-10-07: "A then B, keep 30 %, a summary each evening
+  or a precise Telegram command, build everything"): src/trader/portfolio.ts paper broker (funding at
+  the first price and monthly, orders checked by code and filled at the next price with Kraken fees and
+  spread slippage, limit orders, expiries, stops placed by code at the invalidation level, horizon
+  wakes, trades with P&L after fees, daily snapshots, performance incl. the self-funding ratio, traps
+  with hits), tables in schema.ts (settle-once trigger on orders, append-only elsewhere, the
+  reflections table rebuilt once for the `trade` kind), tools place_order / cancel_order /
+  manage_position / note_trap, pack sections, prompt, curiosity triggers (settled orders, horizons),
+  trade post-mortems in the reflection cycle, `/portefeuille`, `/journee` and the evening summary at
+  20:00 local (telegram.ts), `/bilan` with the three proofs of decision 0003, `brokerTick` after each
+  collection (index.ts), configure.mjs writes `portfolio.eurUsd`. Tests: src/__tests__/trader/portfolio
+  (5), e2e places and fills a 100 EUR BTC order and checks /statut, /portefeuille, /journee.
+- Next concrete action: owner merges PR #10 then the step 4 B PR, runs the update block of
+  sonni/GUIDE-VPS.fr.md (git pull, install, build, configure.mjs, restart); the portfolio opens at the
+  first collected price; checks /statut, /portefeuille, and the evening summary at 20:00. Proposed next engineering task: a guard map for Sonni per the
   Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.

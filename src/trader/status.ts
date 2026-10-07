@@ -22,6 +22,7 @@ import { getKV, getPauseState } from "../money-lab/journal.js";
 import { survivalBalance } from "../money-lab/selfhosted.js";
 import { inferenceGetDailyCost } from "../state/database.js";
 import { ago, fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, fmtWhen, plural } from "./format.js";
+import { listTrades, listTraps, type Order, pendingOrders, performance, recentOrders, valuation } from "./portfolio.js";
 
 type DB = Database.Database;
 
@@ -105,7 +106,7 @@ export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new
   const out: string[] = [`🧭 SONNI — ${fmtDayLong(now, tz)}, ${fmtTime(now.toISOString(), tz)}`];
 
   out.push("", "💼 Portefeuille virtuel");
-  out.push("En construction (étape 4) : pour l'instant Sonni s'entraîne avec des prédictions, sans ordres.");
+  out.push(...portfolioLinesFr(db, cfg, now, true));
 
   out.push("", "📈 Marché");
   const prices = cfg.assets.map((asset) => {
@@ -167,6 +168,95 @@ export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new
   out.push(`Sonni ${agentStateFr(db, tz, now)}.`);
   out.push("", "Détails : /bilan (calibration) · /technique (état du programme)");
   return out.join("\n");
+}
+
+// ─── Portfolio, for the owner ───────────────────────────────────
+
+function signed(v: number): string {
+  return `${v >= 0 ? "+" : "−"}${fmtEur(Math.abs(v))}`;
+}
+
+function signedPct(v: number): string {
+  return `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+}
+
+/** Order notes are written by code in English (the model reads them); the owner gets them in French. */
+export function orderNoteFr(note: string | null): string {
+  const known: Record<string, string> = {
+    "no price stored within 24 h": "aucun prix reçu en 24 h",
+    "limit not reached before the horizon": "limite jamais atteinte avant l'échéance",
+    "cancelled by model": "annulé par Sonni",
+    "cancelled by owner": "annulé par toi",
+  };
+  return note === null ? "" : known[note] ?? note;
+}
+
+function orderLineFr(o: Order, tz: string): string {
+  const what = o.side === "buy" ? `achat de ${fmtEur(o.amountEur ?? 0)} de ${o.asset}` : `vente de ${o.quantity} ${o.asset}`;
+  const kind = o.kind === "limit" ? ` à ${fmtEur(o.limitPrice!)} (limite)` : "";
+  const who = o.origin === "stop" ? " [stop automatique]" : "";
+  if (o.status === "pending") return `${what}${kind}${who}, en attente du prochain prix`;
+  if (o.status === "filled") {
+    return `${what}${who} : exécuté le ${fmtWhen(o.settledAt!, tz)} à ${fmtEur(o.fillPrice!)} (${o.fillQuantity} ${o.asset}, frais ${fmtEur(o.feeEur!)})`;
+  }
+  const status = o.status === "cancelled" ? "annulé" : o.status === "expired" ? "expiré" : "refusé";
+  return `${what}${who} : ${status}${o.note ? ` (${orderNoteFr(o.note)})` : ""}`;
+}
+
+/** The short portfolio block of /statut, or the full /portefeuille view. */
+export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: boolean): string[] {
+  const tz = cfg.timeZone;
+  const v = valuation(db);
+  const lines: string[] = [];
+  if (v.contributedEur === 0) {
+    lines.push(`Pas encore ouvert : ${fmtEur(cfg.portfolio.startEur)} de capital virtuel au premier relevé de prix, puis ${fmtEur(cfg.portfolio.monthlyEur)} par mois.`);
+    return lines;
+  }
+  lines.push(`Valeur ${fmtEur(v.equityEur)} (${signed(v.pnlEur)}, ${signedPct(v.pnlPct)} sur ${fmtEur(v.contributedEur)} versés) · liquidités ${fmtEur(v.cashEur)}`);
+  if (v.positions.length === 0) lines.push("Aucune position : tout en liquide.");
+  for (const p of v.positions) {
+    lines.push(`${p.asset} : ${p.quantity} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)}) acheté ${fmtEur(p.avgCost)}` +
+      `${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}${p.horizonUntil ? `, revoir ${fmtWhen(p.horizonUntil, tz)}` : ""}` +
+      (short ? "" : `
+  Raison : ${p.thesis}`));
+  }
+  const pending = pendingOrders(db);
+  for (const o of pending) lines.push(`En attente : ${orderLineFr(o, tz)}`);
+  if (short) return lines;
+  const perf = performance(db, cfg, 0, now);
+  lines.push("", "Résultats (calculés par le code) :");
+  lines.push(`- ${plural(perf.tradesClosed, "opération close", "opérations closes")}` +
+    (perf.winRate !== null ? `, ${Math.round(perf.winRate * 100)} % gagnantes, ${signedPct(perf.avgTradePct!)} en moyenne` : "") +
+    ` · frais payés ${fmtEur(perf.feesEur)}${perf.stops ? ` · ${plural(perf.stops, "stop déclenché", "stops déclenchés")}` : ""}`);
+  if (perf.change7dPct !== null) {
+    lines.push(`- 7 jours ${signedPct(perf.change7dPct)}${perf.change30dPct !== null ? ` · 30 jours ${signedPct(perf.change30dPct)}` : ""}` +
+      `${perf.maxDrawdownPct !== null ? ` · pire recul ${signedPct(-perf.maxDrawdownPct)}` : ""}${perf.firstDay ? ` (depuis le ${fmtDay(perf.firstDay)})` : ""}`);
+  }
+  const recent = recentOrders(db, 8).filter((o) => o.status !== "pending");
+  if (recent.length) {
+    lines.push("", "Derniers ordres :");
+    for (const o of recent) lines.push(`- ${orderLineFr(o, tz)}`);
+  }
+  const trades = listTrades(db, 5);
+  if (trades.length) {
+    lines.push("", "Dernières opérations closes :");
+    for (const t of trades) {
+      lines.push(`- ${t.asset} : ${signed(t.pnlEur)} (${signedPct(t.pnlPct)}), acheté ${fmtEur(t.entryPrice)} vendu ${fmtEur(t.exitPrice)} le ${fmtWhen(t.closedAt, tz)}` +
+        `${t.closeReason === "stop" ? ", par le stop" : ""} — ${t.thesis.slice(0, 140)}`);
+    }
+  }
+  const traps = listTraps(db);
+  if (traps.length) {
+    lines.push("", "Pièges qu'il a nommés :");
+    for (const t of traps) lines.push(`- « ${t.name} » (${plural(t.hits, "fois")}) : ${t.description}`);
+  }
+  return lines;
+}
+
+export function formatPortfolioFr(db: DB, baseCfg: TraderConfig, now: Date = new Date()): string {
+  const cfg = activeConfig(db, baseCfg);
+  return [`💼 Portefeuille virtuel de Sonni — ${fmtDayLong(now, cfg.timeZone)}`, ...portfolioLinesFr(db, cfg, now, false),
+    "", `Règles : au comptant seulement, au plus ${cfg.portfolio.maxPositionPct} % du portefeuille par actif, frais Kraken ${String(cfg.portfolio.takerFeePct).replace(".", ",")} % (marché) / ${String(cfg.portfolio.makerFeePct).replace(".", ",")} % (limite), exécution au prix suivant. Résumé du jour : /journee.`].join("\n");
 }
 
 // ─── /intuitions ────────────────────────────────────────────────

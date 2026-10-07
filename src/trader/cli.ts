@@ -11,12 +11,16 @@ import { addHypothesis } from "./hypotheses.js";
 import { formatReadersFr } from "./readers.js";
 import { decideSource, formatSourcesFr } from "./sources.js";
 import { formatSelfReportFr, IDENTITY_ANCHOR, retireLesson, reviseIdentity, selfReport } from "./soul.js";
-import { type BudgetView, formatAgenda, formatHypotheses, formatIdentityFr, formatJournalFr, formatLessonsFr, formatSonniStatus } from "./status.js";
+import { type BudgetView, formatAgenda, formatHypotheses, formatIdentityFr, formatJournalFr, formatLessonsFr, formatPortfolioFr, formatSonniStatus } from "./status.js";
+import { buildSonniEveningSummary } from "./report.js";
+import type { MoneyLabConfig } from "../money-lab/profile.js";
 import { activeConfig, formatUniverseFr } from "./universe.js";
 
 export const SONNI_USAGE = `Commandes Sonni :
   statut                 état de Sonni (prix, prédictions, intuitions)
   intuitions             liste des intuitions
+  portefeuille           son portefeuille virtuel : valeur, positions, ordres, résultats
+  journee                le résumé du jour (envoyé chaque soir)
   agenda                 événements des 30 prochains jours
   idee "<texte>"         ajouter une intuition à tester (origine : propriétaire)
   bilan                  calibration et scores calculés par le code
@@ -50,6 +54,8 @@ export interface SonniCommandOptions {
   dailyCapCents?: number | null;
   /** Spend and balance from the Money Lab ledger, for the status. */
   budget?: BudgetView | null;
+  /** Money Lab profile, for the evening summary's cap. */
+  lab?: MoneyLabConfig | null;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -69,6 +75,13 @@ export function runSonniCommand(
       return 0;
     case "intuitions":
       print(formatHypotheses(db));
+      return 0;
+    case "portefeuille":
+      print(formatPortfolioFr(db, live));
+      return 0;
+    case "journee":
+    case "journée":
+      print(buildSonniEveningSummary(db, live, options.lab ?? null));
       return 0;
     case "agenda":
       print(formatAgenda(db));

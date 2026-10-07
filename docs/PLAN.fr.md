@@ -100,8 +100,20 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    - Au passage : les couches « survie » et d'orchestration du runtime Automaton ne sont plus dans
      son prompt, et le bloc qui change à chaque tour est placé en dernier, pour que le cache couvre
      presque tout (moins cher à chaque tour).
-2. **Portefeuille virtuel** : 1 000 € virtuels au départ, ordres fictifs, frais et glissement
-   simulés, versement virtuel de 50 €/mois.
+2. **Portefeuille virtuel** ✅ construit le 7 octobre (étape 4 B, après la lisibilité de l'étape 4 A) :
+   1 000 € virtuels arrivent au premier relevé de prix, puis 50 € virtuels le premier de chaque mois.
+   Sonni passe des ordres fictifs (au marché ou à cours limité, en euros) avec une raison écrite, un
+   niveau d'invalidation (« si le prix passe sous X, je me trompe ») et un horizon ; le code vérifie
+   tout avant d'enregistrer l'ordre (actif suivi, prix frais, argent disponible, **au plus 30 % du
+   portefeuille par actif** comme tu l'as choisi, 10 € minimum) et l'exécute au prix suivant avec les
+   frais Kraken (0,8 % au marché, 0,4 % à cours limité) et un glissement tiré du carnet d'ordres. Si
+   le prix atteint le niveau d'invalidation, le code vend tout seul ; à l'horizon, Sonni est réveillé
+   pour garder ou vendre. Chaque vente ferme une opération dont le résultat après frais est calculé
+   par le code ; Sonni en écrit l'autopsie dans son journal et peut nommer un piège (une erreur
+   répétable, comptée opération par opération). Son bilan `/bilan` donne désormais les trois mesures
+   du passage au réel. Pour toi : `/portefeuille`, `/journee`, et un résumé chaque soir à 20 h (ton
+   choix : un résumé par jour plutôt qu'un message par ordre). Aucun compte, aucun argent réel : le
+   portefeuille n'existe que dans sa base de données.
 3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.
 4. **Mémoire complète** : intuitions, pièges, cycles, autopsies quotidiennes.
 5. **Ce que Claude sait déjà** : séance d'intuitions initiales + statistiques sur l'historique.
@@ -166,6 +178,9 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 
 - `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
+- `/portefeuille` : son portefeuille virtuel (valeur, positions avec leur raison, ordres en attente
+  et récents, résultats calculés par le code, opérations closes, pièges nommés). `/journee` : le
+  résumé du jour, que tu reçois aussi chaque soir à 20 h.
 - `/statut` : l'essentiel en quatre blocs, en français et à l'heure de Paris, sans identifiants :
   portefeuille virtuel, marché et prédictions (ouvertes, résolues avec leur score), apprentissage
   (intuitions, lectures, journal), budget du jour. `/technique` donne l'état technique du programme.

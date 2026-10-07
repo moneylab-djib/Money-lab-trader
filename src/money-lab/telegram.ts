@@ -27,11 +27,12 @@ import { approvalRequired, decidePost, describePosts, setApprovalMode } from "./
 import { withSecrets } from "./selfhosted.js";
 import { runSonniCommand } from "../trader/cli.js";
 import { budgetView, formatSonniStatus } from "../trader/status.js";
-import { buildSonniDailyReport } from "../trader/report.js";
+import { buildSonniDailyReport, buildSonniEveningSummary } from "../trader/report.js";
 import { ensureTraderSchema } from "../trader/schema.js";
 
 const KV_OFFSET = "money_lab.telegram_offset";
 const KV_SUMMARY_DAY = "money_lab.telegram_summary_day";
+const KV_EVENING_DAY = "sonni.telegram_evening_day";
 const MAX_MESSAGE = 3900;
 
 export const TELEGRAM_HELP = `Commandes Money Lab :
@@ -53,6 +54,8 @@ Tout autre message est transmis au bot.`;
 
 export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /statut — l'essentiel : portefeuille, marché, prédictions, apprentissage, budget
+/portefeuille — son portefeuille virtuel : valeur, positions, ordres, résultats
+/journee — le résumé du jour (envoyé chaque soir à 20 h)
 /idee <texte> — ajouter une intuition à tester
 /intuitions — liste des intuitions
 /agenda — événements à venir (Fed, inflation, emploi)
@@ -79,7 +82,7 @@ const SONNI_SUBCOMMANDS: Record<string, string> = {
   "/idee": "idee", "/idée": "idee", "/intuitions": "intuitions", "/agenda": "agenda", "/bilan": "bilan",
   "/identite": "identite", "/identité": "identite", "/journal": "journal", "/lecons": "lecons", "/leçons": "lecons",
   "/veto": "veto", "/reveils": "reveils", "/réveils": "reveils", "/lecteurs": "lecteurs", "/sources": "sources",
-  "/source": "source", "/actifs": "actifs",
+  "/source": "source", "/actifs": "actifs", "/portefeuille": "portefeuille", "/journee": "journee", "/journée": "journee",
 };
 
 type FetchFn = typeof fetch;
@@ -198,12 +201,16 @@ export class TelegramChannel {
       case "/lecteurs":
       case "/sources":
       case "/source":
-      case "/actifs": {
+      case "/actifs":
+      case "/portefeuille":
+      case "/journee":
+      case "/journée": {
         if (!this.config.trader) return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
         ensureTraderSchema(this.raw);
         const sub = SONNI_SUBCOMMANDS[command];
         runSonniCommand([sub, ...args], this.raw, this.config.trader, (t) => out.push(t), {
           dailyCapCents: this.config.moneyLab?.inference.dailyCents ?? null,
+          lab: this.config.moneyLab ?? null,
         });
         return out.join("\n");
       }
@@ -294,6 +301,18 @@ export class TelegramChannel {
       queueOwnerNotification(this.raw, this.config.trader
         ? buildSonniDailyReport(this.raw, this.config.trader, this.config.moneyLab, withSecrets(), now).text
         : buildHealthReport(this.raw, this.config.moneyLab, { now }).text);
+    }
+
+    // Evening summary once a day, from 20:00 in the owner's time zone (the owner's choice: a summary
+    // each evening rather than a message per order).
+    if (this.config.trader) {
+      const tz = this.config.trader.timeZone;
+      const localHour = Number(now.toLocaleString("en-GB", { timeZone: tz, hour: "2-digit", hour12: false }));
+      const localDay = now.toLocaleDateString("en-CA", { timeZone: tz });
+      if (localHour >= 20 && getKV(this.raw, KV_EVENING_DAY) !== localDay) {
+        setKV(this.raw, KV_EVENING_DAY, localDay);
+        queueOwnerNotification(this.raw, buildSonniEveningSummary(this.raw, this.config.trader, this.config.moneyLab ?? null, now));
+      }
     }
 
     for (const item of pendingOwnerNotifications(this.raw)) {

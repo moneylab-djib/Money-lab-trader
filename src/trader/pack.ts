@@ -20,6 +20,7 @@ import { describeTest, latestHistoricalTest, verdictCounts, type HistoricalTest 
 import { MIN_CASES, SUPPORT_Z } from "./rules.js";
 import { eventReactions, upcomingEvents } from "./events.js";
 import { recentHeadlines } from "./news.js";
+import { listTrades, listTraps, pendingOrders, recentOrders, tradesAwaitingPostmortem, valuation } from "./portfolio.js";
 import { brierSummary, listOpenPredictions, listResolvedPredictions, type Prediction } from "./predictions.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrBefore } from "./prices.js";
 import { describeWatch, openWatches, recentWatches, wakesSince } from "./curiosity.js";
@@ -32,7 +33,7 @@ type DB = Database.Database;
 /** Characters the pack may use: below the 10,000-character cut of tool results, with room for notes. */
 export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
-export const PACK_SECTIONS = ["hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
+export const PACK_SECTIONS = ["portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -343,6 +344,55 @@ function headlinesSection(db: DB, now: Date, limit: number): Section {
   };
 }
 
+// ─── Portfolio ──────────────────────────────────────────────────
+
+/** Cash, positions, pending orders and the day's fills: the model's own money state, computed by code. */
+function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
+  const v = valuation(db);
+  const pc = cfg.portfolio;
+  const lines: string[] = [];
+  const sign = v.pnlEur >= 0 ? "+" : "";
+  lines.push(`- Cash ${eur(v.cashEur)}, positions ${eur(v.positionsEur)}, total ${eur(v.equityEur)} (${sign}${eur(v.pnlEur)}, ${sign}${v.pnlPct.toFixed(2)} % on ${eur(v.contributedEur)} contributed); ` +
+    `position cap ${pc.maxPositionPct} % of the portfolio (${eur((v.equityEur * pc.maxPositionPct) / 100)}), fees ${pc.takerFeePct} % taker / ${pc.makerFeePct} % maker`);
+  if (v.positions.length === 0) lines.push("- No open position: all in cash.");
+  for (const p of v.positions) {
+    const s = p.pnlEur >= 0 ? "+" : "";
+    lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} %); ` +
+      `stop ${p.invalidation === null ? "none" : eur(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
+  }
+  for (const o of pendingOrders(db)) {
+    lines.push(`- Pending ${o.id}: ${o.kind} ${o.side} ${o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${o.quantity} ${o.asset}`}${o.limitPrice ? ` at ${o.limitPrice} EUR` : ""}${o.origin === "stop" ? " (STOP placed by code)" : ""}, until ${o.horizonUntil}`);
+  }
+  const since = new Date(now.getTime() - 24 * 3_600_000).toISOString();
+  for (const o of recentOrders(db, 6, since)) {
+    if (o.status === "pending") continue;
+    lines.push(`- ${o.settledAt?.slice(5, 16).replace("T", " ")} ${o.status} ${o.id}: ${o.side} ${o.asset}` +
+      (o.status === "filled" ? ` ${o.fillQuantity} at ${eur(o.fillPrice!)} (fee ${eur(o.feeEur!)}, slippage ${eur(o.slippageEur!)})` : ` — ${o.note ?? ""}`) +
+      (o.origin === "stop" ? " [stop]" : ""));
+  }
+  const awaiting = tradesAwaitingPostmortem(db, 5);
+  if (awaiting.length) lines.push(`- Closed trades waiting for your post-mortem (write_reflection kind trade): ${awaiting.map((t) => `${t.id} ${t.asset} ${t.pnlEur >= 0 ? "+" : ""}${t.pnlEur.toFixed(2)} EUR`).join(", ")}`);
+  // The traps' names stay in front of the model at decision time; their signs are in the detail view.
+  const traps = listTraps(db);
+  if (traps.length) lines.push(`- Your traps (check each before an order): ${traps.map((t) => `« ${t.name} » (${t.hits})`).join(", ")}`);
+  return { title: "Your virtual portfolio (code-computed; " + moreHint("portfolio") + " for trades and traps):", lines, detail: "portfolio" };
+}
+
+function tradesSection(db: DB, limit: number): Section {
+  const trades = listTrades(db, limit);
+  const lines = trades.length === 0 ? ["- none closed yet"] : trades.map((t) =>
+    `- ${t.id} ${t.asset} ${t.closedAt.slice(0, 16).replace("T", " ")}: ${t.quantity} bought ${eur(t.entryPrice)} sold ${eur(t.exitPrice)}, ` +
+      `${t.pnlEur >= 0 ? "+" : ""}${eur(t.pnlEur)} (${t.pnlPct >= 0 ? "+" : ""}${t.pnlPct.toFixed(2)} %, fees ${eur(t.feesEur)}), closed by ${t.closeReason === "stop" ? "the stop" : "you"}; thesis: ${short(t.thesis, 140)}`);
+  return { title: `Closed trades (${trades.length} most recent; profit and loss computed by code):`, lines, detail: "trades" };
+}
+
+function trapsSection(db: DB): Section {
+  const traps = listTraps(db);
+  const lines = traps.length === 0 ? ["- none named yet (note_trap add, after a trade post-mortem that shows a repeatable mistake)"] : traps.map((t) =>
+    `- « ${t.name} » (${t.hits} trade(s)): ${short(t.description, 120)} Signs: ${short(t.warningSigns, 100)}`);
+  return { title: "Your traps (named mistakes):", lines, detail: "traps" };
+}
+
 // ─── Pack and detail views ──────────────────────────────────────
 
 export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(), dailyCapCents: number | null = null): string {
@@ -351,6 +401,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
   const sections: (Section | null)[] = [
     previous ? sinceSection(db, previous) : null,
     pricesSection(db, cfg, now),
+    portfolioSection(db, cfg, now),
     openSection(db, PACK_OPEN),
     resolvedSection(db, PACK_RESOLVED),
     watchesSection(db, now),
@@ -373,6 +424,12 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
 export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSection, now: Date = new Date()): string {
   const head = [`MEMORY SECTION "${section}" — ${isoSeconds(now)}`];
   switch (section) {
+    case "portfolio":
+      return fitSections(head, [portfolioSection(db, cfg, now), tradesSection(db, 10), trapsSection(db)]);
+    case "trades":
+      return fitSections(head, [tradesSection(db, 100)]);
+    case "traps":
+      return fitSections(head, [trapsSection(db)]);
     case "hypotheses":
       return fitSections(head, [hypothesesSection(db, 500, 300)]);
     case "predictions":

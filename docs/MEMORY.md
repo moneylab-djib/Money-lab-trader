@@ -52,7 +52,12 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `trader_headlines` (implemented) | url, title, domain, published_at, digested_at | Headlines about crypto and the Fed from GDELT and from five keyless RSS feeds (Cointelegraph, The Block, Decrypt filtered by keywords, the Fed's press releases, a Google News search; fixed in src/trader/news.ts, items of the last 48 h, 40 per feed), hourly (5, 10, 20 then 30 minutes after a failed or rate-limited fetch; the schedule is kept in KV so a restart does not call GDELT again at once), kept 30 days. Untrusted data. `digested_at` is set by code only once a reader has answered for the batch, so a failed or capped reader leaves the headline for the next digest. |
 | `trader_historical_tests` (implemented) | hypothesis_id, tested_at, data_from, data_to, cases, hits, rate, base_rate, z, verdict | Append-only; written by code only (section 4). |
 | `trader_observations` (implemented) | observed_at, published_at, source (reader:<id> or page), url, assets, kind, sentiment, summary, event_date, trust | Extracted by a free reader model from headlines (hourly digest) or from a page the model asked to read; every field validated and clipped by code, prompt-boundary patterns rejected; always `untrusted`; append-only. |
-| `trader_reflections` (implemented) | kind (postmortem, session, daily, weekly), subject_id, content, recorded_at | The model's journal, in French, append-only. A post-mortem needs a scored prediction and exists once per prediction. |
+| `trader_reflections` (implemented) | kind (postmortem, trade, session, daily, weekly), subject_id, content, recorded_at | The model's journal, in French, append-only. A post-mortem needs a scored prediction and exists once per prediction; a `trade` reflection needs a closed trade and exists once per trade (databases from before step 4 B are rebuilt once to accept the kind). |
+| `trader_ledger` (implemented, step 4 B) | at, kind (capital / contribution / buy / sell), asset, quantity, price, amount_eur, fee_eur, order_id | Every cash movement of the virtual portfolio, written by code only; cash is its sum. Append-only. |
+| `trader_orders` (implemented, step 4 B) | placed_at, asset, side, kind (market / limit), amount_eur or quantity, limit_price, thesis, probability, invalidation, horizon_until, hypothesis_ids, origin (model / stop / owner), status (pending → filled / cancelled / expired), settled_at, fill_price, fill_quantity, fill_eur, fee_eur, slippage_eur, note | The model's orders, checked by code before they exist (src/trader/portfolio.ts) and settled once by code at a later price: a trigger refuses any second settlement or any change to the order's own fields. A stop is an order code places with origin `stop`. |
+| `trader_trades` (implemented, step 4 B) | asset, opened_at, closed_at, quantity, entry_price, exit_price, fees_eur, pnl_eur, pnl_pct, open_order_id, close_order_id, close_reason (model / stop), thesis | One per sale, P&L after fees computed by code; append-only. The model writes one `trade` reflection per closed trade. |
+| `trader_position_updates` (implemented, step 4 B) | asset, at, field (invalidation / horizon_until), old_value, new_value, reason, by (model / code) | Every change to a position's levels, with the model's reason or code's (a stop clears the level); append-only. |
+| `trader_portfolio_days` (implemented, step 4 B) | day, at, cash_eur, positions_eur, equity_eur, contributed_eur | One equity snapshot per UTC day (first tick), for returns, drawdown and the evening summary's daily change; append-only. |
 | `trader_wakes` (implemented) | source, key, reason, at, delivered | Code-only log of curiosity triggers (section 5), delivered as a wake or only noted; append-only. |
 | `trader_metrics` (implemented) | source_id, metric, ts, value | Numbers polled by code from the enabled data sources (90-day retention). |
 | `trader_reader_calls` (implemented) | reader_id, at, purpose, ok, ms, status, error | Every reader call, for the daily caps and /lecteurs; keys never appear; error texts are written by code (never a provider's body); append-only. |
@@ -66,8 +71,9 @@ Markdown notebooks are exported from them for the owner (section 8).
 | --- | --- | --- |
 | `hypotheses` (intuitions) | statement, statement_fr, origin, conditions, test_rule, status, confidence, valid_from, valid_to, recorded_at, supersedes | origin: `prior` (Claude's knowledge), `observation`, `owner`, `review`. status: untested → testing → supported / refuted → retired. `statement_fr` is what the owner reads: the owner's own text, or a free reader's translation of the model's statement (set once by code after the usual checks); the model keeps reasoning on `statement`, which it now writes in French too. |
 | `hypothesis_evidence` | hypothesis_id, kind (support / contradict), ref, source (`historical` / `forward`), weight | Each piece points to a reaction, prediction or trade. |
-| `traps` | name, description, warning_signs, occurrences, cost_so_far | Named mistakes, for example "buying a rumour already priced in". |
-| `trap_occurrences` | trap_id, trade_id or prediction_id, note | Written at post-mortem time. |
+| `trader_traps` (implemented, step 4 B) | name, description, warning_signs, recorded_at | Named mistakes, for example "buying a rumour already priced in"; at most 40, one per name; the names are in every memory pack. Append-only. |
+| `trader_trap_hits` (implemented, step 4 B) | trap_id, trade_id, note, recorded_at | A closed trade counted against a trap, once per pair, written by the model at post-mortem time (`note_trap hit`); append-only. |
+| `trader_positions` (implemented, step 4 B) | asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at | The current holding per asset: quantity and average cost are changed only by code on fills; the model moves `invalidation` and `horizon_until` with a logged reason (`manage_position`). Not append-only: it is state, and the ledger, orders and trades are its record. |
 | `patterns` (cycles) | name, event_type, sequence, stats, n, last_seen | Recurring event → reaction sequences; `stats` and `n` are computed by code from `reactions`. |
 | `dossiers` | asset, notes, catalysts, calendar | One per followed asset. |
 | `trader_universe` (implemented) | asset, kraken_pair, action (follow / unfollow), reason, recorded_at | The watch list the agent chooses (decision 0003): a Kraken EUR pair checked against the public pair list, every change with a reason, append-only; the followed set is the config plus this log replayed. The owner's configuration keeps authority: at startup code compares the configured assets with the previous start (KV `sonni.config_assets`) and logs a follow for an added asset, a follow with the new pair when the owner corrects the pair of an asset an older follow entry carries, and an unfollow for a removed one; a removed asset with open predictions stays followed until they resolve (retried at the next start), and the last followed asset is never dropped. |
@@ -122,7 +128,7 @@ Implemented in step 1 ("Sonni already knows things", src/trader/intake.ts, rules
 | Ingest | Hourly | Code (calendars, headlines) and free reader models (digest) | Calendars, GDELT and RSS headlines, pages the model asks to read | events, headlines, observations |
 | Measure | Every few minutes | Code | Prices, events | reactions, pattern stats |
 | Decide | ~3 sessions/day + triggers | Sonnet 5.5 | Memory pack (section 6) | predictions, virtual orders, theses |
-| Resolve | Continuous | Code | Prices, horizons | outcomes, Brier scores, P&L, hypothesis evidence |
+| Resolve | Continuous (every price collection) | Code | Prices, horizons, pending orders, invalidation levels | outcomes, Brier scores, fills, stops, expiries, trades with P&L, daily snapshot, hypothesis evidence |
 | Consolidate | Daily | Sonnet 5.5 | The day's resolutions and observations | post-mortems, trap occurrences, new hypotheses, dossier notes |
 | Review | Weekly | Opus 5.5 | The week, hypothesis table, traps, rules | merged and retired hypotheses, lessons, new patterns to test, the owner's report |
 
@@ -171,7 +177,9 @@ scale and cost nothing per query.
 
 Implemented pack (step 3, src/trader/pack.ts), within 9,000 characters, in order: what happened
 since the previous session (triggers, resolutions, new headlines and observations, computed by code);
-prices and changes; open predictions (15); recent resolutions (6), with the ids still waiting for a
+prices and changes; the virtual portfolio (step 4 B: cash, positions with stop, horizon and thesis,
+pending orders, the last 24 h of settled orders, closed trades waiting for a post-mortem, the names of
+the traps); open predictions (15); recent resolutions (6), with the ids still waiting for a
 post-mortem; open watches; the self-report (calibration, Brier by asset, horizon and direction,
 counts, spend); upcoming events (14 days); ranked hypotheses (12, statements shortened); indicators
 from the enabled sources with 24 h and 7 d references; past reactions to events; observations of the
@@ -179,8 +187,8 @@ last 24 h per asset with code-averaged sentiment, dated items and the pages the 
 two reflections (shortened); raw headlines (12). Code fills sections in that order and, when the
 budget runs out, cuts the section with a note naming how many lines were not shown, or lists the
 omitted sections; nothing is silently dropped. The model reads any group in full with
-`sonni_memory {"section": ...}` (hypotheses, predictions, observations, headlines, reflections,
-watches, sources, events); a detail view does not move the "since the previous session" reference.
+`sonni_memory {"section": ...}` (portfolio with trades and traps, trades, traps, hypotheses,
+predictions, observations, headlines, reflections, watches, sources, events); a detail view does not move the "since the previous session" reference.
 The identity text and the active lessons are not in the pack: they sit in the cached part of the
 system prompt. `recall` searches the identity versions, reflections, lessons and hypotheses by terms
 (no FTS5 index yet).
@@ -188,6 +196,10 @@ system prompt. `recall` searches the identity versions, reflections, lessons and
 ## 7. Integrity
 
 - Predictions and trades are append-only; the agent's tools can insert but not update or delete them.
+  Orders are settled once by code (a trigger refuses a second settlement or a change to the order's
+  own fields); the ledger, trades, position updates, traps and hits are append-only; positions are
+  state kept by code, with every level change logged. Fees, slippage, P&L, returns, drawdown and the
+  self-funding ratio are computed by code, never written by the model.
 - Each day, code computes a hash chain over new predictions and trades. The weekly report shows the
   latest hash, so a silent rewrite would be visible.
 - Limitation, inherited from Money Lab: in-process protections can be bypassed through the shell tool.
@@ -205,7 +217,12 @@ system prompt. `recall` searches the identity versions, reflections, lessons and
   `/veto <règle>` retires a lesson. Step 4 A: `/statut` is four short blocks in French and in the
   owner's time zone (`trader.timeZone`, default Europe/Paris) without identifiers, `/technique` keeps
   the runtime's technical state, and the daily message is Sonni's own morning report (yesterday,
-  today, real alerts only; src/trader/report.ts). Implemented in step 3: `/identite` (and `/identite <texte>`, the
+  today, real alerts only; src/trader/report.ts). Step 4 B: `/portefeuille` (value, positions with
+  their reasons, pending and recent orders, code-computed results, closed trades, traps), `/journee`
+  (the day's orders with reasons, value and daily change, resolved predictions, what it wrote and
+  spent), also sent once each evening from 20:00 in the owner's time zone, the owner's choice of
+  2026-10-07 over a message per order; `/bilan` adds the three proofs of decision 0003 (return after
+  fees, errors, self-funding ratio). Implemented in step 3: `/identite` (and `/identite <texte>`, the
   owner's own version, recorded with source `owner`), `/journal`, `/lecons`, `/veto <id>`, `/bilan`,
   `/reveils`, `/lecteurs`, `/sources`, `/source ok|non <id>`, `/actifs`.
 

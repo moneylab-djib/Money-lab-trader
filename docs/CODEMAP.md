@@ -31,6 +31,9 @@
 | Sonni page reading | src/trader/pages.ts | read_page: public-host checks, capped fetch, reader summary, observation | URL rules, caps or page summary schema change |
 | Sonni data sources | src/trader/sources.ts | Catalog loading, polling by JSON path, model enable/disable/propose, owner decisions, metrics for the pack; catalog in src/trader/catalog.ts | A source, its cadence, failure rule or proposal rule changes |
 | Sonni universe | src/trader/universe.ts | Followed assets: config plus the model's logged follow/unfollow choices checked against Kraken EUR pairs; activeConfig | Asset rules or pair validation change |
+| Sonni paper broker | src/trader/portfolio.ts | Virtual portfolio: funding, orders checked and filled by code at later prices with fees and slippage, positions, stops, horizons, trades with P&L, traps, snapshots, performance | Order rules, fees, the position cap, fills or the performance figures change (keep docs/MEMORY.md and ARCHITECTURE.md in sync) |
+| Sonni owner reports | src/trader/report.ts | Morning report and evening summary for the owner, in French | What the owner receives each morning or evening changes |
+| Sonni French formatting | src/trader/format.ts | Euro, percent, date and time formatting in the owner's time zone | Owner-facing number or date formats change |
 
 Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

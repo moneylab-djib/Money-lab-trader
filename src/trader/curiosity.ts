@@ -19,6 +19,7 @@ import type { TraderConfig } from "./config.js";
 import { EVENT_LABEL_FR, type EventType } from "./events.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter, priceAtOrBefore, type PricePoint } from "./prices.js";
 import type { SoulResult } from "./soul.js";
+import { listPositions } from "./portfolio.js";
 
 type DB = Database.Database;
 
@@ -36,6 +37,7 @@ export const MAX_WATCH_DAYS = 30;
 export const WATCH_KINDS = ["price", "move", "time"] as const;
 export type WatchKind = (typeof WATCH_KINDS)[number];
 const NOTE_MAX = 300;
+const KV_SETTLED_REPORTED = "sonni.orders_reported_until";
 const KV_RESOLVED_REPORTED = "sonni.resolved_reported_until";
 
 export function isSonniWake(event: { source: string }): boolean {
@@ -301,6 +303,25 @@ export function evaluateTriggers(db: DB, cfg: TraderConfig, now: Date = new Date
     const summary = resolved.slice(0, 5).map((p) => `${p.id} ${p.void_reason ? "void" : p.outcome === 1 ? "happened" : "did not happen"}`).join(", ");
     out.push({ key: "resolved", reason: `${resolved.length} prediction(s) resolved: ${summary}${resolved.length > 5 ? ", ..." : ""}` });
     setKV(db, KV_RESOLVED_REPORTED, resolved[resolved.length - 1].resolved_at);
+  }
+
+  // Portfolio: orders settled by code since the last report (fills, stops, expiries) and positions whose
+  // horizon came. Remembered by settled_at, like resolutions, so nothing is reported twice.
+  const settledUntil = getKV(db, KV_SETTLED_REPORTED) ?? "";
+  const settled = db.prepare(
+    "SELECT id, asset, side, origin, status, fill_price, settled_at FROM trader_orders WHERE settled_at IS NOT NULL AND settled_at > ? AND status != 'cancelled' ORDER BY settled_at ASC",
+  ).all(settledUntil) as { id: string; asset: string; side: string; origin: string; status: string; fill_price: number | null; settled_at: string }[];
+  if (settled.length > 0) {
+    const summary = settled.slice(0, 5).map((o) =>
+      `${o.id} ${o.origin === "stop" ? "STOP " : ""}${o.side} ${o.asset} ${o.status}${o.fill_price ? ` at ${o.fill_price} EUR` : ""}`).join(", ");
+    out.push({ key: "orders", reason: `${settled.length} order(s) settled by code: ${summary}${settled.length > 5 ? ", ..." : ""}` });
+    setKV(db, KV_SETTLED_REPORTED, settled[settled.length - 1].settled_at);
+  }
+  const nowIso = isoSeconds(now);
+  for (const p of listPositions(db)) {
+    if (!p.horizonUntil || p.horizonUntil > nowIso) continue;
+    const key = `horizon:${p.asset}:${p.horizonUntil}`;
+    if (!lastWakeAt(db, key)) out.push({ key, reason: `your ${p.asset} position reached its horizon (${p.horizonUntil}): keep it with a new horizon (manage_position) or sell` });
   }
 
   out.push(...fireWatches(db, now));

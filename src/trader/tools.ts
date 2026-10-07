@@ -30,13 +30,17 @@ import { cancelWatch, describeWatch, MAX_OPEN_WATCHES, MAX_WATCH_DAYS, openWatch
 import { readPage } from "./pages.js";
 import { describeSources, MAX_METRICS_PER_SOURCE, MIN_SOURCE_MINUTES, proposeSource, setSourceEnabled } from "./sources.js";
 import { activeConfig, followAsset, MAX_FOLLOWED_ASSETS, unfollowAsset } from "./universe.js";
+import {
+  addTrap, cancelOrder, listTraps, MAX_HORIZON_HOURS as ORDER_MAX_HORIZON_HOURS, ORDER_KINDS, ORDER_SIDES, placeOrder,
+  recordTrapHit, THESIS_MAX, updatePosition, valuation,
+} from "./portfolio.js";
 
 const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 
 /** Sonni tools that write to its memory or fetch the world: work, never idle turns (src/agent/loop.ts). */
 export const SONNI_WORK_TOOLS: ReadonlySet<string> = new Set([
   "propose_hypothesis", "record_prediction", "write_reflection", "add_lesson", "retire_lesson", "revise_identity",
-  "set_watch", "read_page", "manage_source", "follow_asset",
+  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap",
 ]);
 
 function str(v: unknown): string {
@@ -102,9 +106,9 @@ export function createTraderTools(): AutomatonTool[] {
         "Read your memory pack, built by code: what happened since your last session, prices and changes, your open " +
         "predictions, resolutions waiting for a post-mortem, your watches, your self-report (calibration, Brier by asset " +
         "and horizon), upcoming events, hypotheses with computed confidence, indicators from your sources, event " +
-        "reactions, observations and headlines (untrusted data) and your last reflections. Read it before every " +
-        "decision. It fits a fixed size: a group cut for size says so; pass section (" + PACK_SECTIONS.join(", ") +
-        ") to read that group in full.",
+        "reactions, observations and headlines (untrusted data), your portfolio (cash, positions, pending orders, " +
+        "closed trades, traps) and your last reflections. Read it before every decision. It fits a fixed size: a group " +
+        "cut for size says so; pass section (" + PACK_SECTIONS.join(", ") + ") to read that group in full.",
       category: "memory",
       riskLevel: "safe",
       parameters: {
@@ -402,6 +406,135 @@ export function createTraderTools(): AutomatonTool[] {
         }
         const r = await followAsset(db, ctx.config.trader, { symbol: args.symbol, krakenPair: args.kraken_pair, reason: args.reason });
         return r.ok ? `${r.value.asset} (${r.value.krakenPair}) followed; prices start with the next collection.` : `Refused: ${r.error}`;
+      },
+    },
+    {
+      name: "place_order",
+      description:
+        "Place a virtual order on your paper portfolio (EUR cash, spot only: no leverage, no shorting). Code fills it " +
+        "at the first price stored after your order, never at the price you saw: a market order at that price plus " +
+        "the Kraken spread and the taker fee; a limit order at your limit price when the market crosses it (maker fee), " +
+        "expiring at the horizon. A buy needs amount_eur (cash to spend, fee included) and invalidation: the price below " +
+        "which your thesis is wrong; code sells there automatically (a stop). A sell needs quantity (a number or \"all\"). " +
+        "Rules enforced by code: fresh price, cash and quantity available, one pending order per side and asset, a " +
+        "position never above the owner's cap (% of the portfolio) after a buy, horizon 1 to " + ORDER_MAX_HORIZON_HOURS +
+        " hours (code wakes you when a position reaches it). The thesis (in French, at most " + THESIS_MAX + " characters) " +
+        "and the probability that it plays out are kept for good with the order; every filled sell closes a trade whose " +
+        "profit or loss code computes, and you write its post-mortem (write_reflection kind trade).",
+      category: "memory",
+      riskLevel: "caution",
+      parameters: {
+        type: "object",
+        properties: {
+          asset: { type: "string", description: "A followed asset, e.g. BTC" },
+          side: { type: "string", enum: [...ORDER_SIDES] },
+          kind: { type: "string", enum: [...ORDER_KINDS], description: "Default market" },
+          amount_eur: { type: "number", description: "Buy: cash to spend, fee included" },
+          quantity: { type: ["number", "string"], description: "Sell: units to sell, or \"all\"" },
+          limit_price: { type: "number", description: "Limit orders: price in EUR (buy below, sell above the current price)" },
+          thesis: { type: "string", description: "Why, in French: what you expect, what would prove you wrong" },
+          probability: { type: "number", description: "0.05 to 0.95: chance the thesis plays out by the horizon" },
+          invalidation: { type: "number", description: "Buy: price in EUR where code sells (stop), below the entry" },
+          horizon_hours: { type: "integer", description: "When to re-decide, 1 to " + ORDER_MAX_HORIZON_HOURS + " (default 168)" },
+          hypothesis_ids: { type: "array", items: { type: "string" }, description: "Up to 5 hypotheses this order tests" },
+        },
+        required: ["asset", "side", "thesis"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const db = ctx.db.raw;
+        const r = placeOrder(db, activeConfig(db, ctx.config.trader), {
+          asset: args.asset, side: args.side, kind: args.kind, amountEur: args.amount_eur, quantity: args.quantity, limitPrice: args.limit_price,
+          thesis: args.thesis, probability: args.probability, invalidation: args.invalidation, horizonHours: args.horizon_hours, hypothesisIds: args.hypothesis_ids,
+        });
+        if (!r.ok) return `Refused: ${r.error}`;
+        const o = r.value;
+        const what = o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${o.quantity} ${o.asset}`;
+        return `Order ${o.id} pending: ${o.kind} ${o.side} ${what}${o.limitPrice ? ` at ${o.limitPrice} EUR` : ""}` +
+          `${o.invalidation ? `, stop at ${o.invalidation} EUR` : ""}, horizon ${o.horizonUntil}. Code fills it at the next stored price; ` +
+          "you will see the fill in your next memory pack.";
+      },
+    },
+    {
+      name: "cancel_order",
+      description: "Cancel one of your pending orders (not a stop placed by code: change the invalidation level with manage_position instead).",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const r = cancelOrder(ctx.db.raw, args.id);
+        return r.ok ? `Order ${r.value.id} cancelled.` : `Refused: ${r.error}`;
+      },
+    },
+    {
+      name: "manage_position",
+      description:
+        "Change the invalidation level (field invalidation, value in EUR below the current price: code sells there) or the " +
+        "horizon (field horizon_until, value in hours from now) of an open position, with a reason in French. The change " +
+        "is logged for good. To exit, place a sell order.",
+      category: "memory",
+      riskLevel: "caution",
+      parameters: {
+        type: "object",
+        properties: {
+          asset: { type: "string" },
+          field: { type: "string", enum: ["invalidation", "horizon_until"] },
+          value: { type: "number", description: "EUR for invalidation, hours from now for horizon_until" },
+          reason: { type: "string", description: "Why, in French" },
+        },
+        required: ["asset", "field", "value", "reason"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const db = ctx.db.raw;
+        const r = updatePosition(db, activeConfig(db, ctx.config.trader), { asset: args.asset, field: args.field, value: args.value, reason: args.reason });
+        if (!r.ok) return `Refused: ${r.error}`;
+        return `Position ${r.value.asset}: stop ${r.value.invalidation ?? "none"} EUR, horizon ${r.value.horizonUntil ?? "none"}.`;
+      },
+    },
+    {
+      name: "note_trap",
+      description:
+        "Your catalogue of named mistakes. action add: name a trap (e.g. « acheter une rumeur déjà dans le prix ») with a " +
+        "description and the warning signs to watch, in French. action hit: record that a closed trade (trade_id) fell " +
+        "into a trap (trap: its id or name), with a note. action list: see them with their counts. Traps appear in your " +
+        "memory pack; they are never deleted.",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["add", "hit", "list"] },
+          name: { type: "string" },
+          description: { type: "string" },
+          warning_signs: { type: "string" },
+          trap: { type: "string", description: "For hit: trap id or name" },
+          trade_id: { type: "string", description: "For hit: a closed trade" },
+          note: { type: "string", description: "For hit: what happened, in French" },
+        },
+        required: ["action"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const db = ctx.db.raw;
+        switch (args.action) {
+          case "add": {
+            const r = addTrap(db, { name: args.name, description: args.description, warningSigns: args.warning_signs });
+            return r.ok ? `Trap ${r.value.id} added: ${r.value.name}.` : `Refused: ${r.error}`;
+          }
+          case "hit": {
+            const r = recordTrapHit(db, { trapId: args.trap, tradeId: args.trade_id, note: args.note });
+            return r.ok ? `Trap « ${r.value.name} » now counts ${r.value.hits} trade(s).` : `Refused: ${r.error}`;
+          }
+          case "list": {
+            const traps = listTraps(db);
+            if (traps.length === 0) return "No trap named yet.";
+            return traps.map((t) => `- ${t.id} « ${t.name} » (${t.hits} trade(s)): ${t.description} Signs: ${t.warningSigns}`).join("\n");
+          }
+          default:
+            return "Unknown action: add, hit or list.";
+        }
       },
     },
   ];

@@ -1,7 +1,8 @@
 # Architecture brief
 
-Status: proposed (2026-10-06); rows marked "implemented" exist in src/trader/ (steps 1 to 3). The
-virtual portfolio, paper broker and consolidation are still proposals.
+Status: proposed (2026-10-06); rows marked "implemented" exist in src/trader/ (steps 1 to 4). The
+virtual portfolio and the paper broker are implemented (step 4 B, src/trader/portfolio.ts);
+consolidation is still a proposal.
 
 ## Boundaries
 
@@ -59,6 +60,17 @@ virtual portfolio, paper broker and consolidation are still proposals.
 - Fees: crypto at Kraken Pro's lowest tier (0.40 % maker, 0.80 % taker, checked 2026-10-06 on
   kraken.com/features/fee-schedule); stock and ETF fees configurable until a broker is chosen.
 - Slippage: a configurable fraction of the observed spread; crypto spread from Kraken order book.
+- Implemented (step 4 B, `trader.portfolio`): the capital arrives at the first collected price and the
+  contribution on the first tick of each month; an order is a pending record checked by code (followed
+  asset, fresh price, cash or quantity available, at most 30 % of the portfolio per asset as the owner
+  chose on 2026-10-07, 10 EUR minimum, a thesis, an invalidation level below the entry for every buy,
+  a horizon of 1 h to 90 days) and filled at the first price collected after it (market: price plus
+  half the Kraken spread when fresh, else 5 bps, taker fee; limit: at the limit once crossed, maker
+  fee; a market order expires after 24 h without a price, a limit at its horizon). A position whose
+  invalidation is reached gets a market sell from code at the next price; at the horizon the model is
+  woken to keep (new horizon) or sell. Every sale closes a trade with P&L after fees computed by code.
+  One equity snapshot per day gives returns and drawdown; the self-funding ratio divides the virtual
+  gain by the inference spend converted at `eurUsd`.
 
 ## Budget and model use
 

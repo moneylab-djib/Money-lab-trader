@@ -506,6 +506,26 @@
         "at": "2026-10-07T09:05:43.918785+00:00",
         "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
       }
+    },
+    {
+      "id": "virtual-portfolio",
+      "title": "Virtual portfolio and paper broker (step 4 B)",
+      "criteria": [
+        "The portfolio is funded by code (1000 EUR at the first price, 50 EUR each month) and valued at the latest prices",
+        "Orders are checked by code (followed asset, fresh price, cash, 30 % cap per asset, 10 EUR minimum, thesis, invalidation, horizon) and filled at the next price with Kraken fees and slippage; market orders expire after 24 h, limits at their horizon",
+        "A position at its invalidation level is sold by code at the next price; at its horizon the model is woken; every sale closes a trade with P&L after fees; orders settle once and trades are append-only",
+        "The model sees its portfolio, trades and traps in the memory pack and writes one post-mortem per closed trade; the self-report carries the three proofs of decision 0003",
+        "The owner has /portefeuille, /journee and an evening summary at 20:00 local in French without identifiers; the e2e places and fills an order"
+      ],
+      "status": "built",
+      "paths": [
+        "src",
+        "sonni"
+      ],
+      "implementation": {
+        "at": "2026-10-07T09:34:38.170632+00:00",
+        "note": "src/trader/portfolio.ts, schema, tools, pack, prompt, curiosity, soul, status, report, cli, telegram, index; tests src/__tests__/trader/portfolio.test.ts (5) and the e2e order scenario"
+      }
     }
   ]
 }
