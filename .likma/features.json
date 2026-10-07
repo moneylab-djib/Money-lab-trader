@@ -493,7 +493,7 @@
         "The model writes hypothesis statements in French; the owner's hypotheses keep their text; a reader translates the others once for display, after the usual checks (length, prompt-boundary patterns), and the model's statement is never changed",
         "Tests make no network or paid inference calls"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "src",
         "sonni",
@@ -505,6 +505,37 @@
       "implementation": {
         "at": "2026-10-07T09:05:43.918785+00:00",
         "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
+      },
+      "verification": {
+        "at": "2026-10-07T09:21:04.563502+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "84131428986af6150a4e782532cb95a353f9f1e7af8abba0f79c7b32da68dba0",
+        "scope": [
+          "src",
+          "sonni",
+          "package.json",
+          "pnpm-lock.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni"
+        },
+        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
+        "report": ".likma/checks/87a1ad9473f04bec8ffadeb38670fa02.json",
+        "contract": "d3c89b62c235fcecefcf94e6267e123c3fc6d7fc3cef9d2c6a8f6991a21a7122",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 7.866
+          }
+        ]
       }
     }
   ]
