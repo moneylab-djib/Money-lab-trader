@@ -162,6 +162,31 @@ describe("Headlines from GDELT", () => {
     await expect(newsTick(db.raw, limited)).rejects.toThrow(/GDELT: Please limit requests/);
     db.close();
   });
+
+  it("retries sooner after a failure, hourly after a success, and keeps the schedule across restarts", async () => {
+    const db = openDb();
+    let calls = 0;
+    const limited = fakeWeb({ "api.gdeltproject.org": () => { calls++; return new Response("Please limit requests to one every 5 seconds"); } });
+    const t0 = new Date("2026-10-07T05:48:00Z");
+    const at = (minutes: number) => new Date(t0.getTime() + minutes * 60_000);
+    await expect(newsTick(db.raw, limited, t0)).rejects.toThrow(/GDELT: Please limit requests.*prochain essai dans 5 min/);
+    // A restart runs the tick at once: nothing is fetched before the retry time (the schedule is in the database).
+    expect((await newsTick(db.raw, limited, at(4))).fetched).toBe(false);
+    expect(calls).toBe(1);
+    await expect(newsTick(db.raw, limited, at(5))).rejects.toThrow(/prochain essai dans 10 min/);
+    expect((await newsTick(db.raw, limited, at(14))).fetched).toBe(false);
+    await expect(newsTick(db.raw, limited, at(15))).rejects.toThrow(/prochain essai dans 20 min/);
+    await expect(newsTick(db.raw, limited, at(35))).rejects.toThrow(/prochain essai dans 30 min/);
+    await expect(newsTick(db.raw, limited, at(65))).rejects.toThrow(/prochain essai dans 30 min/);
+    expect(calls).toBe(5);
+    const ok = fakeWeb({ "api.gdeltproject.org": () => new Response(JSON.stringify({ articles: [
+      { url: "https://a.example/1", title: "Fed holds", domain: "a.example", seendate: "20261007T053000Z" },
+    ] })) });
+    expect(await newsTick(db.raw, ok, at(95))).toEqual({ fetched: true, added: 1, nextAt: at(155).toISOString() });
+    expect((await newsTick(db.raw, ok, at(154))).fetched).toBe(false);
+    expect((await newsTick(db.raw, ok, at(155))).fetched).toBe(true);
+    db.close();
+  });
 });
 
 // ─── Event conditions ───────────────────────────────────────────

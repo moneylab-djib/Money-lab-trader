@@ -12,6 +12,7 @@ import { collectCandles } from "./candles.js";
 import { runAllHistoricalTests, runEventRuleTests } from "./historical.js";
 import { collectEvents } from "./events.js";
 import { collectHeadlines } from "./news.js";
+import { getKV, setKV } from "../money-lab/journal.js";
 import { DIGEST_BATCH, digestHeadlines, type DigestOutcome } from "./readers.js";
 
 type FetchFn = typeof fetch;
@@ -52,8 +53,40 @@ export async function calendarTick(db: Database.Database, fredApiKey: string | u
 }
 
 /** Fetch new headlines; returns how many were new. */
-export async function newsTick(db: Database.Database, fetchFn: FetchFn = fetch): Promise<number> {
-  return collectHeadlines(db, fetchFn);
+export const NEWS_INTERVAL_MS = 60 * 60_000;
+/** After a failed fetch (GDELT rate-limits with HTTP 429 or plain text), the next tries come sooner. */
+export const NEWS_RETRY_MINUTES = [5, 10, 20, 30];
+const KV_NEWS_NEXT = "sonni.news_next_at";
+const KV_NEWS_FAILURES = "sonni.news_failures";
+
+export interface NewsOutcome {
+  fetched: boolean;
+  added: number;
+  nextAt: string;
+}
+
+/**
+ * Fetch headlines when due: an hour after a success, 5, 10, 20 then 30
+ * minutes after a failure. The schedule lives in the database, so a restart
+ * (which runs every tick at once) does not call GDELT again within minutes.
+ * A failure is rethrown, with the next try, after it is scheduled.
+ */
+export async function newsTick(db: Database.Database, fetchFn: FetchFn = fetch, now: Date = new Date()): Promise<NewsOutcome> {
+  const nextAt = getKV(db, KV_NEWS_NEXT) ?? "";
+  if (nextAt && now.toISOString() < nextAt) return { fetched: false, added: 0, nextAt };
+  try {
+    const added = await collectHeadlines(db, fetchFn, now);
+    const next = new Date(now.getTime() + NEWS_INTERVAL_MS).toISOString();
+    setKV(db, KV_NEWS_NEXT, next);
+    setKV(db, KV_NEWS_FAILURES, "0");
+    return { fetched: true, added, nextAt: next };
+  } catch (err: any) {
+    const failures = Number(getKV(db, KV_NEWS_FAILURES) ?? "0") + 1;
+    const minutes = NEWS_RETRY_MINUTES[Math.min(failures, NEWS_RETRY_MINUTES.length) - 1];
+    setKV(db, KV_NEWS_NEXT, new Date(now.getTime() + minutes * 60_000).toISOString());
+    setKV(db, KV_NEWS_FAILURES, String(failures));
+    throw new Error(`${err?.message ?? err} ; prochain essai dans ${minutes} min`);
+  }
 }
 
 /** Batches digested per tick at most: a busy hour (up to 75 headlines) is covered without unbounded reader use. */
