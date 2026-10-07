@@ -121,8 +121,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T00:55:27.555840+00:00",
-        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "at": "2026-10-07T01:14:55.010774+00:00",
+        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -132,7 +132,7 @@
           "6": "sonni-e2e",
           "7": "sonni"
         },
-        "report": ".likma/checks/b593afe084914ef0974d70ee85b79763.json",
+        "report": ".likma/checks/81fa46b6336f4e7db58c32151363694e.json",
         "contract": "88330250b30d790e8c930b81e84fa2c8fda3a116f4517ef0b04389a8916f2bf6"
       }
     },
@@ -153,8 +153,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T00:59:56.924243+00:00",
-        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "at": "2026-10-07T01:18:24.982291+00:00",
+        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -163,7 +163,7 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "report": ".likma/checks/5496576134d64c0f89778488b61ef0f6.json",
+        "report": ".likma/checks/6b509c2eafd54589a2edaf6bc8aa55b4.json",
         "contract": "45411f2ce61d048ddb37a6bc928911c3f12758114da974089e3bf9129c73e9f7"
       }
     },
@@ -184,8 +184,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T01:00:03.240453+00:00",
-        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "at": "2026-10-07T01:18:31.433592+00:00",
+        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -194,7 +194,7 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "report": ".likma/checks/286c6704fd274b28a4e52f4dbb233c3b.json",
+        "report": ".likma/checks/9abc39f360434007993d11d28eb0f1a5.json",
         "contract": "47231d04281bb3d7ffd1b431324d90bfcf953be7e7b9e4d59b9f120e50a46a3b"
       }
     },
@@ -214,8 +214,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T01:00:09.558685+00:00",
-        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "at": "2026-10-07T01:18:37.833718+00:00",
+        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -223,7 +223,7 @@
           "4": "sonni",
           "5": "sonni"
         },
-        "report": ".likma/checks/12340cec86fa48c2944eb6078af0f944.json",
+        "report": ".likma/checks/6fee0ab85add46afb7eb2abd095694eb.json",
         "contract": "c8aea13a223c15f7a6b3e19f1dfe969eaa1d8708853a503bca0a282920bd7913"
       }
     }
