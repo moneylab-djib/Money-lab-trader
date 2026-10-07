@@ -539,12 +539,15 @@ export function journalFingerprint(db: DB): string {
   const hasTrader = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_predictions'").get();
   const predictions = hasTrader ? (db.prepare("SELECT COUNT(*) AS n FROM trader_predictions").get() as any).n : 0;
   const hasAlive = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_reflections'").get();
+  // Only the model's own writes count: the owner's /idee, /veto or /source and code's own
+  // source decisions must not reset the no-progress counter of an idle model.
   const memory = hasAlive
     ? (db.prepare(
-        `SELECT (SELECT COUNT(*) FROM trader_hypotheses) || '/' || (SELECT COUNT(*) FROM trader_reflections) || '/' ||
-                (SELECT COUNT(*) FROM trader_lessons) || '/' || (SELECT COALESCE(MAX(retired_at), '') FROM trader_lessons) || '/' ||
-                (SELECT COUNT(*) FROM trader_identity) || '/' || (SELECT COUNT(*) FROM trader_watches) || '/' ||
-                (SELECT COUNT(*) FROM trader_source_log) || '/' || (SELECT COUNT(*) FROM trader_universe) AS m`,
+        `SELECT (SELECT COUNT(*) FROM trader_hypotheses WHERE origin != 'owner') || '/' || (SELECT COUNT(*) FROM trader_reflections) || '/' ||
+                (SELECT COUNT(*) FROM trader_lessons) || '/' || (SELECT COALESCE(MAX(retired_at), '') FROM trader_lessons WHERE retired_by = 'model') || '/' ||
+                (SELECT COUNT(*) FROM trader_identity WHERE source = 'model') || '/' ||
+                (SELECT COUNT(*) FROM trader_watches WHERE cancelled_at IS NULL) || '/' ||
+                (SELECT COUNT(*) FROM trader_source_log WHERE by = 'model') || '/' || (SELECT COUNT(*) FROM trader_universe) AS m`,
       ).get() as any).m
     : "";
   return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}`;

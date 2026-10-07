@@ -33,6 +33,12 @@ import { activeConfig, followAsset, MAX_FOLLOWED_ASSETS, unfollowAsset } from ".
 
 const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 
+/** Sonni tools that write to its memory or fetch the world: work, never idle turns (src/agent/loop.ts). */
+export const SONNI_WORK_TOOLS: ReadonlySet<string> = new Set([
+  "propose_hypothesis", "record_prediction", "write_reflection", "add_lesson", "retire_lesson", "revise_identity",
+  "set_watch", "read_page", "manage_source", "follow_asset",
+]);
+
 function str(v: unknown): string {
   return v === undefined || v === null ? "" : String(v);
 }

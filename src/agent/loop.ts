@@ -70,7 +70,7 @@ import { automaticTopupsAllowed, hasInferenceLimits, moneyLabDeniedTools } from 
 import { seedAnthropicModels, survivalBalance } from "../money-lab/selfhosted.js";
 import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
-import { createTraderTools } from "../trader/tools.js";
+import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
 import { SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
 import { markReflectionDone, reflectionDue, startReflection } from "../trader/soul.js";
 import { activeConfig } from "../trader/universe.js";
@@ -1087,13 +1087,15 @@ export async function runAgentLoop(
         "save_procedure", "note_about_agent", "forget",
         "enter_low_compute", "switch_model", "review_upstream_changes",
       ]);
-      const didMutate = turn.toolCalls.some((tc) => MUTATING_TOOLS.has(tc.name));
+      // Sonni: its own memory writes are work, not idle turns.
+      const didMutate = turn.toolCalls.some((tc) => MUTATING_TOOLS.has(tc.name) || (!!trader && SONNI_WORK_TOOLS.has(tc.name)));
 
       if (!currentInput && !didMutate) {
         idleTurnCount++;
         if (idleTurnCount >= MAX_IDLE_TURNS) {
           log(config, `[IDLE] ${idleTurnCount} consecutive idle turns with no work. Entering sleep.`);
-          db.setKV("sleep_until", new Date(Date.now() + 60_000).toISOString());
+          // Sonni: a forced end of cycle is a real pause (each restart is a paid cycle).
+          db.setKV("sleep_until", new Date(Date.now() + (trader ? MONEY_LAB_IDLE_SLEEP_MS : 60_000)).toISOString());
           db.setAgentState("sleeping");
           onStateChange?.("sleeping");
           running = false;
@@ -1109,7 +1111,7 @@ export async function runAgentLoop(
       cycleTurnCount++;
       if (running && cycleTurnCount >= maxCycleTurns) {
         log(config, `[CYCLE LIMIT] ${cycleTurnCount} turns reached (max: ${maxCycleTurns}). Forcing sleep.`);
-        db.setKV("sleep_until", new Date(Date.now() + 120_000).toISOString());
+        db.setKV("sleep_until", new Date(Date.now() + (trader ? MONEY_LAB_IDLE_SLEEP_MS : 120_000)).toISOString());
         db.setAgentState("sleeping");
         onStateChange?.("sleeping");
         running = false;

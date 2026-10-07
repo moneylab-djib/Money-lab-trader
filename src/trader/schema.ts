@@ -324,6 +324,16 @@ function ensureAliveSchema(db: DB): void {
       PRIMARY KEY (source_id, metric, ts)
     );
 
+    CREATE TABLE IF NOT EXISTS trader_page_reads (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      at TEXT NOT NULL,
+      ok INTEGER NOT NULL CHECK (ok IN (0, 1)),
+      outcome TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_page_reads_at ON trader_page_reads (at);
+    ${appendOnly("trader_page_reads")}
+
     CREATE TABLE IF NOT EXISTS trader_universe (
       id TEXT PRIMARY KEY,
       asset TEXT NOT NULL,

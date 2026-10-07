@@ -351,10 +351,13 @@ export interface WakeGateState {
 /**
  * The one rule for delivering a self-wake, shared by index.ts and the
  * tests: only a sleeping, unpaused agent that is not resting on a budget
- * cap, and only once the loop has really slept in this process.
+ * cap nor in the long sleep that follows cycles without progress
+ * (src/money-lab/cycle.ts), and only once the loop has really slept in
+ * this process. A refused trigger is still logged for the next pack.
  */
 export function canDeliverWake(s: WakeGateState): boolean {
-  return s.loopSlept && s.state === "sleeping" && !s.paused && !String(s.sleepReason ?? "").startsWith("plafond");
+  const reason = String(s.sleepReason ?? "");
+  return s.loopSlept && s.state === "sleeping" && !s.paused && !reason.startsWith("plafond") && !reason.includes("sans progrès");
 }
 
 export interface CuriosityOutcome {

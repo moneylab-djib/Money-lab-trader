@@ -236,6 +236,8 @@ describe("Wake delivery", () => {
     expect(canDeliverWake({ ...ok, state: "dead" })).toBe(false);
     expect(canDeliverWake({ ...ok, paused: true })).toBe(false);
     expect(canDeliverWake({ ...ok, sleepReason: "plafond journalier atteint" })).toBe(false);
+    // The long sleep after cycles without progress is a cost brake: triggers are noted, not delivered.
+    expect(canDeliverWake({ ...ok, sleepReason: "5 cycles sans progrès du journal" })).toBe(false);
     // The state persisted by a shutdown says "sleeping" before the first cycle: no wake until the loop slept.
     expect(canDeliverWake({ ...ok, loopSlept: false })).toBe(false);
   });

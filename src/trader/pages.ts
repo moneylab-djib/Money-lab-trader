@@ -17,6 +17,7 @@
 import dns from "dns";
 import net from "net";
 import type Database from "better-sqlite3";
+import { ulid } from "ulid";
 import { sanitizeToolResult } from "../agent/injection-defense.js";
 import { htmlToText } from "../money-lab/delegate.js";
 import type { TraderConfig } from "./config.js";
@@ -199,10 +200,16 @@ export function parsePageNote(raw: unknown): PageNote | null {
   return { summary, facts, dates, sentiment: Number.isFinite(s) && s >= -1 && s <= 1 ? s : null };
 }
 
+/** Read attempts on a UTC day, failed ones included: the owner's cap counts tries, not successes. */
 export function pagesReadToday(db: DB, now: Date = new Date()): number {
   return (db.prepare(
-    "SELECT COUNT(*) AS n FROM trader_observations WHERE source = 'page' AND substr(observed_at, 1, 10) = ?",
+    "SELECT COUNT(*) AS n FROM trader_page_reads WHERE substr(at, 1, 10) = ?",
   ).get(now.toISOString().slice(0, 10)) as { n: number }).n;
+}
+
+function logPageRead(db: DB, url: unknown, ok: boolean, outcome: string, now: Date): void {
+  db.prepare("INSERT INTO trader_page_reads (id, url, at, ok, outcome) VALUES (?, ?, ?, ?, ?)")
+    .run(`g_${ulid()}`, String(url ?? "").slice(0, 500), now.toISOString(), ok ? 1 : 0, outcome.slice(0, 200));
 }
 
 export interface ReadPageDeps {
@@ -222,12 +229,19 @@ export async function readPage(db: DB, cfg: TraderConfig, input: { url: unknown;
   const why = String(input.why ?? "").replace(/\s+/g, " ").trim().slice(0, WHY_MAX);
   if (why.length < 5) return "Refused: say in `why` what you expect to learn from this page.";
   if (pagesReadToday(db, now) >= cfg.readPagesPerDay) {
-    return `Refused: ${cfg.readPagesPerDay} pages already read today (owner's limit). Use your memory pack and observations.`;
+    return `Refused: ${cfg.readPagesPerDay} pages already read today (owner's limit, failed attempts included). Use your memory pack and observations.`;
   }
   const page = await fetchPublicPage(input.url, deps.fetchFn ?? fetch, deps.resolve);
-  if (!page.ok) return `Refused: ${page.error}`;
+  if (!page.ok) {
+    logPageRead(db, input.url, false, page.error, now);
+    return `Refused: ${page.error}`;
+  }
   const p = page.value;
-  if (p.text.trim().length < 40) return `Page ${p.finalUrl} has no readable text (${p.bytes} bytes).`;
+  if (p.text.trim().length < 40) {
+    logPageRead(db, p.finalUrl, false, "no readable text", now);
+    return `Page ${p.finalUrl} has no readable text (${p.bytes} bytes).`;
+  }
+  logPageRead(db, p.finalUrl, true, `${p.bytes} bytes`, now);
   const symbols = cfg.assets.map((a) => a.symbol);
   const answer = await askReader(db, cfg, {
     purpose: "page",

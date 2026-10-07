@@ -114,8 +114,9 @@ describe("Tools through the policy engine", () => {
     expect((await run("manage_source", { action: "enable", id: "nope", reason: "inconnue" })).result).toContain("Unknown source");
     expect((await run("follow_asset", { action: "unfollow", symbol: "ETH", reason: "je me concentre sur le bitcoin pour commencer" })).result).toContain("ETH no longer followed");
     expect((await run("follow_asset", { action: "unfollow", symbol: "BTC", reason: "le dernier actif, cela doit échouer" })).result).toContain("At least one asset");
-    // Sonni's stores count as progress for the no-progress sleep.
-    expect(journalFingerprint(db.raw)).toContain("1/1/1");
+    // Sonni's own writes count as progress for the no-progress sleep (1 reflection, 1 lesson);
+    // the owner's hypothesis does not (0 model hypotheses).
+    expect(journalFingerprint(db.raw)).toContain("|0/1/1/");
     db.close();
   });
 
