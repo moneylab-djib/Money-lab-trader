@@ -608,7 +608,7 @@
         "Automatic actions are logged as incidents, append-only with keys scrubbed, shown by /technique and counted in the morning report (G9)",
         "Tests make no network or paid inference calls"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "src",
         "sonni"
@@ -616,6 +616,46 @@
       "implementation": {
         "at": "2026-10-07T10:30:00.832332+00:00",
         "note": "src/trader/incidents.ts, config.ts (SONNI_DENIED_TOOLS, maxOrdersPerDay), portfolio.ts, loop.ts, backup.ts, index.ts, journal.ts, telegram.ts, report.ts, sources.ts, readers.ts; tests src/__tests__/trader/guards.test.ts (8); docs/GUARDS.md"
+      },
+      "verification": {
+        "at": "2026-10-07T10:40:16.200554+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "21a8db9b8bfcbeb641836325a372c525515ae7cc882d428ae572b5dde05ca4b8",
+        "scope": [
+          "src",
+          "sonni"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "money-lab",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni",
+          "7": "sonni",
+          "8": "sonni"
+        },
+        "checks_hash": "210ba7f9855ac672f0063194667e9b122d16ca1dcc80f1203a0d6d6afffdfd1c",
+        "report": ".likma/checks/399c0e709e14475e98c66037b79b4413.json",
+        "contract": "f5d1247de86c14cae41710ca67b4795d3701599864fe09dfd0c48ecac10f7eb5",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 12.765,
+            "output_bytes": 11418,
+            "output_sha256": "93c40b03ec4031f935c6387668d1a914a0487c5dabd15df6fb8f34c8c48f38ce"
+          },
+          {
+            "name": "money-lab",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 83.563,
+            "output_bytes": 40205,
+            "output_sha256": "2afbb7afc8db91ab3906d6645d8d816db53742af28d482640202bf64943ed7ba"
+          }
+        ]
       }
     }
   ]
