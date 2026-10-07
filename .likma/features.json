@@ -121,8 +121,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T01:14:55.010774+00:00",
-        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
+        "at": "2026-10-07T04:18:50.927785+00:00",
+        "fingerprint": "5158310123ba14fb3f408c6ce36219916f96fae4d96a984d1f8250f85fdf57c3",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -132,7 +132,7 @@
           "6": "sonni-e2e",
           "7": "sonni"
         },
-        "report": ".likma/checks/81fa46b6336f4e7db58c32151363694e.json",
+        "report": ".likma/checks/ac73ec9c7e894450951706fb9ab3cd6d.json",
         "contract": "88330250b30d790e8c930b81e84fa2c8fda3a116f4517ef0b04389a8916f2bf6"
       }
     },
