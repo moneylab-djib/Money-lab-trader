@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "version": "0.7.0",
+  "revision": "902f3e9ba54db07c377fb24e7b550b0f4d07ef3f",
+  "files": {
+    "docs/likma-standards/accessibility.md": "d44f68760c0fe80109c38360f3e36387d001c5ffb65a96fccc8d858c1d6caa9c",
+    "docs/likma-standards/agent-security.md": "82341b29685142c1056d455c940af2218bec3a8c1f2471f5efcf81f172aec047",
+    "docs/likma-standards/definition-of-done.md": "2d6af08e5402edc8084996b14b21fb14940b1035ec37597299490aad860207a4",
+    "docs/likma-standards/design-quality.md": "7762ca5a6796e012cb20ffd659d90c6ef58912ec2328254918cb7ef0788bdaf6",
+    "docs/likma-standards/engineering-quality.md": "2d43d01378d965ef9e553787b203dc4e40afe53f38578f3f3a1c581e4affa8df",
+    "docs/likma-standards/security.md": "86ea8f5ab3620ea9d0eec589f476f7749b05fea052d2ffb55a2cf1e8314d9de1",
+    "docs/likma-standards/testing.md": "7ff089dce52387790106b91f140b49e1aeebe119ea52eb4b3625f3bc280e704a"
+  }
+}
