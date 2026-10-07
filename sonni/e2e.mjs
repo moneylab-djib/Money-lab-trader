@@ -268,6 +268,11 @@ const configured = run(["sonni/vps/configure.mjs", "--chat-id", String(OWNER), "
 /Configuration Sonni écrite/.test(configured) && /58\.00 \$, plafond 1\.93 \$\/jour/.test(configured) && /owner_funding 5800/.test(configured)
   ? ok("sonni/vps/configure.mjs writes the config: 50 EUR = 58.00 $/month, 1.93 $/day")
   : fail(`configure output unexpected: ${configured}`);
+// Re-running it for an update keeps the config and does not ask for the month's budget again.
+const reconfigured = run(["sonni/vps/configure.mjs", "--chat-id", String(OWNER), "--monthly-budget-eur", "50", "--eur-usd", "1.16"]);
+/Mise à jour/.test(reconfigured) && !/owner_funding/.test(reconfigured) && /gemini \(clé GEMINI_API_KEY\), groq \(clé GROQ_API_KEY\)/.test(reconfigured)
+  ? ok("configure.mjs re-run for an update: readers listed, no second budget asked")
+  : fail(`configure re-run output unexpected: ${reconfigured}`);
 const configPath = path.join(HOME, ".automaton", "automaton.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 if (config.moneyLab.stripe !== null || config.moneyLab.resources[0].expectedDailyCostCents !== 0) fail("configure kept Stripe or a VPS cost");

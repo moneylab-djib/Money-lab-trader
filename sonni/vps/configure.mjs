@@ -54,7 +54,8 @@ lab.resources = [{ id: "vps", kind: "server", description: "Sonni's own VPS (pai
 const dir = path.join(process.env.HOME || os.homedir(), ".automaton");
 fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 const file = path.join(dir, "automaton.json");
-const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf-8")) : {};
+const firstRun = !fs.existsSync(file);
+const existing = firstRun ? {} : JSON.parse(fs.readFileSync(file, "utf-8"));
 // The runtime derives model routing and budgets at every start; copies saved
 // by older versions would cap a budget the owner raises here.
 delete existing.modelStrategy;
@@ -89,5 +90,15 @@ console.log(`  Actifs suivis : ${example.trader.assets.map((a) => a.symbol).join
 console.log(`  Réveils spontanés : ${example.trader.curiosity.maxSelfWakesPerDay}/jour au plus, mouvement de ${example.trader.curiosity.moveAlertPct} % en 1 h`);
 console.log(`  IA lectrices (gratuites, facultatives) : ${example.trader.readers.map((r) => `${r.id} (clé ${r.keyEnv})`).join(", ")} — clés dans /etc/sonni.env`);
 console.log(`  Telegram : chat ${chatId}`);
-console.log(`  Étape suivante : donner le budget du mois (en centimes de dollar) :`);
-console.log(`    node dist/index.js --money-lab ledger-add owner_funding ${monthlyCents} budget-mois-1`);
+if (firstRun) {
+  console.log(`  Étape suivante : donner le budget du mois (en centimes de dollar) :`);
+  console.log(`    node dist/index.js --money-lab ledger-add owner_funding ${monthlyCents} budget-mois-1`);
+} else {
+  // An update must not fund the month twice: the budget already given stays in the ledger.
+  console.log(`  Mise à jour : configuration réécrite avec ces valeurs, sa mémoire est gardée. Ne rajoute pas de budget :`);
+  console.log(`  celui du mois est déjà enregistré. Étape suivante, en root : systemctl restart sonni`);
+}
+// Run as root without "sudo -u sonni -H", the file lands in root's home, which Sonni never reads.
+if (process.getuid?.() === 0 && dir.startsWith("/root")) {
+  console.log(`  ATTENTION : lancé en root, ce fichier n'est pas lu par Sonni. Relance avec : sudo -u sonni -H node sonni/vps/configure.mjs ...`);
+}

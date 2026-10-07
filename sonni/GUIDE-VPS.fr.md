@@ -239,7 +239,11 @@ Tant que les pull requests ne sont pas fusionnées dans `main`, chaque étape vi
 branche : la ligne `git checkout` passe à la dernière (`claude/sonni-alive`, l'étape 3 ; sans effet si
 tu y es déjà). `git status` doit ensuite afficher `On branch claude/sonni-alive`.
 La ligne `configure.mjs` réécrit la configuration avec les nouveaux réglages (sources, lecteurs,
-réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Ses prix, prédictions,
+réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Lance-la bien avec
+`sudo -u sonni -H` (en root seul, elle écrit un fichier que Sonni ne lit pas, et le dit). Elle doit
+afficher la ligne « IA lectrices (gratuites, facultatives) : gemini …, groq … » et « Mise à jour » ;
+**ne rajoute pas de budget** à ce moment-là, celui du mois est déjà enregistré. Sans elle, `/lecteurs`
+répond « Aucune IA lectrice configurée ». Ses prix, prédictions,
 intuitions, journal et identité sont conservés. La pause (`/pause`) aussi : relance avec
 `/reprendre`.
 
