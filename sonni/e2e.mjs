@@ -363,6 +363,10 @@ await until(() => step >= 4, 60000) || fail(`decision session stopped at step ${
 // A 4 % jump in the next collections: code wakes the sleeping agent (at most one wake per 30 min).
 // Wait for the decision cycle itself to end before the jump.
 await until(() => loopEnds() > endsBeforeDecision, 20000) || fail("decision cycle did not end in a sleep");
+// The order placed in the session is filled by code at the next collection (1 min here), before the jump.
+await until(() => /\[SONNI\] Ordre o_\w+ exécuté : buy BTC 0\.0016\d+ à 60\d{3}(\.\d+)? EUR/.test(out), 90000)
+  ? ok("virtual order filled by code at the next collected price, with the fee and the order-book spread")
+  : fail("order not filled within 90 s of the session");
 jump = true;
 const jumpedAt = Date.now();
 await until(() => wokenByMove, 150000)
@@ -389,7 +393,6 @@ const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 // The order was filled by code at the collection after the decision session; BTC then jumped to 62 500.
 /💼 Portefeuille virtuel\nValeur 1\s?00\d,\d\d € \(\+\d,\d\d €, \+0,\d\d % sur 1\s?000,00 € versés\) · liquidités 900,00 €\nBTC : 0\.0016\d+ \(10\d,\d\d €, \+\d,\d\d €\) acheté 60\s?\d{3},\d\d €, stop 55\s?000,00 €, revoir /.test(statut)
   ? ok("/statut shows the virtual portfolio: filled order, position in profit after the jump, stop and horizon") : fail("/statut lacks the filled position");
-/\[SONNI\] Ordre o_\w+ exécuté : buy BTC 0\.0016\d+ à 60\d{3}(\.\d+)? EUR/.test(out) ? ok("runtime logged the fill") : fail("fill not logged");
 tgSend("/portefeuille");
 await until(() => tgOutbox.some((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text)), 30000) || fail("/portefeuille got no answer");
 const pf = tgOutbox.find((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text))?.text ?? "";
