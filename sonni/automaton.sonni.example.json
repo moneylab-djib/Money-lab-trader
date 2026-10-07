@@ -45,8 +45,14 @@
     "enabled": true,
     "quoteCurrency": "EUR",
     "assets": [
-      { "symbol": "BTC", "krakenPair": "XBTEUR" },
-      { "symbol": "ETH", "krakenPair": "ETHEUR" }
+      {
+        "symbol": "BTC",
+        "krakenPair": "XBTEUR"
+      },
+      {
+        "symbol": "ETH",
+        "krakenPair": "ETHEUR"
+      }
     ],
     "collectMinutes": 5,
     "staleMinutes": 15,
@@ -71,6 +77,17 @@
         "dailyRequests": 80
       }
     ],
-    "readPagesPerDay": 20
+    "readPagesPerDay": 20,
+    "timeZone": "Europe/Paris",
+    "portfolio": {
+      "startEur": 1000,
+      "monthlyEur": 50,
+      "maxPositionPct": 30,
+      "takerFeePct": 0.8,
+      "makerFeePct": 0.4,
+      "slippageBps": 5,
+      "minOrderEur": 10,
+      "eurUsd": 1.16
+    }
   }
 }

@@ -85,7 +85,7 @@ const config = {
   maxChildren: 0,
   socialRelayUrl: "",
   moneyLab: lab,
-  trader: example.trader,
+  trader: { ...example.trader, portfolio: { ...example.trader.portfolio, eurUsd } },
 };
 fs.writeFileSync(file, JSON.stringify(config, null, 2), { mode: 0o600 });
 
@@ -93,6 +93,8 @@ const usd = (cents) => `${(cents / 100).toFixed(2)} $`;
 console.log(`Configuration Sonni écrite : ${file}`);
 console.log(`  Modèle : ${lab.inference.model} — budget : ${monthlyEur} €/mois ≈ ${usd(monthlyCents)}, plafond ${usd(dailyCents)}/jour`);
 console.log(`  Actifs suivis : ${example.trader.assets.map((a) => a.symbol).join(", ")} — prix toutes les ${example.trader.collectMinutes} min`);
+const pf = config.trader.portfolio;
+console.log(`  Portefeuille virtuel : ${pf.startEur} € au départ, ${pf.monthlyEur} €/mois, au plus ${pf.maxPositionPct} % par actif, frais ${pf.takerFeePct} % / ${pf.makerFeePct} %, taux EUR/USD ${pf.eurUsd}`);
 console.log(`  Réveils spontanés : ${example.trader.curiosity.maxSelfWakesPerDay}/jour au plus, mouvement de ${example.trader.curiosity.moveAlertPct} % en 1 h`);
 console.log(`  IA lectrices (gratuites, facultatives) : ${example.trader.readers.map((r) => `${r.id} (clé ${r.keyEnv})`).join(", ")} — clés dans /etc/sonni.env`);
 console.log(`  Telegram : chat ${chatId}`);

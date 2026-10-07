@@ -23,6 +23,165 @@ const IMMUTABLE_PREDICTION_COLUMNS = [
   "horizon_until", "probability", "hypothesis_id", "statement", "rationale",
 ];
 
+/**
+ * Step 4 B (virtual portfolio, docs/MEMORY.md and ARCHITECTURE.md): the
+ * cash ledger, orders, positions, closed trades, traps and daily equity
+ * snapshots. The model inserts orders and traps; code alone fills orders
+ * (one transition out of "pending"), moves cash, closes trades and takes
+ * snapshots. Nothing is ever deleted.
+ */
+/**
+ * Databases created before step 4 B have trader_reflections without the
+ * 'trade' kind in its CHECK; SQLite cannot alter a CHECK, so the table is
+ * rebuilt once, rows and append-only triggers kept.
+ */
+function migrateReflectionKinds(db: DB): void {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'trader_reflections'").get() as { sql: string } | undefined;
+  if (!row || row.sql.includes("'trade'")) return;
+  db.exec(`
+    DROP TRIGGER IF EXISTS trader_reflections_no_update;
+    DROP TRIGGER IF EXISTS trader_reflections_no_delete;
+    DROP INDEX IF EXISTS idx_trader_reflections_subject;
+    ALTER TABLE trader_reflections RENAME TO trader_reflections_old;
+    CREATE TABLE trader_reflections (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('postmortem', 'trade', 'session', 'daily', 'weekly')),
+      subject_id TEXT,
+      content TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    INSERT INTO trader_reflections (id, kind, subject_id, content, recorded_at)
+      SELECT id, kind, subject_id, content, recorded_at FROM trader_reflections_old;
+    DROP TABLE trader_reflections_old;
+    CREATE INDEX IF NOT EXISTS idx_trader_reflections_subject ON trader_reflections (subject_id);
+    ${appendOnly("trader_reflections")}
+  `);
+}
+
+function ensurePortfolioSchema(db: DB): void {
+  migrateReflectionKinds(db);
+  const ORDER_FIXED = ["id", "placed_at", "asset", "side", "kind", "amount_eur", "quantity", "limit_price", "thesis", "probability",
+    "invalidation", "horizon_until", "hypothesis_ids", "origin"];
+  const orderChanged = ORDER_FIXED.map((c) => `NEW.${c} IS NOT OLD.${c}`).join(" OR ");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_ledger (
+      id TEXT PRIMARY KEY,
+      at TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('capital', 'contribution', 'buy', 'sell')),
+      asset TEXT,
+      quantity REAL,
+      price REAL,
+      amount_eur REAL NOT NULL,
+      fee_eur REAL NOT NULL DEFAULT 0,
+      order_id TEXT,
+      note TEXT
+    );
+    ${appendOnly("trader_ledger")}
+    CREATE INDEX IF NOT EXISTS idx_trader_ledger_at ON trader_ledger (at);
+
+    CREATE TABLE IF NOT EXISTS trader_orders (
+      id TEXT PRIMARY KEY,
+      placed_at TEXT NOT NULL,
+      asset TEXT NOT NULL,
+      side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
+      kind TEXT NOT NULL CHECK (kind IN ('market', 'limit')),
+      amount_eur REAL,
+      quantity REAL,
+      limit_price REAL,
+      thesis TEXT NOT NULL,
+      probability REAL,
+      invalidation REAL,
+      horizon_until TEXT NOT NULL,
+      hypothesis_ids TEXT NOT NULL DEFAULT '[]',
+      origin TEXT NOT NULL CHECK (origin IN ('model', 'stop', 'owner')),
+      status TEXT NOT NULL CHECK (status IN ('pending', 'filled', 'cancelled', 'rejected', 'expired')),
+      settled_at TEXT,
+      fill_price REAL,
+      fill_quantity REAL,
+      fill_eur REAL,
+      fee_eur REAL,
+      slippage_eur REAL,
+      note TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_orders_pending ON trader_orders (status, asset);
+    CREATE TRIGGER IF NOT EXISTS trader_orders_no_delete BEFORE DELETE ON trader_orders
+      BEGIN SELECT RAISE(ABORT, 'trader_orders is append-only'); END;
+    CREATE TRIGGER IF NOT EXISTS trader_orders_settle_once BEFORE UPDATE ON trader_orders
+      WHEN OLD.status != 'pending' OR NEW.status = 'pending' OR ${orderChanged}
+      BEGIN SELECT RAISE(ABORT, 'trader_orders is append-only'); END;
+
+    CREATE TABLE IF NOT EXISTS trader_positions (
+      asset TEXT PRIMARY KEY,
+      quantity REAL NOT NULL CHECK (quantity >= 0),
+      avg_cost REAL NOT NULL,
+      opened_at TEXT NOT NULL,
+      open_order_id TEXT NOT NULL,
+      invalidation REAL,
+      horizon_until TEXT,
+      thesis TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS trader_position_updates (
+      id TEXT PRIMARY KEY,
+      asset TEXT NOT NULL,
+      at TEXT NOT NULL,
+      field TEXT NOT NULL CHECK (field IN ('invalidation', 'horizon_until')),
+      old_value TEXT,
+      new_value TEXT,
+      reason TEXT NOT NULL,
+      by TEXT NOT NULL CHECK (by IN ('model', 'code'))
+    );
+    ${appendOnly("trader_position_updates")}
+
+    CREATE TABLE IF NOT EXISTS trader_trades (
+      id TEXT PRIMARY KEY,
+      asset TEXT NOT NULL,
+      opened_at TEXT NOT NULL,
+      closed_at TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      entry_price REAL NOT NULL,
+      exit_price REAL NOT NULL,
+      fees_eur REAL NOT NULL,
+      pnl_eur REAL NOT NULL,
+      pnl_pct REAL NOT NULL,
+      open_order_id TEXT NOT NULL,
+      close_order_id TEXT NOT NULL,
+      close_reason TEXT NOT NULL CHECK (close_reason IN ('model', 'stop')),
+      thesis TEXT NOT NULL
+    );
+    ${appendOnly("trader_trades")}
+    CREATE INDEX IF NOT EXISTS idx_trader_trades_closed ON trader_trades (closed_at);
+
+    CREATE TABLE IF NOT EXISTS trader_traps (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL,
+      warning_signs TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_traps")}
+    CREATE TABLE IF NOT EXISTS trader_trap_hits (
+      id TEXT PRIMARY KEY,
+      trap_id TEXT NOT NULL REFERENCES trader_traps(id),
+      trade_id TEXT NOT NULL REFERENCES trader_trades(id),
+      note TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_trap_hits")}
+
+    CREATE TABLE IF NOT EXISTS trader_portfolio_days (
+      day TEXT PRIMARY KEY,
+      at TEXT NOT NULL,
+      cash_eur REAL NOT NULL,
+      positions_eur REAL NOT NULL,
+      equity_eur REAL NOT NULL,
+      contributed_eur REAL NOT NULL
+    );
+    ${appendOnly("trader_portfolio_days")}
+  `);
+}
+
 export function ensureTraderSchema(db: DB): void {
   const changed = IMMUTABLE_PREDICTION_COLUMNS.map((c) => `NEW.${c} IS NOT OLD.${c}`).join(" OR ");
   db.exec(`
@@ -166,6 +325,7 @@ function ensureKnowledgeSchema(db: DB): void {
   const headlineColumns = (db.prepare("PRAGMA table_info(trader_headlines)").all() as { name: string }[]).map((c) => c.name);
   if (!headlineColumns.includes("digested_at")) db.exec("ALTER TABLE trader_headlines ADD COLUMN digested_at TEXT");
   ensureAliveSchema(db);
+  ensurePortfolioSchema(db);
 }
 
 /** Append-only: refuse every update and delete on a table. */
@@ -198,7 +358,7 @@ function ensureAliveSchema(db: DB): void {
 
     CREATE TABLE IF NOT EXISTS trader_reflections (
       id TEXT PRIMARY KEY,
-      kind TEXT NOT NULL CHECK (kind IN ('postmortem', 'session', 'daily', 'weekly')),
+      kind TEXT NOT NULL CHECK (kind IN ('postmortem', 'trade', 'session', 'daily', 'weekly')),
       subject_id TEXT,
       content TEXT NOT NULL,
       recorded_at TEXT NOT NULL

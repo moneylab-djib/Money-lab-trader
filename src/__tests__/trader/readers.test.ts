@@ -123,7 +123,7 @@ describe("Calling a reader", () => {
     const now = () => T0;
     const a = await askReader(db.raw, CFG, { purpose: "test", system: "s", user: "u" }, ENV, fetchFn, now);
     expect(a).toMatchObject({ readerId: "groq", json: { ok: true } });
-    const rows = db.raw.prepare("SELECT reader_id, ok, status, error FROM trader_reader_calls ORDER BY at, id").all() as any[];
+    const rows = db.raw.prepare("SELECT reader_id, ok, status, error FROM trader_reader_calls ORDER BY rowid").all() as any[];
     expect(rows.map((r) => [r.reader_id, r.ok, r.status])).toEqual([["gemini", 0, 401], ["groq", 1, 200]]);
     expect(rows[0].error).toBe("auth: HTTP 401: key refused");
     expect(JSON.stringify(rows)).not.toContain("gem-secret-123");

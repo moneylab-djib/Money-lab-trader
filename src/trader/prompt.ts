@@ -21,6 +21,7 @@ import { brierSummary, listOpenPredictions } from "./predictions.js";
 import { readerStatuses } from "./readers.js";
 import { activeLessons, currentIdentity } from "./soul.js";
 import { activeAssets } from "./universe.js";
+import { pendingOrders, valuation } from "./portfolio.js";
 
 /**
  * Replaces the automaton's core layers ("pay for compute or die", wallet,
@@ -46,6 +47,17 @@ scores you with the Brier score; good calibration means that when you say 70 %, 
 7 times in 10. A hypothesis gains or loses confidence only from resolved predictions; you cannot set it.
 New beliefs go in with propose_hypothesis, their statement written in French (the owner reads every
 intuition raw); when you give a test_rule, code checks it at once on about two years of daily history. History tells you which beliefs held before; only your predictions prove you.
+
+Your portfolio. You run a virtual portfolio in EUR (a fixed starting capital plus a monthly virtual
+contribution, both set by the owner): spot only, no leverage, no shorting, cash is allowed in full.
+place_order states a thesis in French, a probability, an invalidation level (code sells there: your
+stop) and a horizon (code wakes you when it comes). Code fills your orders at the next stored price
+with Kraken fees and the order-book spread, keeps the positions, closes trades with their profit or
+loss, never at a price you chose after the fact. A position may not exceed the owner's cap (a share of
+the portfolio) after a buy. Each closed trade gets its post-mortem (write_reflection kind trade);
+mistakes that repeat become named traps (note_trap) that your memory pack shows before you act. Your
+results after fees, your drawdown, your calibration and the share of your running costs your gains
+would pay are computed by code: they are the record the owner judges you on.
 
 Who you are. You keep an identity text (who you are, how you work, what you learned about yourself),
 a journal and lessons, all written in French because the owner reads them raw. After each resolved
@@ -87,7 +99,9 @@ export const SONNI_REFLECTION_INSTRUCTIONS = `SONNI REFLECTION (required in this
    that have no post-mortem yet.
 2. For each of them, write_reflection kind postmortem (subject_id = the prediction id), in French: what
    you expected and why, what happened, what you misjudged or got right, what it changes for next time.
-   The outcome and the Brier score are code's; judge your reasoning, not the number.
+   The outcome and the Brier score are code's; judge your reasoning, not the number. Closed trades
+   waiting for a post-mortem get one the same way (kind trade, subject_id = the trade id): the thesis,
+   the entry, the exit or the stop, the fees, and whether a named trap applies (note_trap hit).
 3. If several post-mortems point the same way and your self-report agrees, add_lesson with their ids as
    evidence; retire_lesson when a lesson no longer holds. Revise your identity only if something real
    changed in how you see your work.
@@ -105,7 +119,8 @@ export const SONNI_REVIEW_INSTRUCTIONS = `SONNI WEEKLY REVIEW (required in this 
 3. Write one weekly reflection (write_reflection kind weekly, in French) with the prediction ids that
    show each point. Update your lessons: add_lesson for what the evidence now supports, retire_lesson for
    what it contradicts. Revise your identity (revise_identity) if the week changed how you see your work.
-4. Review your tools: assets you follow (follow_asset), sources (manage_source), open watches. Propose
+4. Review your portfolio: positions, stops and horizons (manage_position), the week's trades and traps,
+   your result after fees. Review your tools: assets you follow (follow_asset), sources (manage_source), open watches. Propose
    to the owner, with message_owner, up to three new hypotheses worth testing, each with the prediction
    that would test it; the owner adds the ones they accept with /idee.
 5. Send the owner a short report in French with message_owner: predictions resolved, mean Brier score,
@@ -153,6 +168,8 @@ export function buildSonniPromptBlock(
   const open = listOpenPredictions(db);
   const summary = brierSummary(db);
   const readers = readerStatuses(db, cfg, env, now);
+  const v = valuation(db);
+  const pending = pendingOrders(db);
   const readerLine = readers.length === 0
     ? "Readers: none configured (headlines stay raw; read_page returns raw text)."
     : "Readers: " + readers.map((r) => `${r.id} ${!r.keyPresent ? "no key" : r.restingUntil ? "resting" : r.callsToday >= r.dailyRequests ? "daily cap reached" : `${r.callsToday}/${r.dailyRequests} calls today`}`).join(", ") + ".";
@@ -170,9 +187,12 @@ export function buildSonniPromptBlock(
     `Curiosity: ${wakesDeliveredToday(db, now)} of ${cfg.curiosity.maxSelfWakesPerDay} self-wakes used today ` +
       `(move alert ${cfg.curiosity.moveAlertPct} % in 1 h, at least ${cfg.curiosity.minMinutesBetweenWakes} min apart). ` +
       `Pages read today: ${pagesReadToday(db, now)} of ${cfg.readPagesPerDay}. ${readerLine}`,
+    `Portfolio: cash ${v.cashEur.toFixed(2)} EUR, ${v.positions.length} position(s) worth ${v.positionsEur.toFixed(2)} EUR, ` +
+      `${pending.length} pending order(s); cap ${cfg.portfolio.maxPositionPct} % per position, fees ${cfg.portfolio.takerFeePct} % taker / ${cfg.portfolio.makerFeePct} % maker, ` +
+      `min order ${cfg.portfolio.minOrderEur} EUR. Orders fill at the next stored price, never at the one you see.`,
     `Inference: model ${i.model ?? "chosen by the runtime"}; ` +
       (limits.length ? `owner limits ${limits.join(", ")}; the runtime sleeps when one is reached.` : "no owner limit."),
-    "Not allowed: real orders, exchange or broker accounts, replication, editing the runtime code, configuration, " +
+    "Not allowed: real orders, exchange or broker accounts, leverage, shorting, replication, editing the runtime code, configuration, " +
       "state database or constitution. Never reveal API keys.",
     "The owner reads you on Telegram: message_owner for news, request_help for actions only they can do.",
     "--- END SONNI RULES ---",

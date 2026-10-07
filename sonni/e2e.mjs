@@ -99,7 +99,7 @@ function model(body) {
       const rulesAt = system.indexOf("--- SONNI RULES");
       rulesAt > 0 && system.indexOf("--- AVAILABLE TOOLS ---") < rulesAt ? ok("rules block after the tool list (cached prefix)") : fail("rules block not last in the system prompt");
       const offered = new Set(body.tools.map((t) => t.name));
-      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson"]) {
+      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap"]) {
         if (!offered.has(t)) fail(`tool ${t} not offered`);
       }
       for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal"]) if (offered.has(t)) fail(`tool ${t} offered`);
@@ -117,6 +117,8 @@ function model(body) {
       /Indicators from your sources[^\n]*\n(- [^\n]*\n)*- Crypto Fear & Greed \(alternative\.me\) index: 27\.00/.test(pack)
         ? ok("memory pack shows the Fear & Greed index polled from the fake source") : fail("source indicator missing from the memory pack");
       /SELF-REPORT \(computed by code/.test(pack) ? ok("memory pack carries the self-report") : fail("self-report missing");
+      /Your virtual portfolio \(code-computed[^\n]*\n- Cash 1000\.00 EUR, positions 0\.00 EUR, total 1000\.00 EUR/.test(pack)
+        ? ok("memory pack shows the virtual portfolio funded by code at the first price") : fail("virtual portfolio missing or not funded in the memory pack");
       /Upcoming events[^\n]*\n- \d{4}-\d{2}-\d{2} fomc/.test(pack) ? ok("memory pack shows the next Fed decision") : fail("Fed decision missing from the memory pack");
       hypothesisId = pack.match(/h_[0-9A-Z]+/)?.[0] ?? null;
       /BTC: \d+\.\d\d EUR/.test(pack) ? ok("memory pack shows the collected BTC price") : fail("memory pack has no BTC price");
@@ -134,11 +136,14 @@ function model(body) {
       return reply([
         use("set_watch", { action: "add", kind: "price", asset: "BTC", direction: "above", value: 70000, note: "Si BTC dépasse 70 000, revoir mon hypothèse de marché calme" }),
         use("write_reflection", { kind: "session", content: "Première séance : marché calme, une prédiction prudente à 24 h et une veille au-dessus de 70 000 EUR." }),
+        use("place_order", { asset: "BTC", side: "buy", amount_eur: 100, invalidation: 55000, horizon_hours: 72, probability: 0.6,
+          thesis: "Marché calme et BTC au-dessus de 59 000 : une petite position de test, stop à 55 000 si je me trompe." }),
       ]);
     }
     case 3: {
       results.some((r) => /Watch set: w_\w+ \[price\] BTC above 70000 EUR/.test(r)) ? ok("watch set through the agent loop") : fail(`watch not set: ${results.at(-1)}`);
       results.some((r) => /Reflection r_\w+ \(session\) recorded/.test(r)) ? ok("reflection written through the agent loop") : fail(`reflection not written: ${results.at(-1)}`);
+      results.some((r) => /Order o_\w+ pending: market buy 100 EUR of BTC, stop at 55000 EUR/.test(r)) ? ok("virtual order placed through the agent loop, pending until the next price") : fail(`order not placed: ${results.at(-1)}`);
       step++;
       return reply([use("sleep", { duration_seconds: 3600, reason: "next session" })]);
     }
@@ -358,6 +363,10 @@ await until(() => step >= 4, 60000) || fail(`decision session stopped at step ${
 // A 4 % jump in the next collections: code wakes the sleeping agent (at most one wake per 30 min).
 // Wait for the decision cycle itself to end before the jump.
 await until(() => loopEnds() > endsBeforeDecision, 20000) || fail("decision cycle did not end in a sleep");
+// The order placed in the session is filled by code at the next collection (1 min here), before the jump.
+await until(() => /\[SONNI\] Ordre o_\w+ exécuté : buy BTC 0\.0016\d+ à 60\d{3}(\.\d+)? EUR/.test(out), 90000)
+  ? ok("virtual order filled by code at the next collected price, with the fee and the order-book spread")
+  : fail("order not filled within 90 s of the session");
 jump = true;
 const jumpedAt = Date.now();
 await until(() => wokenByMove, 150000)
@@ -381,6 +390,20 @@ const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 /1 réveil sur 6 aujourd'hui/.test(statut) ? ok("/statut counts the self-wake") : fail("/statut does not count the self-wake");
 /💶 Budget\nIA aujourd'hui : \d+,\d\d \$ sur 1,93 \$/.test(statut) ? ok("/statut shows today's spend against the cap") : fail("/statut lacks the budget line");
 !/[hp]_01[0-9A-Z]{20}/.test(statut) ? ok("/statut shows no identifiers") : fail("/statut still shows identifiers");
+// The order was filled by code at the collection after the decision session; BTC then jumped to 62 500.
+/💼 Portefeuille virtuel\nValeur 1\s?00\d,\d\d € \(\+\d,\d\d €, \+0,\d\d % sur 1\s?000,00 € versés\) · liquidités 900,00 €\nBTC : 0\.0016\d+ \(10\d,\d\d €, \+\d,\d\d €\) acheté 60\s?\d{3},\d\d €, stop 55\s?000,00 €, revoir /.test(statut)
+  ? ok("/statut shows the virtual portfolio: filled order, position in profit after the jump, stop and horizon") : fail("/statut lacks the filled position");
+tgSend("/portefeuille");
+await until(() => tgOutbox.some((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text)), 30000) || fail("/portefeuille got no answer");
+const pf = tgOutbox.find((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text))?.text ?? "";
+/Raison : Marché calme et BTC au-dessus de 59 000/.test(pf) && /achat de 100,00 € de BTC : exécuté le .* à 60\s?\d{3},\d\d € \(0\.0016\d+ BTC, frais 0,80 €\)/.test(pf)
+  ? ok("/portefeuille shows the position with its reason and the fill with its fee") : fail("/portefeuille lacks the position or the fill");
+!/o_01[0-9A-Z]{20}/.test(pf) ? ok("/portefeuille shows no identifiers") : fail("/portefeuille shows identifiers");
+tgSend("/journee");
+await until(() => tgOutbox.some((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text)), 30000) || fail("/journee got no answer");
+const journee = tgOutbox.find((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text))?.text ?? "";
+/Opérations du jour :\n- \d\d:\d\d achat de 100,00 € de BTC : exécuté à 60\s?\d{3},\d\d € \(frais 0,80 €\)\n  Raison : Marché calme/.test(journee)
+  ? ok("/journee lists the day's order with its reason") : fail("/journee lacks the day's order");
 tgSend("/intuitions");
 // The translation runs on the minute timer: allow a full minute after the intake.
 await until(() => tgOutbox.some((m) => /\[FR\] BTC rebounds the day after a drop/.test(m.text)), 90000)

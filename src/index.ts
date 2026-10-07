@@ -625,6 +625,7 @@ async function run(): Promise<void> {
     const live = () => activeConfig(db.raw, traderBase);
     const { calendarTick, collectTick, digestTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
     const { translateHypothesesTick } = await import("./trader/readers.js");
+    const { brokerTick } = await import("./trader/portfolio.js");
     const { intakeDue } = await import("./trader/intake.js");
     const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
@@ -637,7 +638,16 @@ async function run(): Promise<void> {
       sleepReason: db.getKV("sleep_reason"),
       loopSlept: sonniLoopSlept,
     });
-    every(traderBase.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, live()));
+    every(traderBase.collectMinutes * 60_000, "Sonni prix", async () => {
+      await collectTick(db.raw, live());
+      // The paper broker runs on every new price: funding, fills, stops, horizons, the daily snapshot.
+      const b = brokerTick(db.raw, live());
+      if (b.funded.capital) logger.info(`[SONNI] Portefeuille virtuel ouvert avec ${traderBase.portfolio.startEur} EUR.`);
+      if (b.funded.contribution) logger.info(`[SONNI] Versement virtuel mensuel de ${traderBase.portfolio.monthlyEur} EUR.`);
+      for (const f of b.fills) logger.info(`[SONNI] Ordre ${f.order.id} exécuté : ${f.order.side} ${f.order.asset} ${f.order.fillQuantity} à ${f.order.fillPrice} EUR${f.trade ? ` ; opération ${f.trade.id} close, résultat ${f.trade.pnlEur} EUR` : ""}.`);
+      for (const o of b.expired) logger.info(`[SONNI] Ordre ${o.id} expiré : ${o.note}.`);
+      for (const o of b.stops) logger.info(`[SONNI] Stop déclenché sur ${o.asset} : ordre ${o.id}.`);
+    });
     every(6 * 60 * 60_000, "Sonni historique", async () => {
       const n = await historyTick(db.raw, live());
       if (n > 0) logger.info(`[SONNI] ${n} intuition(s) testée(s) sur l'historique.`);

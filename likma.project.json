@@ -216,6 +216,24 @@
       "path": "src/trader/universe.ts",
       "purpose": "Followed assets: config plus the model's logged follow/unfollow choices checked against Kraken EUR pairs; activeConfig",
       "edit_when": "Asset rules or pair validation change"
+    },
+    {
+      "area": "Sonni paper broker",
+      "path": "src/trader/portfolio.ts",
+      "purpose": "Virtual portfolio: funding, orders checked and filled by code at later prices with fees and slippage, positions, stops, horizons, trades with P&L, traps, snapshots, performance",
+      "edit_when": "Order rules, fees, the position cap, fills or the performance figures change (keep docs/MEMORY.md and ARCHITECTURE.md in sync)"
+    },
+    {
+      "area": "Sonni owner reports",
+      "path": "src/trader/report.ts",
+      "purpose": "Morning report and evening summary for the owner, in French",
+      "edit_when": "What the owner receives each morning or evening changes"
+    },
+    {
+      "area": "Sonni French formatting",
+      "path": "src/trader/format.ts",
+      "purpose": "Euro, percent, date and time formatting in the owner's time zone",
+      "edit_when": "Owner-facing number or date formats change"
     }
   ]
 }

@@ -16,8 +16,9 @@ import { EVENT_LABEL_FR, upcomingEvents } from "./events.js";
 import { getPrediction, listOpenPredictions, type Prediction } from "./predictions.js";
 import { readerStatuses } from "./readers.js";
 import { activeConfig } from "./universe.js";
-import { agentStateFr, describePredictionFr, describeResolutionFr } from "./status.js";
-import { fmtDay, fmtDayLong, fmtUsdCents, plural } from "./format.js";
+import { agentStateFr, describePredictionFr, describeResolutionFr, orderNoteFr } from "./status.js";
+import { fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, plural } from "./format.js";
+import { listTrades, recentOrders, snapshots, valuation } from "./portfolio.js";
 
 type DB = Database.Database;
 const DAY_MS = 86_400_000;
@@ -154,4 +155,54 @@ export function buildSonniDailyReport(
     "Détails : /statut · /journal · /sante (serveur)",
   ].join("\n");
   return { level, text };
+}
+
+// ─── Evening summary ────────────────────────────────────────────
+
+/**
+ * The day's operations with their reasons, the portfolio's value and
+ * change, the predictions resolved, what Sonni wrote and spent. Sent
+ * once a day in the owner's evening and on demand (/journee).
+ */
+export function buildSonniEveningSummary(db: DB, baseCfg: TraderConfig, lab: MoneyLabConfig | null, now: Date = new Date()): string {
+  const cfg = activeConfig(db, baseCfg);
+  const tz = cfg.timeZone;
+  const sinceIso = new Date(now.getTime() - DAY_MS).toISOString();
+  const lines: string[] = [`🌙 Sonni — ${fmtDayLong(now, tz)}, résumé du jour`];
+  const v = valuation(db);
+  const snaps = snapshots(db, 2);
+  const yesterday = snaps.find((s) => s.day < now.toISOString().slice(0, 10));
+  const dayChange = yesterday ? v.equityEur - (v.contributedEur - yesterday.contributedEur) - yesterday.equityEur : null;
+  lines.push("", "Portefeuille :");
+  if (v.contributedEur === 0) {
+    lines.push(`- pas encore ouvert (${fmtEur(cfg.portfolio.startEur)} au premier relevé de prix)`);
+  } else {
+    lines.push(`- valeur ${fmtEur(v.equityEur)}${dayChange !== null ? ` (${dayChange >= 0 ? "+" : "−"}${fmtEur(Math.abs(dayChange))} sur la journée)` : ""}, ` +
+      `${v.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(v.pnlEur))} depuis le départ · liquidités ${fmtEur(v.cashEur)}`);
+    for (const p of v.positions) lines.push(`- ${p.asset} : ${fmtEur(p.valueEur)} (${p.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(p.pnlEur))})${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}`);
+  }
+  // Chronological, the way the owner reads a day.
+  const orders = recentOrders(db, 20, sinceIso).filter((o) => o.placedAt >= sinceIso || (o.settledAt ?? "") >= sinceIso).reverse();
+  lines.push("", "Opérations du jour :");
+  if (orders.length === 0) lines.push("- aucune");
+  for (const o of orders) {
+    const what = o.side === "buy" ? `achat de ${fmtEur(o.amountEur ?? 0)} de ${o.asset}` : `vente de ${o.quantity} ${o.asset}`;
+    const state = o.status === "pending" ? "en attente" : o.status === "filled" ? `exécuté à ${fmtEur(o.fillPrice!)} (frais ${fmtEur(o.feeEur!)})` : o.status === "expired" ? `expiré (${orderNoteFr(o.note)})` : o.status === "cancelled" ? `annulé (${orderNoteFr(o.note)})` : "refusé";
+    lines.push(`- ${fmtTime(o.placedAt, tz)} ${what}${o.origin === "stop" ? " [stop automatique]" : ""} : ${state}`);
+    if (o.origin !== "stop") lines.push(`  Raison : ${o.thesis}`);
+  }
+  const trades = listTrades(db, 10, sinceIso).reverse();
+  for (const t of trades) lines.push(`- opération close sur ${t.asset} : ${t.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(t.pnlEur))} (${t.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.pnlPct).toFixed(2).replace(".", ",")} %)${t.closeReason === "stop" ? ", par le stop" : ""}`);
+  const resolved = (db.prepare("SELECT id FROM trader_predictions WHERE resolved_at >= ? ORDER BY resolved_at ASC").all(sinceIso) as { id: string }[]).map((r) => getPrediction(db, r.id)!);
+  const made = count(db, "SELECT COUNT(*) AS n FROM trader_predictions WHERE made_at >= ?", sinceIso);
+  lines.push("", "Prédictions :");
+  lines.push(`- ${plural(made, "nouvelle", "nouvelles")}, ${plural(resolved.length, "résolue")}${resolved.length ? " :" : ""}`);
+  for (const p of resolved.slice(0, 4)) lines.push(`  · ${describeResolutionFr(p)}`);
+  const reflections = count(db, "SELECT COUNT(*) AS n FROM trader_reflections WHERE recorded_at >= ?", sinceIso);
+  const lessons = count(db, "SELECT COUNT(*) AS n FROM trader_lessons WHERE recorded_at >= ?", sinceIso);
+  const spentToday = inferenceGetDailyCost(db, now.toISOString().slice(0, 10));
+  const cap = lab?.inference.dailyCents ?? null;
+  lines.push("", `Écrit : ${plural(reflections, "note de journal", "notes de journal")}, ${plural(lessons, "leçon")} · IA aujourd'hui : ${fmtUsdCents(spentToday)}${cap !== null ? ` sur ${fmtUsdCents(cap)}` : ""}`);
+  lines.push("", "Détails : /portefeuille · /statut · /journal");
+  return lines.join("\n");
 }

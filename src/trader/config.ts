@@ -41,6 +41,25 @@ export interface ReaderConfig {
   jsonMode: boolean;
 }
 
+/** Virtual portfolio rules (src/trader/portfolio.ts), decision 0003 and ARCHITECTURE.md. */
+export interface PortfolioConfig {
+  /** Virtual capital at the first start, in EUR. */
+  startEur: number;
+  /** Virtual contribution added on the first of each month, in EUR. */
+  monthlyEur: number;
+  /** A position may not exceed this share of the portfolio's value after a buy. */
+  maxPositionPct: number;
+  /** Fee on market orders (taker) and on limit orders (maker), in %. */
+  takerFeePct: number;
+  makerFeePct: number;
+  /** Slippage applied to market fills when no fresh order-book spread is stored, in basis points. */
+  slippageBps: number;
+  /** Smallest order, in EUR. */
+  minOrderEur: number;
+  /** EUR to USD rate, to compare virtual gains with the inference spend kept in USD. */
+  eurUsd: number;
+}
+
 export interface TraderConfig {
   enabled: true;
   quoteCurrency: "EUR";
@@ -55,6 +74,7 @@ export interface TraderConfig {
   readPagesPerDay: number;
   /** IANA time zone of the owner, for everything they read (default Europe/Paris). */
   timeZone: string;
+  portfolio: PortfolioConfig;
 }
 
 export const DEFAULT_TIME_ZONE = "Europe/Paris";
@@ -66,6 +86,37 @@ function validTimeZone(tz: string): boolean {
   } catch {
     return false;
   }
+}
+
+export const DEFAULT_PORTFOLIO: PortfolioConfig = {
+  startEur: 1000, monthlyEur: 50, maxPositionPct: 30, takerFeePct: 0.8, makerFeePct: 0.4, slippageBps: 5, minOrderEur: 10, eurUsd: 1.16,
+};
+const PORTFOLIO_KEYS = ["startEur", "monthlyEur", "maxPositionPct", "takerFeePct", "makerFeePct", "slippageBps", "minOrderEur", "eurUsd"];
+
+function numInRange(value: unknown, min: number, max: number, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+    throw new TraderConfigError(`${name} doit être un nombre entre ${min} et ${max}`);
+  }
+  return value;
+}
+
+function parsePortfolio(raw: unknown): PortfolioConfig {
+  if (raw === undefined) return { ...DEFAULT_PORTFOLIO };
+  if (!isObject(raw)) throw new TraderConfigError("portfolio doit être un objet");
+  checkKeys(raw, [], "trader.portfolio", PORTFOLIO_KEYS);
+  const d = DEFAULT_PORTFOLIO;
+  const pick = (key: keyof PortfolioConfig, min: number, max: number) =>
+    raw[key] === undefined ? d[key] : numInRange(raw[key], min, max, `portfolio.${key}`);
+  return {
+    startEur: pick("startEur", 100, 1_000_000),
+    monthlyEur: pick("monthlyEur", 0, 100_000),
+    maxPositionPct: pick("maxPositionPct", 1, 100),
+    takerFeePct: pick("takerFeePct", 0, 5),
+    makerFeePct: pick("makerFeePct", 0, 5),
+    slippageBps: pick("slippageBps", 0, 500),
+    minOrderEur: pick("minOrderEur", 1, 10_000),
+    eurUsd: pick("eurUsd", 0.5, 2),
+  };
 }
 
 export const DEFAULT_CURIOSITY: CuriosityConfig = { moveAlertPct: 3, maxSelfWakesPerDay: 6, minMinutesBetweenWakes: 30 };
@@ -148,7 +199,7 @@ export class TraderConfigError extends Error {
 
 const KEYS = ["enabled", "quoteCurrency", "assets", "collectMinutes", "staleMinutes"];
 /** Keys added by later slices: absent means the default, so older configs keep working. */
-const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone"];
+const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone", "portfolio"];
 const CURIOSITY_KEYS = ["moveAlertPct", "maxSelfWakesPerDay", "minMinutesBetweenWakes"];
 const READER_KEYS = ["id", "baseUrl", "model", "keyEnv", "dailyRequests"];
 const READER_OPTIONAL_KEYS = ["jsonMode"];
@@ -282,6 +333,7 @@ export function parseTraderConfig(raw: unknown): TraderConfig | null {
     readers: parseReaders(raw.readers),
     readPagesPerDay,
     timeZone,
+    portfolio: parsePortfolio(raw.portfolio),
   };
 }
 

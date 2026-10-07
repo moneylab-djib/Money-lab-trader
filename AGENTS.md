@@ -44,8 +44,8 @@ No start command is configured: starting runs a paid agent and requires owner ap
 
 ## Code layout
 Sonni lives in src/trader/ (config, schema, prices, candles, rules, historical, hypotheses,
-predictions, intake, events, news, readers, pages, sources + catalog, universe, soul, curiosity, pack,
-prompt, tools, status, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
+predictions, intake, events, news, readers, pages, sources + catalog, universe, soul, curiosity,
+portfolio (paper broker), pack, prompt, tools, status, report, format, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
 src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts,
 src/money-lab/recall.ts and src/conway/inference.ts. The rest is the Money Lab runtime imported at a
 pinned commit (docs/upstream/): prefer changes under src/trader/ over edits to imported modules.
