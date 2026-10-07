@@ -335,6 +335,17 @@ const configPath = path.join(HOME, ".automaton", "automaton.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 if (config.moneyLab.stripe !== null || config.moneyLab.resources[0].expectedDailyCostCents !== 0) fail("configure kept Stripe or a VPS cost");
 if (fs.existsSync(path.join(HOME, ".automaton", "skills", "money-lab-strategy"))) fail("Money Lab strategy skill installed for Sonni");
+// The evening consolidation is scheduled 7 min ahead in Paris time. Within 12 min of Paris midnight that
+// time would wrap to 00:0x, which is already "due" before midnight: wait for the new day instead.
+const parisMinutes = () => {
+  const [h, m] = new Date().toLocaleTimeString("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hour12: false }).split(":").map(Number);
+  return h * 60 + m;
+};
+if (parisMinutes() >= 24 * 60 - 12) {
+  const waitMs = (24 * 60 - parisMinutes()) * 60_000 + 30_000;
+  console.log(`Waiting ${Math.round(waitMs / 1000)} s for Paris midnight so the evening consolidation stays 7 min ahead`);
+  await new Promise((resolve) => setTimeout(resolve, waitMs));
+}
 // Faster than production (5 / 15 min) so the run fits in two minutes.
 const eveningAt = new Date(Date.now() + 7 * 60_000);
 const [eveningHour, eveningMinute] = eveningAt.toLocaleTimeString("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hour12: false }).split(":").map(Number);
@@ -416,9 +427,13 @@ await until(() => tgOutbox.some((m) => /décision de taux de la Fed/.test(m.text
 gdeltCalls >= 1 ? ok("headlines fetched from GDELT") : fail("GDELT never called");
 feedCalls >= 4 ? ok(`RSS feeds fetched beside GDELT (${feedCalls} calls)`) : fail(`RSS feeds called ${feedCalls} times`);
 
+// Read only replies that arrived after the command: the automatic morning report (after 07:00 UTC) and
+// evening summary (after 20:00 Paris) can be queued at startup and match the same patterns.
+let sentAt = tgOutbox.length;
+const replies = () => tgOutbox.slice(sentAt);
 tgSend("/statut");
-await until(() => tgOutbox.some((m) => /SONNI/.test(m.text)), 30000) || fail("/statut got no Sonni answer");
-const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
+await until(() => replies().some((m) => /SONNI/.test(m.text)), 30000) || fail("/statut got no Sonni answer");
+const statut = replies().find((m) => /SONNI/.test(m.text))?.text ?? "";
 /Prédictions ouvertes \(1\)/.test(statut) ? ok("/statut shows the open prediction in French") : fail("/statut lacks the open prediction");
 // 62 500 EUR after the jump (narrow no-break space from the French locale).
 /BTC 62\s?500,00 €/.test(statut) ? ok("/statut shows the BTC price in euros") : fail("/statut lacks the BTC price");
@@ -429,15 +444,17 @@ const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 // The order was filled by code at the collection after the decision session; BTC then jumped to 62 500.
 /💼 Portefeuille virtuel\nValeur 1\s?00\d,\d\d € \(\+\d,\d\d €, \+0,\d\d % sur 1\s?000,00 € versés\) · liquidités 900,00 €\nBTC : 0\.0016\d+ \(10\d,\d\d €, \+\d,\d\d €\) acheté 60\s?\d{3},\d\d €, stop 55\s?000,00 €, revoir /.test(statut)
   ? ok("/statut shows the virtual portfolio: filled order, position in profit after the jump, stop and horizon") : fail("/statut lacks the filled position");
+sentAt = tgOutbox.length;
 tgSend("/portefeuille");
-await until(() => tgOutbox.some((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text)), 30000) || fail("/portefeuille got no answer");
-const pf = tgOutbox.find((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text))?.text ?? "";
+await until(() => replies().some((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text)), 30000) || fail("/portefeuille got no answer");
+const pf = replies().find((m) => /💼 Portefeuille virtuel de Sonni/.test(m.text))?.text ?? "";
 /Raison : Marché calme et BTC au-dessus de 59 000/.test(pf) && /achat de 100,00 € de BTC : exécuté le .* à 60\s?\d{3},\d\d € \(0\.0016\d+ BTC, frais 0,80 €\)/.test(pf)
   ? ok("/portefeuille shows the position with its reason and the fill with its fee") : fail("/portefeuille lacks the position or the fill");
 !/o_01[0-9A-Z]{20}/.test(pf) ? ok("/portefeuille shows no identifiers") : fail("/portefeuille shows identifiers");
+sentAt = tgOutbox.length;
 tgSend("/journee");
-await until(() => tgOutbox.some((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text)), 30000) || fail("/journee got no answer");
-const journee = tgOutbox.find((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text))?.text ?? "";
+await until(() => replies().some((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text)), 30000) || fail("/journee got no answer");
+const journee = replies().find((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text))?.text ?? "";
 /Opérations du jour :\n- \d\d:\d\d achat de 100,00 € de BTC : exécuté à 60\s?\d{3},\d\d € \(frais 0,80 €\)\n  Raison : Marché calme/.test(journee)
   ? ok("/journee lists the day's order with its reason") : fail("/journee lacks the day's order");
 tgSend("/intuitions");

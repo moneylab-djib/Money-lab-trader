@@ -1,0 +1,3 @@
+.likma/features.json merge=likma-features
+docs/FEATURES.md merge=likma-generated
+docs/CODEMAP.md merge=likma-generated
