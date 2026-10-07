@@ -3,6 +3,7 @@
   "name": "money-lab-trader",
   "commands": {
     "start": [],
+    "start_disabled": "Starting runs Sonni, a paid autonomous agent: only the owner starts it, on its own VPS (AGENTS.md, decision 0004).",
     "check": {
       "types": [
         "pnpm",

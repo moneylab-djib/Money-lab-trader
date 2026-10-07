@@ -32,4 +32,5 @@
 | Sonni data sources | src/trader/sources.ts | Catalog loading, polling by JSON path, model enable/disable/propose, owner decisions, metrics for the pack; catalog in src/trader/catalog.ts | A source, its cadence, failure rule or proposal rule changes |
 | Sonni universe | src/trader/universe.ts | Followed assets: config plus the model's logged follow/unfollow choices checked against Kraken EUR pairs; activeConfig | Asset rules or pair validation change |
 
+Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

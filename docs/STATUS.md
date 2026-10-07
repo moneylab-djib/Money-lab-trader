@@ -68,7 +68,19 @@
     budget evaded). Likma `project check`: PASS at 04:07 UTC (report
     .likma/checks/3ed267e76fc84166a9a01f85c9c2d6b3.json) and, after the pair-correction fix, PASS at
     04:13 UTC (report .likma/checks/44f6f681d44f4f4aa7cc811f134a9b44.json). The new pair-correction
-    test was confirmed to fail without the fix. CI on PR #5: green through ef29aa1.
+    test was confirmed to fail without the fix. CI on PR #5: green through 5a71cdd.
+  - Owner's update on the VPS (2026-10-07, 06:32 Paris): /lecteurs answered "Aucune IA lectrice
+    configurée", i.e. the new code ran with the old config (the configure.mjs step was skipped or run as
+    root). configure.mjs now says "Mise à jour" on later runs instead of asking for the month's budget
+    again (which would have funded the month twice) and warns when run as root; the guide says how to
+    check the readers line; the e2e re-runs it. Likma `project check` PASS (report
+    .likma/checks/00293b38e9f4469c90a31db9d0aec3f1.json).
+  - Likma upgraded to 0.7.0 (system checkout fast-forwarded to 902f3e9, `validate` and its 112 tests
+    pass): `project upgrade` wrote the managed block in AGENTS.md (routine and ai-product skill index,
+    which now lists agents/autonomous-agents) and docs/LIKMA.md; `commands.start_disabled` records why
+    no start command exists; the seven features are scoped to the code they depend on (src, sonni,
+    constitution.md, package and build files), so documentation edits no longer make evidence stale,
+    and were re-verified under fingerprint v2 (see docs/FEATURES.md).
   - Research by web agents (2026-10-07, reports kept in the session scratchpad, conclusions applied):
     free LLM APIs: Gemini free tier is the primary reader (`gemini-3.5-flash-lite`; limits no longer
     published, EEA users get the no-training terms; auth keys since May 2026), Groq free plan the
@@ -115,9 +127,10 @@
   - Money Lab's experiment-oriented texts remain in some owner commands (/aides, /resume).
 - First live run (owner's VPS, 2026-10-06 22:12 UTC): two predictions due 2026-10-07 22:12 UTC.
 - Blockers: none for code. The owner must create free reader keys (optional) and update the VPS.
-- Next concrete action: owner updates the VPS to claude/sonni-alive (guide: "Mettre Sonni à jour", with
-  the configure.mjs line), adds GEMINI_API_KEY / GROQ_API_KEY to /etc/sonni.env if wanted, restarts,
-  checks /lecteurs, /sources, /identite.
+- Next concrete action: owner re-runs `sudo -u sonni -H node sonni/vps/configure.mjs ...` on the VPS
+  (without adding budget), adds GEMINI_API_KEY / GROQ_API_KEY to /etc/sonni.env if wanted, restarts,
+  checks /lecteurs, /sources, /identite. Proposed next engineering task: a guard map for Sonni per the
+  Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.
