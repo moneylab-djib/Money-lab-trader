@@ -7,7 +7,9 @@
 // It checks: prices collected at start and again one interval later;
 // prices kept across a restart; a decision session that reads the memory
 // pack and records a prediction linked to the owner's hypothesis; Money
-// Lab's web-business tools not offered; /statut answered in French.
+// Lab's web-business tools not offered; daily history fetched and the
+// intake run on the stronger model with code's historical verdict;
+// /statut answered in French.
 import http from "http";
 import { spawn, execFileSync } from "child_process";
 import fs from "fs";
@@ -40,8 +42,33 @@ const reply = (content, stop = "tool_use") => ({
   usage: { input_tokens: 800, cache_read_input_tokens: 8000, cache_creation_input_tokens: 0, output_tokens: 150 },
 });
 
+// Intake wake (once history is stored): propose one hypothesis with a rule, read code's verdict.
+const intake = { requests: 0, model: null, proposed: false, batches: 0, verdict: null };
+function intakeModel(body, results) {
+  intake.requests++;
+  intake.model ??= body.model;
+  intake.verdict ??= results.find((r) => /Hypothesis h_\w+ recorded \(prior\)\. history/.test(r)) ?? null;
+  // Three turns of 10 hypotheses (the runtime runs at most 10 tool calls per turn), the first with a rule.
+  if (intake.batches < 3) {
+    const n = intake.batches++;
+    intake.proposed = true;
+    return reply(Array.from({ length: 10 }, (_, i) => n === 0 && i === 0
+      ? use("propose_hypothesis", {
+          statement: "BTC rebounds the day after a drop of 3 % or more",
+          test_rule: { claim: "more_often_than_usual", when: [{ kind: "return", asset: "BTC", days: 1, op: "<=", value: -3 }],
+            then: { kind: "forward_return", asset: "BTC", days: 1, op: ">", value: 0 } },
+        })
+      : use("propose_hypothesis", { statement: `Prior belief number ${n * 10 + i} about crypto markets` })));
+  }
+  intake.done = true;
+  return reply([use("sleep", { duration_seconds: 3600, reason: "intake done" })]);
+}
+
 function model(body) {
   const results = toolResults(body);
+  const lastUser = [...body.messages].reverse().find((m) => m.role === "user");
+  const inIntake = JSON.stringify(lastUser ?? "").includes("SONNI INTAKE") || (intake.proposed && !intake.done);
+  if (inIntake) return intakeModel(body, results);
   const system = (body.system ?? []).map((b) => b.text).join("") + JSON.stringify(body.messages.filter((m) => m.role === "system"));
   switch (step) {
     case 0: {
@@ -85,6 +112,7 @@ const tgSend = (text) => tgQueue.push({
   message: { message_id: updateId, date: Math.floor(Date.now() / 1000), chat: { id: OWNER, type: "private" }, from: { id: OWNER, is_bot: false, first_name: "Owner" }, text },
 });
 const krakenCalls = [];
+const ohlcCalls = [];
 let tick = 0;
 
 const server = http.createServer(async (req, res) => {
@@ -100,6 +128,23 @@ const server = http.createServer(async (req, res) => {
       return send(400, { type: "error", error: { type: "invalid_request_error", message: errs[0] } });
     }
     return send(200, model(body));
+  }
+  if (url.pathname.startsWith("/kraken/0/public/OHLC")) {
+    // 400 committed days in a 5-day cycle (+1, -1, +1, -4, +5 %), then the unfinished day.
+    const pair = url.searchParams.get("pair");
+    ohlcCalls.push(pair);
+    const rows = [];
+    let close = pair === "XBTEUR" ? 50000 : 2000;
+    const start = Math.floor(Date.now() / 86_400_000) * 86_400 - 401 * 86_400;
+    for (let i = 0; i < 400; i++) {
+      const r = i === 0 ? 0 : [1, -1, 1, -4, 5][(i - 1) % 5];
+      const open = close;
+      close = open * (1 + r / 100);
+      rows.push([start + i * 86_400, String(open), String(Math.max(open, close)), String(Math.min(open, close)), String(close), "0", "100", 10]);
+    }
+    const last = rows.at(-1)[0];
+    rows.push([last + 86_400, "1", "1", "1", "1", "0", "1", 1]);
+    return send(200, { error: [], result: { [`X${pair}Z`]: rows, last } });
   }
   if (url.pathname.startsWith("/kraken/0/public/Ticker")) {
     const pair = url.searchParams.get("pair");
@@ -167,18 +212,30 @@ const started = Date.now();
 await until(() => krakenCalls.length >= 2, 20000)
   ? ok("prices collected at startup (BTC and ETH)")
   : fail("no price collection at startup");
-await until(() => step >= 3, 60000) || fail(`decision session stopped at step ${step}`);
 
 // Second collection one interval (1 min here, 5 min in production) later.
 await until(() => krakenCalls.filter((c) => c.pair === "XBTEUR").length >= 2, 80000)
   ? ok(`second BTC collection after ${Math.round((krakenCalls.filter((c) => c.pair === "XBTEUR")[1].at - started) / 1000)} s`)
   : fail("no second collection within the interval");
 
+// History arrives at startup; the sleeping agent is woken for its intake.
+await until(() => intake.done, 60000) || fail("no intake wake after the history arrived");
+ohlcCalls.includes("XBTEUR") && ohlcCalls.includes("ETHEUR") ? ok("daily history fetched for BTC and ETH") : fail("daily history not fetched");
+intake.model === "claude-opus-5-5" ? ok("intake runs on the stronger model") : fail(`intake model: ${intake.model}`);
+/79\/79 = 100 % vs 60 % on all days.*SUPPORTED/.test(intake.verdict ?? "")
+  ? ok("propose_hypothesis returns code's historical verdict")
+  : fail(`unexpected intake verdict: ${intake.verdict}`);
+
+// The owner's message wakes Sonni for a normal decision session.
+tgSend("Bonjour Sonni, regarde le marché.");
+await until(() => step >= 3, 60000) || fail(`decision session stopped at step ${step}`);
+
 tgSend("/statut");
 await until(() => tgOutbox.some((m) => /SONNI/.test(m.text)), 30000) || fail("/statut got no Sonni answer");
 const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 /Prédictions ouvertes \(1\)/.test(statut) ? ok("/statut shows the open prediction in French") : fail("/statut lacks the open prediction");
 /BTC : 60\s?0\d\d,00 €/.test(statut) ? ok("/statut shows the BTC price in euros") : fail("/statut lacks the BTC price");
+/confirmée par l'historique/.test(statut) ? ok("/statut shows the historical verdict in French") : fail("/statut lacks the historical verdict");
 
 // Restart: stored prices and the prediction survive, collection resumes.
 child.kill("SIGTERM");

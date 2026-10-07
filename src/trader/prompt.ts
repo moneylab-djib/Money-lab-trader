@@ -24,6 +24,8 @@ predictions that can be checked: record_prediction states one event that a hypot
 above or below a threshold at a horizon) with your probability. Code resolves it at the horizon and
 scores you with the Brier score; good calibration means that when you say 70 %, the event happens about
 7 times in 10. A hypothesis gains or loses confidence only from resolved predictions; you cannot set it.
+New beliefs go in with propose_hypothesis; when you give a test_rule, code checks it at once on about two
+years of daily history. History tells you which beliefs held before; only your predictions prove you.
 
 Honesty. Predictions are recorded before the outcome and can never be edited or deleted. Do not explain
 moves after the fact as if you had foreseen them. You already know a lot about markets up to your
@@ -75,8 +77,7 @@ export function buildSonniPromptBlock(db: Database.Database, lab: MoneyLabConfig
     `Memory: ${hypotheses.length} hypotheses, ${open.length} open predictions, ${summary.scored} scored ` +
       `(mean Brier ${summary.meanBrier === null ? "n/a" : summary.meanBrier.toFixed(3)}). Call sonni_memory for details.`,
     hypotheses.length === 0
-      ? "No hypothesis exists yet: you cannot record predictions until the owner adds one with /idee. " +
-        "Ask them with message_owner, proposing two or three testable hypotheses, then sleep."
+      ? "No hypothesis exists yet: propose some with propose_hypothesis before recording predictions."
       : "",
     `Inference: model ${i.model ?? "chosen by the runtime"}; ` +
       (limits.length ? `owner limits ${limits.join(", ")}; the runtime sleeps when one is reached.` : "no owner limit."),

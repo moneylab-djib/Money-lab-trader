@@ -20,7 +20,9 @@ Status: proposed (2026-10-06). Nothing below is implemented yet.
 
 | Component | Inference | Role |
 | --- | --- | --- |
-| Collectors | None | Fetch prices and calendars on a schedule (Money Lab scheduled jobs, no paid inference). |
+| Collectors | None | Fetch prices every 5 minutes and Kraken daily candles every 6 hours (calendars later), without paid inference. |
+| Historical tests | None | Evaluate hypotheses' test rules on daily history; append verdicts (docs/MEMORY.md section 4). |
+| Intake | Opus 5.5, then Sonnet 5.5 | Once history is stored: Sonni writes its prior market knowledge as hypotheses with propose_hypothesis. |
 | Digest | Haiku 4.5 | Turn news and filings into dated observations and events. |
 | Statistics | None | Measure event reactions, pattern statistics, hypothesis confidence, and the indicators the model reads (returns, volatility, drawdown, moving-average position, volume ratios); the model never reads raw candles (docs/RESEARCH.md). |
 | Decision agent | Sonnet 5.5 | Read the memory pack, record predictions, place virtual orders with a thesis. |

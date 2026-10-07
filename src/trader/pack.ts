@@ -2,21 +2,41 @@
  * Sonni memory pack (docs/MEMORY.md section 6)
  *
  * Built by code before a decision, from the stores that exist in this
- * slice: indicators computed from stored prices (the model never reads
- * raw series), hypotheses with their computed confidence, open
- * predictions, and recent resolutions with their scores. Bounded lists
+ * slices: indicators computed from stored prices (the model never reads
+ * raw series), hypotheses with their computed confidence and historical
+ * verdict, open predictions, and recent resolutions with their scores. Bounded lists
  * keep the pack small.
  */
 
 import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
-import { listHypotheses } from "./hypotheses.js";
+import { listHypotheses, type Hypothesis } from "./hypotheses.js";
+import { describeTest, latestHistoricalTest, verdictCounts, type HistoricalTest } from "./historical.js";
+import { MIN_CASES, SUPPORT_Z } from "./rules.js";
 import { brierSummary, listOpenPredictions, listResolvedPredictions } from "./predictions.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrBefore } from "./prices.js";
 
 type DB = Database.Database;
 
-const MAX_HYPOTHESES = 20;
+const MAX_HYPOTHESES = 25;
+
+const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
+
+/**
+ * Most useful first: hypotheses with forward evidence, then those history
+ * supports (strongest first), then the rest; refuted ones last.
+ */
+export function rankHypotheses(hypotheses: Hypothesis[], tests: Map<string, HistoricalTest | undefined>): Hypothesis[] {
+  return [...hypotheses].sort((a, b) => {
+    const fa = a.supports + a.contradicts, fb = b.supports + b.contradicts;
+    if (fa !== fb) return fb - fa;
+    const ta = tests.get(a.id), tb = tests.get(b.id);
+    const ra = VERDICT_RANK[ta?.verdict ?? "none"], rb = VERDICT_RANK[tb?.verdict ?? "none"];
+    if (ra !== rb) return ra - rb;
+    return (tb?.z ?? 0) - (ta?.z ?? 0);
+  });
+}
+
 const MAX_OPEN = 20;
 const MAX_RESOLVED = 10;
 
@@ -52,14 +72,24 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
   }
 
   const hypotheses = listHypotheses(db);
-  lines.push("", `Hypotheses (${hypotheses.length}; confidence computed from resolved predictions):`);
-  if (hypotheses.length === 0) lines.push("- none yet: the owner adds them with /idee");
-  for (const h of hypotheses.slice(0, MAX_HYPOTHESES)) {
+  const tests = new Map(hypotheses.map((h) => [h.id, latestHistoricalTest(db, h.id)]));
+  const v = verdictCounts(db);
+  lines.push(
+    "",
+    `Hypotheses (${hypotheses.length}; forward confidence from your resolved predictions; history tested by code on ` +
+      `daily candles: ${v.supported} supported, ${v.refuted} refuted, ${v.inconclusive} inconclusive, ${v.insufficient} ` +
+      `insufficient. A verdict needs ${MIN_CASES} cases and z >= ${SUPPORT_Z}; about 1 in 100 rules passes by chance):`,
+  );
+  if (hypotheses.length === 0) lines.push("- none yet: propose some with propose_hypothesis, or the owner adds them with /idee");
+  for (const h of rankHypotheses(hypotheses, tests).slice(0, MAX_HYPOTHESES)) {
+    const t = tests.get(h.id);
     lines.push(
-      `- ${h.id} [${h.status}] ${h.statement.slice(0, 300)} ` +
-        `(evidence ${h.supports} for / ${h.contradicts} against, confidence ${h.confidence.toFixed(2)})`,
+      `- ${h.id} [${h.status}, ${h.origin}] ${h.statement.slice(0, 300)} ` +
+        `(forward ${h.supports} for / ${h.contradicts} against, confidence ${h.confidence.toFixed(2)}` +
+        (t ? `; ${describeTest(t)}` : h.testRule ? "; history not tested yet" : "; no test rule") + ")",
     );
   }
+  if (hypotheses.length > MAX_HYPOTHESES) lines.push(`(${hypotheses.length - MAX_HYPOTHESES} more not shown)`);
 
   const open = listOpenPredictions(db);
   lines.push("", `Open predictions (${open.length}):`);

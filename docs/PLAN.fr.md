@@ -60,8 +60,16 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
 
 ## Étapes
 
-1. **Première prédiction** ✅ construite le 6 octobre : prix BTC/ETH, une décision, une prédiction
-   résolue par le code (détail dans `docs/FIRST-SLICE.md`). Reste à la lancer en vrai, avec ton accord.
+1. **Première prédiction** ✅ construite et lancée le 6 octobre sur son VPS : prix BTC/ETH, décisions,
+   prédictions résolues par le code (détail dans `docs/FIRST-SLICE.md`).
+1 bis. **Il sait déjà des choses** ✅ construite le 6 octobre (avancée à ta demande) : Sonni charge
+   environ deux ans d'historique journalier Kraken, puis fait une séance avec Opus où il écrit 40 à 80
+   intuitions tirées de ce qu'il sait déjà. Le code teste aussitôt sur l'historique celles qui
+   s'écrivent sous forme de règle, et donne un verdict : confirmée, contredite, peu concluante ou pas
+   assez de cas. Exemple réel : « le BTC remonte le lendemain d'une baisse de 3 % » n'est arrivé que
+   dans 40 % des 47 cas, contre 51 % des jours en général : contredite.
+1 ter. **Il voit le monde** (prochaine étape) : actualité, calendrier (Fed, inflation, résultats) et
+   mesure des réactions de prix.
 2. **Portefeuille virtuel** : 1 000 € virtuels au départ, ordres fictifs, frais et glissement
    simulés, versement virtuel de 50 €/mois.
 3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.

@@ -95,6 +95,53 @@ export function ensureTraderSchema(db: DB): void {
       BEFORE DELETE ON trader_hypothesis_evidence
       BEGIN SELECT RAISE(ABORT, 'trader_hypothesis_evidence is append-only'); END;
   `);
+  ensureKnowledgeSchema(db);
+}
+
+/**
+ * Second slice ("Sonni already knows things"): daily candles, test rules
+ * on hypotheses, and the history of code-run historical tests.
+ */
+function ensureKnowledgeSchema(db: DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_candles (
+      asset TEXT NOT NULL,
+      day TEXT NOT NULL,
+      open REAL NOT NULL,
+      high REAL NOT NULL,
+      low REAL NOT NULL,
+      close REAL NOT NULL CHECK (close > 0),
+      volume REAL NOT NULL,
+      source TEXT NOT NULL,
+      PRIMARY KEY (asset, day)
+    );
+
+    CREATE TABLE IF NOT EXISTS trader_historical_tests (
+      id TEXT PRIMARY KEY,
+      hypothesis_id TEXT NOT NULL REFERENCES trader_hypotheses(id),
+      tested_at TEXT NOT NULL,
+      data_from TEXT,
+      data_to TEXT,
+      cases INTEGER NOT NULL,
+      hits INTEGER NOT NULL,
+      rate REAL,
+      base_cases INTEGER,
+      base_rate REAL,
+      z REAL,
+      verdict TEXT NOT NULL CHECK (verdict IN ('supported', 'refuted', 'inconclusive', 'insufficient'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_historical_tests ON trader_historical_tests (hypothesis_id, tested_at);
+
+    CREATE TRIGGER IF NOT EXISTS trader_historical_tests_no_update
+      BEFORE UPDATE ON trader_historical_tests
+      BEGIN SELECT RAISE(ABORT, 'trader_historical_tests is append-only'); END;
+
+    CREATE TRIGGER IF NOT EXISTS trader_historical_tests_no_delete
+      BEFORE DELETE ON trader_historical_tests
+      BEGIN SELECT RAISE(ABORT, 'trader_historical_tests is append-only'); END;
+  `);
+  const columns = (db.prepare("PRAGMA table_info(trader_hypotheses)").all() as { name: string }[]).map((c) => c.name);
+  if (!columns.includes("test_rule")) db.exec("ALTER TABLE trader_hypotheses ADD COLUMN test_rule TEXT");
 }
 
 /** True once ensureTraderSchema has run on this database. */

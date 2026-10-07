@@ -21,8 +21,8 @@
         "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       },
       "verification": {
-        "at": "2026-10-06T21:27:46.305589+00:00",
-        "fingerprint": "9ea8aebfd3a6e02c773184de0c92486f779c5c4e9bbefed64a5089689879b9bc",
+        "at": "2026-10-06T23:12:00.040914+00:00",
+        "fingerprint": "47e2fbae23eb07bd5a641bc10ec13b8139fadd4ca743c83f79fa0621269af32d",
         "criterion_checks": {
           "1": "sonni-e2e",
           "2": "sonni",
@@ -33,8 +33,43 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/67aa7f8a29b84b15afeb8480301238c6.json",
+        "report": ".likma/checks/417a277d8d194f86bbbadf7a8959d429.json",
         "contract": "54abeb8eebed31610b84714fc2893cbeccfe339b6eee53c789556ee2c9442a30"
+      }
+    },
+    {
+      "id": "knowledge-intake",
+      "title": "Sonni already knows things: prior hypotheses tested by code on daily history",
+      "criteria": [
+        "Daily candles for followed assets are fetched from Kraken, skip the unfinished day, survive a restart and are refreshed in place",
+        "A hypothesis can carry a test rule; invalid rules are refused with a message the model can act on",
+        "Code evaluates each rule on stored history and records cases, hits, rate, base rate, z and verdict, append-only",
+        "Historical tests rerun only when new days of data arrive, and never change forward confidence",
+        "propose_hypothesis tests a rule at once and returns the verdict; origin is prior during the intake, observation after, with a daily limit",
+        "Once history is stored, the intake runs on the stronger model, counts an attempt only on a paid turn, and stops at 30 prior hypotheses or 3 attempts",
+        "The memory pack and /intuitions show historical verdicts next to forward evidence, in French for the owner",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-06T23:02:47.021473+00:00",
+        "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
+      },
+      "verification": {
+        "at": "2026-10-06T23:09:50.940776+00:00",
+        "fingerprint": "47e2fbae23eb07bd5a641bc10ec13b8139fadd4ca743c83f79fa0621269af32d",
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni-e2e",
+          "7": "sonni",
+          "8": "sonni"
+        },
+        "report": ".likma/checks/6df224a4717644a48355afd11e138a9e.json",
+        "contract": "8cf39faf47876773d6b22da40e3250de1e7982491a381296bfce4013bf60527b"
       }
     }
   ]
