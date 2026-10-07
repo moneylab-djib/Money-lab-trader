@@ -11,6 +11,7 @@ import type { TraderConfig } from "./config.js";
 import type { MoneyLabConfig } from "../money-lab/profile.js";
 import { getKV, getPauseState, OWNER_TELEGRAM_SENDER } from "../money-lab/journal.js";
 import { listHealthEvents } from "../money-lab/health.js";
+import { INCIDENT_LABEL_FR, listIncidents } from "./incidents.js";
 import { inferenceGetDailyCost } from "../state/database.js";
 import { EVENT_LABEL_FR, upcomingEvents } from "./events.js";
 import { getPrediction, listOpenPredictions, type Prediction } from "./predictions.js";
@@ -131,6 +132,12 @@ export function buildSonniDailyReport(
   }
   for (const [source, s] of bySource) {
     if (s.n >= 12 && s.last >= nowMs - 2 * 3_600_000) watch.push(`la tâche « ${source} » échoue en continu`);
+  }
+  // Guard G9: what the runtime did on its own since yesterday's report.
+  const incidents = listIncidents(db, 20, new Date(nowMs - DAY_MS).toISOString());
+  if (incidents.length) {
+    const kinds = [...new Set(incidents.map((i) => INCIDENT_LABEL_FR[i.kind] ?? i.kind))];
+    watch.push(`${plural(incidents.length, "incident")} depuis hier (${kinds.join(", ")}) : /technique`);
   }
   if (cfg.readers.length) {
     const statuses = readerStatuses(db, cfg, env, now);

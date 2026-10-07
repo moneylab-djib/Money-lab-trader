@@ -202,9 +202,13 @@ system prompt. `recall` searches the identity versions, reflections, lessons and
   self-funding ratio are computed by code, never written by the model.
 - Each day, code computes a hash chain over new predictions and trades. The weekly report shows the
   latest hash, so a silent rewrite would be visible.
-- Limitation, inherited from Money Lab: in-process protections can be bypassed through the shell tool.
-  This is acceptable while no money is at stake; before any real-money phase the resolver and the
-  records must move out of the agent's reach (separate Linux user or service).
+- Limitation, inherited from Money Lab: in-process protections are not an isolation boundary. Since
+  the guard map (docs/GUARDS.md, G1) the model has no shell, file or installer tool, so a prompt
+  injection has no path to the database or the host; before any real-money phase the resolver and
+  the records must still move out of the agent's reach (separate Linux user or service).
+- Incident log (`trader_incidents`, append-only, code only): automatic pauses, caps, unknown costs,
+  error streaks, cut answers, unknown stop reasons, no-progress sleeps, disabled sources, refused
+  readers, failed backups; `/technique` shows 7 days, the morning report counts 24 h.
 
 ## 8. Owner view and hygiene
 

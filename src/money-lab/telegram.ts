@@ -29,6 +29,7 @@ import { runSonniCommand } from "../trader/cli.js";
 import { budgetView, formatSonniStatus } from "../trader/status.js";
 import { buildSonniDailyReport, buildSonniEveningSummary } from "../trader/report.js";
 import { ensureTraderSchema } from "../trader/schema.js";
+import { formatIncidentsFr } from "../trader/incidents.js";
 
 const KV_OFFSET = "money_lab.telegram_offset";
 const KV_SUMMARY_DAY = "money_lab.telegram_summary_day";
@@ -184,7 +185,8 @@ export class TelegramChannel {
         }
         return formatStatus(this.raw, this.config);
       case "/technique":
-        return `${formatStatus(this.raw, this.config, "ÉTAT TECHNIQUE")}\n\nRapport de santé du serveur : /sante`;
+        return `${formatStatus(this.raw, this.config, "ÉTAT TECHNIQUE")}\n\n` +
+          `${this.config.trader ? `${formatIncidentsFr(this.raw, new Date(), this.config.trader.timeZone)}\n\n` : ""}Rapport de santé du serveur : /sante`;
       case "/idee":
       case "/idée":
       case "/intuitions":

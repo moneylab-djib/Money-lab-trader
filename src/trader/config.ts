@@ -58,6 +58,8 @@ export interface PortfolioConfig {
   minOrderEur: number;
   /** EUR to USD rate, to compare virtual gains with the inference spend kept in USD. */
   eurUsd: number;
+  /** Orders the model may place per UTC day, cancelled ones included (guard G4). */
+  maxOrdersPerDay: number;
 }
 
 export interface TraderConfig {
@@ -89,9 +91,9 @@ function validTimeZone(tz: string): boolean {
 }
 
 export const DEFAULT_PORTFOLIO: PortfolioConfig = {
-  startEur: 1000, monthlyEur: 50, maxPositionPct: 30, takerFeePct: 0.8, makerFeePct: 0.4, slippageBps: 5, minOrderEur: 10, eurUsd: 1.16,
+  startEur: 1000, monthlyEur: 50, maxPositionPct: 30, takerFeePct: 0.8, makerFeePct: 0.4, slippageBps: 5, minOrderEur: 10, eurUsd: 1.16, maxOrdersPerDay: 10,
 };
-const PORTFOLIO_KEYS = ["startEur", "monthlyEur", "maxPositionPct", "takerFeePct", "makerFeePct", "slippageBps", "minOrderEur", "eurUsd"];
+const PORTFOLIO_KEYS = ["startEur", "monthlyEur", "maxPositionPct", "takerFeePct", "makerFeePct", "slippageBps", "minOrderEur", "eurUsd", "maxOrdersPerDay"];
 
 function numInRange(value: unknown, min: number, max: number, name: string): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
@@ -116,6 +118,7 @@ function parsePortfolio(raw: unknown): PortfolioConfig {
     slippageBps: pick("slippageBps", 0, 500),
     minOrderEur: pick("minOrderEur", 1, 10_000),
     eurUsd: pick("eurUsd", 0.5, 2),
+    maxOrdersPerDay: pick("maxOrdersPerDay", 1, 100),
   };
 }
 
@@ -176,6 +179,41 @@ export const SONNI_DENIED_TOOLS: ReadonlySet<string> = new Set([
   "note_about_agent",
   "review_memory",
   "forget",
+  // Shell, files, installers, self-edit, git, ports, sandboxes, credits, sub-agents and scheduled
+  // commands (guard G1): Sonni reads markets through its own tools and never needs a shell; a page
+  // that talks it into one would otherwise be held back by heuristics only.
+  "exec",
+  "read_file",
+  "write_file",
+  "edit_own_file",
+  "revert_last_edit",
+  "reset_to_upstream",
+  "install_npm_package",
+  "review_upstream_changes",
+  "pull_upstream",
+  "install_mcp_server",
+  "install_skill",
+  "create_skill",
+  "remove_skill",
+  "list_skills",
+  "git_status",
+  "git_diff",
+  "git_commit",
+  "git_log",
+  "git_push",
+  "git_branch",
+  "git_clone",
+  "expose_port",
+  "remove_port",
+  "create_sandbox",
+  "delete_sandbox",
+  "list_sandboxes",
+  "check_credits",
+  "topup_credits",
+  "transfer_credits",
+  "spawn_child",
+  "delegate",
+  "schedule_job",
   // Conway relay and registry: no effect on a self-hosted VPS
   "heartbeat_ping",
   "distress_signal",

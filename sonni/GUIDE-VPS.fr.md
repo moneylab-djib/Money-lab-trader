@@ -153,7 +153,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/statut` | l'essentiel en quatre blocs (portefeuille, marché et prédictions, apprentissage, budget), heure de Paris |
 | `/portefeuille` | son portefeuille virtuel : valeur, positions avec leur raison, ordres, résultats calculés par le code, pièges |
 | `/journee` | le résumé du jour (ordres et raisons, valeur, prédictions, journal, dépense) ; tu le reçois aussi chaque soir à 20 h |
-| `/technique` | état technique du programme (budget détaillé, pauses, cycles) |
+| `/technique` | état technique du programme (budget détaillé, pauses, cycles) et les incidents des 7 derniers jours (ce que le programme a fait seul : pause, plafond, erreurs, sauvegarde) |
 | `/idee <texte>` | lui donner une intuition à tester |
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
 | `/agenda` | les événements des 30 prochains jours (Fed, et inflation et emploi avec la clé FRED) |

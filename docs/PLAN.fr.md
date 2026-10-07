@@ -170,6 +170,30 @@ gros au moment du passage au réel.
 - **Écartés** : bases vectorielles et frameworks de mémoire en Python (un deuxième langage, des
   coûts en plus, sans besoin prouvé).
 
+## Garde-fous (ta décision du 7 octobre)
+
+Ce que le code fait tout seul pour que Sonni reste dans son cadre (détail : `docs/GUARDS.md`) :
+- **Pas de shell** : Sonni n'a plus aucun outil pour exécuter une commande, lire ou écrire un fichier,
+  installer quoi que ce soit ou toucher au code. Une page piégée n'a donc aucun chemin vers le serveur.
+- **Coût inconnu = pause** : si l'API ne dit pas ce qu'un appel a coûté, il est compté à l'estimation
+  et Sonni attend que tu vérifies (`/reprendre`).
+- **Sans progrès = long sommeil** : cinq cycles payés qui ne changent rien à sa mémoire, et il dort
+  deux heures en te prévenant.
+- **Dix ordres par jour au plus** (annulations comprises) : pas d'agitation en boucle.
+- **Réponse coupée = rien d'exécuté** : si sa réponse dépasse la limite de sortie, ses appels d'outils
+  ne sont pas lancés et on lui demande de faire plus court ; une raison d'arrêt inconnue de l'API le
+  met en pause.
+- **Le web reste de la donnée** : une page qui prétend que tu as autorisé une dépense ne produit
+  qu'une observation marquée « non fiable », testé.
+- **Sauvegarde vérifiée** : chaque copie quotidienne est rouverte et contrôlée (intégrité, nombre de
+  lignes) avant de compter ; sinon tu le vois dans `/technique` et le rapport du matin.
+- **Journal des incidents** : tout ce que le programme fait seul pour se protéger (pause, plafond,
+  erreurs en série, réponse coupée, source désactivée, IA lectrice refusée, sauvegarde invalide) est
+  daté dans `/technique` et compté dans ton rapport du matin.
+- À venir avec l'étape C : un scénario « chaos » dans le test bout-en-bout (API en panne, Telegram
+  et Kraken injoignables).
+Seule la limite de dépense que tu fixes dans la console Anthropic est hors de portée du programme.
+
 ## Seuils de passage au réel
 
 On les fixera ensemble après ses premiers mois de résultats (ta décision du 6 octobre).

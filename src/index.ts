@@ -49,6 +49,7 @@ import { afterWakeCycle, inferenceCallCount, isOperatorWake } from "./money-lab/
 import { MONEY_LAB_WAKE_REASON_KEY } from "./money-lab/journal.js";
 import { isReviewDue } from "./money-lab/review.js";
 import { recordHealthEvent } from "./money-lab/health.js";
+import { recordIncident } from "./trader/incidents.js";
 import {
   createSelfHostedClient,
   environmentProtected,
@@ -587,10 +588,20 @@ async function run(): Promise<void> {
     }
   }
   if (moneyLab) {
-    const { backupStateDaily } = await import("./money-lab/backup.js");
+    const { backupStateDaily, tableCounts, verifyBackup } = await import("./money-lab/backup.js");
     every(60 * 60_000, "Sauvegarde", async () => {
+      const expected = tableCounts(db.raw);
       const file = await backupStateDaily(db.raw);
-      if (file) logger.info(`[MONEY LAB] Sauvegarde quotidienne : ${file}`);
+      if (!file) return;
+      // Guard G7: a backup counts only once it has been opened and checked (integrity, row counts).
+      const check = verifyBackup(file, expected);
+      if (check.ok) {
+        logger.info(`[MONEY LAB] Sauvegarde quotidienne vérifiée : ${file} (${check.detail})`);
+      } else {
+        logger.error(`[MONEY LAB] Sauvegarde ${file} invalide : ${check.detail}`);
+        recordHealthEvent(db.raw, "Sauvegarde", check.detail);
+        recordIncident(db.raw, "backup", `copie ${file.split("/").pop()} invalide : ${check.detail}`);
+      }
     });
   }
   if (moneyLab && selfHosted) {
@@ -778,6 +789,7 @@ async function run(): Promise<void> {
           logger.info(
             `[MONEY LAB] ${cycle.noProgressCycles} cycles sans progrès du journal : sommeil jusqu'à ${cycle.longSleepUntil}.`,
           );
+          if (config.trader) recordIncident(db.raw, "no_progress", `${cycle.noProgressCycles} cycles payés sans progrès : sommeil jusqu'à ${cycle.longSleepUntil}`);
         }
       }
 

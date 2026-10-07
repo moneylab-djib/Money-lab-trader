@@ -6,6 +6,7 @@
  * no-progress state (in the existing KV table). No new storage engine.
  */
 
+import { recordIncident } from "../trader/incidents.js";
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import { createHash } from "crypto";
@@ -495,7 +496,10 @@ export function pause(db: DB, reason: string, by: PauseState["by"]): PauseState 
   if (existing) return existing;
   const state: PauseState = { at: now(), reason, by };
   setKV(db, KV_PAUSED, JSON.stringify(state));
-  if (by === "runtime") queueOwnerNotification(db, `⏸️ Money Lab mis en pause automatiquement : ${reason}\n/reprendre quand c'est réglé.`);
+  if (by === "runtime") {
+    queueOwnerNotification(db, `⏸️ Money Lab mis en pause automatiquement : ${reason}\n/reprendre quand c'est réglé.`);
+    recordIncident(db, "pause", reason);
+  }
   return state;
 }
 
@@ -550,7 +554,15 @@ export function journalFingerprint(db: DB): string {
                 (SELECT COUNT(*) FROM trader_source_log WHERE by = 'model') || '/' || (SELECT COUNT(*) FROM trader_universe) AS m`,
       ).get() as any).m
     : "";
-  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}`;
+  // Step 4 B: an order, a level change or a named trap is the model's work as well.
+  const hasPortfolio = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_orders'").get();
+  const portfolio = hasPortfolio
+    ? (db.prepare(
+        `SELECT (SELECT COUNT(*) FROM trader_orders WHERE origin = 'model') || '/' || (SELECT COUNT(*) FROM trader_position_updates WHERE by = 'model') || '/' ||
+                (SELECT COUNT(*) FROM trader_traps) || '/' || (SELECT COUNT(*) FROM trader_trap_hits) AS p`,
+      ).get() as any).p
+    : "";
+  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}|${portfolio}`;
 }
 
 /** Closed help requests, most recently resolved first. */

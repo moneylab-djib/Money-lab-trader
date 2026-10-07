@@ -594,6 +594,29 @@
           }
         ]
       }
+    },
+    {
+      "id": "guard-map",
+      "title": "Guard map G1-G9 (autonomous-agents method): no shell for Sonni, order cap, stop reasons, injection test, verified backups, incident log",
+      "criteria": [
+        "No shell, file, installer, self-edit, git, port, sandbox, credit, sub-agent or scheduled-command tool is offered to or runnable by Sonni (G1)",
+        "An unknown inference cost is charged at the estimate and pauses the agent; a paid cycle without journal progress counts and the model's orders count as progress (G2, G3)",
+        "The model places at most maxOrdersPerDay orders per UTC day, cancelled ones included; code's stops are exempt (G4)",
+        "An answer cut at the output limit never runs its tool calls and the model is told; an unknown stop reason pauses the agent (G5)",
+        "A page claiming the owner's approval produces an untrusted observation only (G6)",
+        "A daily backup is opened, integrity-checked and row-counted before it counts; a failing copy is reported (G7)",
+        "Automatic actions are logged as incidents, append-only with keys scrubbed, shown by /technique and counted in the morning report (G9)",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "built",
+      "paths": [
+        "src",
+        "sonni"
+      ],
+      "implementation": {
+        "at": "2026-10-07T10:30:00.832332+00:00",
+        "note": "src/trader/incidents.ts, config.ts (SONNI_DENIED_TOOLS, maxOrdersPerDay), portfolio.ts, loop.ts, backup.ts, index.ts, journal.ts, telegram.ts, report.ts, sources.ts, readers.ts; tests src/__tests__/trader/guards.test.ts (8); docs/GUARDS.md"
+      }
     }
   ]
 }

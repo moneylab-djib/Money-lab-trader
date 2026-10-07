@@ -102,7 +102,11 @@ function model(body) {
       for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap"]) {
         if (!offered.has(t)) fail(`tool ${t} not offered`);
       }
-      for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal"]) if (offered.has(t)) fail(`tool ${t} offered`);
+      for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal",
+        "exec", "read_file", "write_file", "edit_own_file", "install_npm_package", "install_skill", "install_mcp_server", "git_push", "expose_port", "schedule_job", "delegate"]) {
+        if (offered.has(t)) fail(`tool ${t} offered`);
+      }
+      offered.has("sonni_memory") && !offered.has("exec") ? ok("no shell, file, installer or git tool offered to Sonni (guard G1)") : fail("guard G1 not in effect");
       step++;
       return reply([use("sonni_memory", {})]);
     }

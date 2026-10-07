@@ -234,6 +234,12 @@
       "path": "src/trader/format.ts",
       "purpose": "Euro, percent, date and time formatting in the owner's time zone",
       "edit_when": "Owner-facing number or date formats change"
+    },
+    {
+      "area": "Sonni incident log",
+      "path": "src/trader/incidents.ts",
+      "purpose": "Append-only log of what the runtime did on its own (pauses, caps, cut answers, failed backups), for /technique and the morning report",
+      "edit_when": "A new automatic protection is added (keep docs/GUARDS.md in sync)"
     }
   ]
 }

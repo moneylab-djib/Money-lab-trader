@@ -58,6 +58,20 @@ function migrateReflectionKinds(db: DB): void {
   `);
 }
 
+/** Guard G9: the incident log, written by code only. */
+function ensureGuardSchema(db: DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_incidents (
+      id TEXT PRIMARY KEY,
+      at TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      message TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_incidents_at ON trader_incidents (at);
+    ${appendOnly("trader_incidents")}
+  `);
+}
+
 function ensurePortfolioSchema(db: DB): void {
   migrateReflectionKinds(db);
   const ORDER_FIXED = ["id", "placed_at", "asset", "side", "kind", "amount_eur", "quantity", "limit_price", "thesis", "probability",
@@ -326,6 +340,7 @@ function ensureKnowledgeSchema(db: DB): void {
   if (!headlineColumns.includes("digested_at")) db.exec("ALTER TABLE trader_headlines ADD COLUMN digested_at TEXT");
   ensureAliveSchema(db);
   ensurePortfolioSchema(db);
+  ensureGuardSchema(db);
 }
 
 /** Append-only: refuse every update and delete on a table. */
