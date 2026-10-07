@@ -228,9 +228,11 @@ sudo -u sonni -H git checkout main
 sudo -u sonni -H git pull
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
-sudo -u sonni -H node sonni/vps/configure.mjs --chat-id <ton identifiant> --monthly-budget-eur 50 --eur-usd 1.17
+sudo -u sonni -H node sonni/vps/configure.mjs --monthly-budget-eur 50 --eur-usd 1.17
 systemctl restart sonni
 ```
+Ton identifiant Telegram est repris de la configuration précédente : `--chat-id` ne sert qu'à la
+première installation. Tape ou colle ces lignes une par une plutôt qu'en bloc.
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.
