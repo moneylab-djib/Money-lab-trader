@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "first_slice_id": "first-prediction",
+  "features": [
+    {
+      "id": "first-prediction",
+      "title": "First recorded prediction from live prices and memory, resolved by code",
+      "criteria": [
+        "Prices are stored every 5 minutes and survive a process restart",
+        "A decision session refuses to run on prices older than 15 minutes",
+        "A prediction cannot be recorded without probability, condition, horizon and hypothesis link",
+        "A recorded prediction cannot be updated or deleted through the agent's tools",
+        "At its horizon, code resolves the prediction from stored prices and computes its Brier score",
+        "Resolution appends one evidence row to the linked hypothesis and updates its computed confidence",
+        "/statut shows open and resolved predictions in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "planned"
+    }
+  ]
+}
