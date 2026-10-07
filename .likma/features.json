@@ -115,10 +115,25 @@
         "Identity and active lessons sit in the cached part of the system prompt; the rules block with the day's counters is the last, volatile part",
         "Tests make no network or paid inference calls"
       ],
-      "status": "built",
+      "status": "verified",
       "implementation": {
         "at": "2026-10-07T00:28:41.416055+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T00:55:27.555840+00:00",
+        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni-e2e",
+          "7": "sonni"
+        },
+        "report": ".likma/checks/b593afe084914ef0974d70ee85b79763.json",
+        "contract": "88330250b30d790e8c930b81e84fa2c8fda3a116f4517ef0b04389a8916f2bf6"
       }
     },
     {
@@ -132,10 +147,24 @@
         "The memory pack lists what happened since the last session and /reveils shows the wakes in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "built",
+      "status": "verified",
       "implementation": {
         "at": "2026-10-07T00:28:41.514420+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T00:59:56.924243+00:00",
+        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni-e2e",
+          "5": "sonni",
+          "6": "sonni"
+        },
+        "report": ".likma/checks/5496576134d64c0f89778488b61ef0f6.json",
+        "contract": "45411f2ce61d048ddb37a6bc928911c3f12758114da974089e3bf9129c73e9f7"
       }
     },
     {
@@ -149,10 +178,24 @@
         "The memory pack shows observations per asset with code-averaged sentiment; /lecteurs shows reader status in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "built",
+      "status": "verified",
       "implementation": {
         "at": "2026-10-07T00:28:41.609771+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T01:00:03.240453+00:00",
+        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni"
+        },
+        "report": ".likma/checks/286c6704fd274b28a4e52f4dbb233c3b.json",
+        "contract": "47231d04281bb3d7ffd1b431324d90bfcf953be7e7b9e4d59b9f120e50a46a3b"
       }
     },
     {
@@ -165,10 +208,23 @@
         "The memory pack shows the latest source values with 24 h and 7 d references; /sources and /actifs answer in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "built",
+      "status": "verified",
       "implementation": {
         "at": "2026-10-07T00:28:41.709300+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T01:00:09.558685+00:00",
+        "fingerprint": "ebc1eeb5ffc347edb1492ada5a78a18f71b1b73070a40451c6c9514914189ab7",
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni"
+        },
+        "report": ".likma/checks/12340cec86fa48c2944eb6078af0f944.json",
+        "contract": "c8aea13a223c15f7a6b3e19f1dfe969eaa1d8708853a503bca0a282920bd7913"
       }
     }
   ]
