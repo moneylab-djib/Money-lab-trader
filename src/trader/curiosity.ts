@@ -305,18 +305,21 @@ export function evaluateTriggers(db: DB, cfg: TraderConfig, now: Date = new Date
     setKV(db, KV_RESOLVED_REPORTED, resolved[resolved.length - 1].resolved_at);
   }
 
-  // Portfolio: orders settled by code since the last report (fills, stops, expiries) and positions whose
-  // horizon came. Remembered by settled_at, like resolutions, so nothing is reported twice.
+  // Portfolio: what code did that the model did not plan, since the last report: stops and expiries
+  // (a plain fill of its own order waits for the next session, where the pack shows it; a paid wake
+  // for an expected event would also block, by the spacing rule, a wake that matters). Remembered
+  // by settled_at over all settled orders, like resolutions, so nothing is reported twice.
   const settledUntil = getKV(db, KV_SETTLED_REPORTED) ?? "";
   const settled = db.prepare(
     "SELECT id, asset, side, origin, status, fill_price, settled_at FROM trader_orders WHERE settled_at IS NOT NULL AND settled_at > ? AND status != 'cancelled' ORDER BY settled_at ASC",
   ).all(settledUntil) as { id: string; asset: string; side: string; origin: string; status: string; fill_price: number | null; settled_at: string }[];
-  if (settled.length > 0) {
-    const summary = settled.slice(0, 5).map((o) =>
+  const unplanned = settled.filter((o) => o.origin === "stop" || o.status === "expired");
+  if (unplanned.length > 0) {
+    const summary = unplanned.slice(0, 5).map((o) =>
       `${o.id} ${o.origin === "stop" ? "STOP " : ""}${o.side} ${o.asset} ${o.status}${o.fill_price ? ` at ${o.fill_price} EUR` : ""}`).join(", ");
-    out.push({ key: "orders", reason: `${settled.length} order(s) settled by code: ${summary}${settled.length > 5 ? ", ..." : ""}` });
-    setKV(db, KV_SETTLED_REPORTED, settled[settled.length - 1].settled_at);
+    out.push({ key: "orders", reason: `${unplanned.length} order(s) settled by code without your decision: ${summary}${unplanned.length > 5 ? ", ..." : ""}` });
   }
+  if (settled.length > 0) setKV(db, KV_SETTLED_REPORTED, settled[settled.length - 1].settled_at);
   const nowIso = isoSeconds(now);
   for (const p of listPositions(db)) {
     if (!p.horizonUntil || p.horizonUntil > nowIso) continue;

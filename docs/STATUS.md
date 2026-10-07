@@ -145,7 +145,7 @@
   wakes, trades with P&L after fees, daily snapshots, performance incl. the self-funding ratio, traps
   with hits), tables in schema.ts (settle-once trigger on orders, append-only elsewhere, the
   reflections table rebuilt once for the `trade` kind), tools place_order / cancel_order /
-  manage_position / note_trap, pack sections, prompt, curiosity triggers (settled orders, horizons),
+  manage_position / note_trap, pack sections, prompt, curiosity triggers (stops and expiries, horizons; a plain fill waits for the next session),
   trade post-mortems in the reflection cycle, `/portefeuille`, `/journee` and the evening summary at
   20:00 local (telegram.ts), `/bilan` with the three proofs of decision 0003, `brokerTick` after each
   collection (index.ts), configure.mjs writes `portfolio.eurUsd`. Tests: src/__tests__/trader/portfolio

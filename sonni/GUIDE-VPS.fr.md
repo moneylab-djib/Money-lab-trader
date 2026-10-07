@@ -177,7 +177,7 @@ dans `trader.portfolio`) : il passe des ordres fictifs avec une raison, un nivea
 horizon ; le code vérifie (au plus 30 % par actif, 10 € minimum, prix frais) et exécute au prix suivant
 avec les frais Kraken ; il vend tout seul si le niveau d'invalidation est atteint. Le code le réveille
 quand un actif bouge de 3 % en une heure, les jours d'événement, quand des prédictions sont résolues,
-quand un ordre est exécuté ou une position arrive à son horizon, ou quand une de ses veilles se
+quand un stop se déclenche, qu'un ordre expire ou qu'une position arrive à son horizon, ou quand une de ses veilles se
 déclenche (6 réveils par jour au plus). Après chaque résultat et chaque opération close, il écrit un
 post-mortem dans son journal. Chaque soir à 20 h, tu reçois son résumé du jour. Chaque dimanche, il
 fait sa revue et t'envoie un rapport en français.

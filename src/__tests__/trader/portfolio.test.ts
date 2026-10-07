@@ -127,10 +127,8 @@ describe("Paper broker", () => {
     expect(v1.equityEur).toBeGreaterThan(998);
     expect(v1.equityEur).toBeLessThan(1000);
     expect(v1.pnlEur).toBeLessThan(0);
-    // Code tells the model about the fill through a curiosity trigger, once.
-    const triggers = evaluateTriggers(db.raw, TRADER, hours(0.2));
-    expect(triggers.some((t) => t.key === "orders" && /1 order\(s\) settled by code/.test(t.reason) && t.reason.includes("buy BTC filled at 60130.05 EUR"))).toBe(true);
-    expect(evaluateTriggers(db.raw, TRADER, hours(0.21)).some((t) => t.key === "orders")).toBe(false);
+    // A fill of the model's own order is expected: no paid wake for it (the pack shows it next session).
+    expect(evaluateTriggers(db.raw, TRADER, hours(0.2)).some((t) => t.key === "orders")).toBe(false);
     // Fills cannot be edited afterwards.
     expect(() => db.raw.prepare("UPDATE trader_orders SET fill_price = 1 WHERE id = ?").run(o1.id)).toThrow(/append-only/);
     expect(() => db.raw.prepare("DELETE FROM trader_orders WHERE id = ?").run(o1.id)).toThrow(/append-only/);
@@ -164,7 +162,11 @@ describe("Paper broker", () => {
     // The ETH horizon passed: the model is asked once, through a trigger, and the position stays.
     expect(later.horizons.map((p) => p.asset)).toEqual(["ETH"]);
     expect(brokerTick(db.raw, TRADER, hours(29.1)).horizons).toEqual([]);
-    expect(evaluateTriggers(db.raw, TRADER, hours(29)).some((t) => t.key === `horizon:ETH:${isoSeconds(hours(24.3))}` && /reached its horizon/.test(t.reason))).toBe(true);
+    const at29 = evaluateTriggers(db.raw, TRADER, hours(29));
+    expect(at29.some((t) => t.key === `horizon:ETH:${isoSeconds(hours(24.3))}` && /reached its horizon/.test(t.reason))).toBe(true);
+    // Expiries are code's doing, not the model's: reported once.
+    expect(at29.find((t) => t.key === "orders")!.reason).toMatch(/^2 order\(s\) settled by code without your decision: o_\w+ buy BTC expired, o_\w+ buy ETH expired$/);
+    expect(evaluateTriggers(db.raw, TRADER, hours(29.1)).some((t) => t.key === "orders")).toBe(false);
     expect(listPositions(db.raw).map((p) => p.asset)).toEqual(["BTC", "ETH"]);
     expect(snapshots(db.raw).map((s) => s.day)).toEqual(["2026-10-07", "2026-10-08"]);
 
@@ -201,6 +203,7 @@ describe("Paper broker", () => {
     const stopFill = brokerTick(db.raw, TRADER, hours(31.1)).fills;
     expect(stopFill[0].trade).toMatchObject({ asset: "ETH", closeReason: "stop" });
     expect(stopFill[0].trade!.pnlEur).toBeLessThan(0);
+    expect(evaluateTriggers(db.raw, TRADER, hours(31.1)).find((t) => t.key === "orders")!.reason).toMatch(/STOP sell ETH filled at 1939\.03 EUR/);
     expect(listPositions(db.raw)).toEqual([]);
     expect(listTrades(db.raw).map((t) => t.asset)).toEqual(["ETH", "BTC"]);
 
