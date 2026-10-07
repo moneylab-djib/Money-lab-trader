@@ -206,7 +206,11 @@ const server = http.createServer(async (req, res) => {
     if (req.headers.authorization !== "Bearer gem-e2e") fail(`reader called without the sealed key (${req.headers.authorization})`);
     const body = JSON.parse(raw);
     if (body.model !== "gemini-3.5-flash-lite" || body.response_format?.type !== "json_object") fail(`reader request unexpected: ${JSON.stringify(body).slice(0, 200)}`);
-    const content = JSON.stringify({ items: [{ i: 0, assets: ["BTC"], kind: "etf", sentiment: 0.6, summary: "Record inflows into spot bitcoin ETFs." }] });
+    const system = String(body.messages?.[0]?.content ?? "");
+    const content = /translate/i.test(system)
+      // French wording of the model's hypotheses (one per line "i. statement"): answer for each index.
+      ? JSON.stringify({ items: String(body.messages?.[1]?.content ?? "").split("\n").map((line, i) => ({ i, fr: `[FR] ${line.replace(/^\d+\.\s*/, "")}` })) })
+      : JSON.stringify({ items: [{ i: 0, assets: ["BTC"], kind: "etf", sentiment: 0.6, summary: "Record inflows into spot bitcoin ETFs." }] });
     return send(200, { id: "chatcmpl-e2e", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] });
   }
   if (url.pathname.startsWith("/groq/")) return send(401, { error: { message: "no key" } });
@@ -372,9 +376,16 @@ await until(() => tgOutbox.some((m) => /SONNI/.test(m.text)), 30000) || fail("/s
 const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 /Prédictions ouvertes \(1\)/.test(statut) ? ok("/statut shows the open prediction in French") : fail("/statut lacks the open prediction");
 // 62 500 EUR after the jump (narrow no-break space from the French locale).
-/BTC : 62\s?500,00 €/.test(statut) ? ok("/statut shows the BTC price in euros") : fail("/statut lacks the BTC price");
-/confirmée par l'historique/.test(statut) ? ok("/statut shows the historical verdict in French") : fail("/statut lacks the historical verdict");
-/Vie de Sonni : 1 réveil\(s\) sur 6 aujourd'hui/.test(statut) ? ok("/statut counts the self-wake") : fail("/statut does not count the self-wake");
+/BTC 62\s?500,00 €/.test(statut) ? ok("/statut shows the BTC price in euros") : fail("/statut lacks the BTC price");
+/historique : 1 confirmées/.test(statut) ? ok("/statut counts the historical verdicts in French") : fail("/statut lacks the historical verdicts");
+/1 réveil sur 6 aujourd'hui/.test(statut) ? ok("/statut counts the self-wake") : fail("/statut does not count the self-wake");
+/💶 Budget\nIA aujourd'hui : \d+,\d\d \$ sur 1,93 \$/.test(statut) ? ok("/statut shows today's spend against the cap") : fail("/statut lacks the budget line");
+!/[hp]_01[0-9A-Z]{20}/.test(statut) ? ok("/statut shows no identifiers") : fail("/statut still shows identifiers");
+tgSend("/intuitions");
+await until(() => tgOutbox.some((m) => /\[FR\] BTC rebounds the day after a drop/.test(m.text)), 30000)
+  ? ok("/intuitions shows the hypothesis in French, translated by the fake reader") : fail("/intuitions lacks the translated hypothesis");
+tgSend("/technique");
+await until(() => tgOutbox.some((m) => /ÉTAT TECHNIQUE/.test(m.text)), 30000) ? ok("/technique shows the runtime's technical state") : fail("/technique got no answer");
 
 tgSend("/identite");
 await until(() => tgOutbox.some((m) => /Identité de Sonni — version 1, écrite par le code/.test(m.text)), 30000)
@@ -392,7 +403,7 @@ await until(() => tgOutbox.some((m) => /BILAN DE SONNI/.test(m.text)), 30000) ? 
 child.kill("SIGTERM");
 await wait(2000);
 const afterStop = pricesStored();
-/Prédictions ouvertes \(1\)/.test(afterStop) && /BTC : 62/.test(afterStop)
+/Prédictions ouvertes \(1\)/.test(afterStop) && /BTC 62/.test(afterStop)
   ? ok("prices and prediction kept after the process stopped")
   : fail("state lost after stopping the process");
 const callsBefore = krakenCalls.length;

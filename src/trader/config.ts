@@ -53,6 +53,19 @@ export interface TraderConfig {
   readers: ReaderConfig[];
   /** Pages the model may read per UTC day with read_page. */
   readPagesPerDay: number;
+  /** IANA time zone of the owner, for everything they read (default Europe/Paris). */
+  timeZone: string;
+}
+
+export const DEFAULT_TIME_ZONE = "Europe/Paris";
+
+function validTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("fr-FR", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export const DEFAULT_CURIOSITY: CuriosityConfig = { moveAlertPct: 3, maxSelfWakesPerDay: 6, minMinutesBetweenWakes: 30 };
@@ -135,7 +148,7 @@ export class TraderConfigError extends Error {
 
 const KEYS = ["enabled", "quoteCurrency", "assets", "collectMinutes", "staleMinutes"];
 /** Keys added by later slices: absent means the default, so older configs keep working. */
-const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay"];
+const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone"];
 const CURIOSITY_KEYS = ["moveAlertPct", "maxSelfWakesPerDay", "minMinutesBetweenWakes"];
 const READER_KEYS = ["id", "baseUrl", "model", "keyEnv", "dailyRequests"];
 const READER_OPTIONAL_KEYS = ["jsonMode"];
@@ -255,6 +268,10 @@ export function parseTraderConfig(raw: unknown): TraderConfig | null {
     throw new TraderConfigError("staleMinutes doit être plus grand que collectMinutes");
   }
   const readPagesPerDay = raw.readPagesPerDay === undefined ? DEFAULT_READ_PAGES_PER_DAY : intInRange(raw.readPagesPerDay, 0, 200, "readPagesPerDay");
+  const timeZone = raw.timeZone === undefined ? DEFAULT_TIME_ZONE : raw.timeZone;
+  if (typeof timeZone !== "string" || !validTimeZone(timeZone)) {
+    throw new TraderConfigError("timeZone doit être un fuseau IANA valide (ex : Europe/Paris)");
+  }
   return {
     enabled: true,
     quoteCurrency: "EUR",
@@ -264,6 +281,7 @@ export function parseTraderConfig(raw: unknown): TraderConfig | null {
     curiosity: parseCuriosity(raw.curiosity),
     readers: parseReaders(raw.readers),
     readPagesPerDay,
+    timeZone,
   };
 }
 

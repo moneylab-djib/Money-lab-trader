@@ -264,11 +264,15 @@ async function sonniCommand(argv: string[]): Promise<number> {
     return 1;
   }
   const { runSonniCommand } = await import("./trader/cli.js");
+  const { budgetView } = await import("./trader/status.js");
   const db = createDatabase(resolvePath(config.dbPath));
   try {
     ensureTraderSchema(db.raw);
     ensureCatalog(db.raw);
-    return runSonniCommand(argv, db.raw, config.trader);
+    return runSonniCommand(argv, db.raw, config.trader, console.log, {
+      dailyCapCents: config.moneyLab?.inference.dailyCents ?? null,
+      budget: config.moneyLab ? budgetView(db.raw, config.moneyLab) : null,
+    });
   } finally {
     db.close();
   }
@@ -620,6 +624,7 @@ async function run(): Promise<void> {
     const { activeConfig } = await import("./trader/universe.js");
     const live = () => activeConfig(db.raw, traderBase);
     const { calendarTick, collectTick, digestTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
+    const { translateHypothesesTick } = await import("./trader/readers.js");
     const { intakeDue } = await import("./trader/intake.js");
     const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
@@ -670,6 +675,9 @@ async function run(): Promise<void> {
       }
       const digest = await digestTick(db.raw, live(), withSecrets());
       if (digest.stored > 0) logger.info(`[SONNI] ${digest.stored} observation(s) extraite(s) de ${digest.sent} titre(s) par ${digest.readerId}.`);
+      // French wording of the model's hypotheses for the owner (nothing to do once all have one).
+      const translated = await translateHypothesesTick(db.raw, live(), withSecrets());
+      if (translated.stored > 0) logger.info(`[SONNI] ${translated.stored} intuition(s) traduite(s) par ${translated.readerId}.`);
       if (newsError) throw newsError;
     });
     every(5 * 60_000, "Sonni sources", async () => {

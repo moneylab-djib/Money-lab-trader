@@ -482,6 +482,30 @@
         "tsconfig.json",
         "vitest.config.ts"
       ]
+    },
+    {
+      "id": "owner-clarity",
+      "title": "The owner reads Sonni at a glance: four-block French status in their time zone, technical state apart, a morning report with real alerts only, intuitions in French",
+      "criteria": [
+        "/statut shows portfolio, market and predictions, learning and budget in French and in trader.timeZone (default Europe/Paris), with no identifiers; the budget comes from the Money Lab ledger",
+        "/technique gives the runtime's technical state (Money Lab status) and the help lists it",
+        "The daily Telegram message is Sonni's morning report (yesterday, today, alerts only when real: pause, no session in 26 h, cap exceeded, stuck owner message, a task failing 12 times in 24 h and still, no reader available with headlines waiting); /sante keeps the technical health report",
+        "The model writes hypothesis statements in French; the owner's hypotheses keep their text; a reader translates the others once for display, after the usual checks (length, prompt-boundary patterns), and the model's statement is never changed",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "built",
+      "paths": [
+        "src",
+        "sonni",
+        "package.json",
+        "pnpm-lock.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
+      "implementation": {
+        "at": "2026-10-07T09:05:43.918785+00:00",
+        "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
+      }
     }
   ]
 }

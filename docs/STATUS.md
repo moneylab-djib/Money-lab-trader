@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-07
-- Branch / commit: main (PRs #1 to #5 merged on 2026-10-07; this follow-up: claude/sonni-guide-main)
+- Branch / commit: claude/sonni-clarity (step 4 A, on main after PRs #1 to #9)
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
@@ -129,6 +129,15 @@
 - Blockers: none for code. The owner must create free reader keys (optional) and update the VPS.
 - PRs #1 to #5 were merged into main by the owner on 2026-10-07 (05:32 to 05:38 UTC, merge commits);
   main now carries the whole of Sonni and the guide points the VPS at main.
+- Step 4 A (clarity, owner's request of 2026-10-07 after reading /statut): `/statut` rewritten as four
+  blocks in French and Paris time without identifiers (src/trader/status.ts, format.ts), the budget
+  read from the ledger (`budgetView`), `/technique` for Money Lab's technical state, Sonni's morning
+  report replacing the health report as the daily message (src/trader/report.ts: yesterday, today,
+  alerts only when real: pause, no session in 26 h, cap exceeded, owner message stuck, a task failing
+  12 times in 24 h and still, no reader available with headlines waiting), hypotheses written in
+  French by the model and translated for display by a reader otherwise (`statement_fr`, set once,
+  checked like any reader output), `trader.timeZone` setting. Tests: src/__tests__/trader/clarity
+  (6) plus updated status assertions. Step 4 B (virtual portfolio) follows on its own branch.
 - Next concrete action: owner re-runs `sudo -u sonni -H node sonni/vps/configure.mjs ...` on the VPS
   (without adding budget), adds GEMINI_API_KEY / GROQ_API_KEY to /etc/sonni.env if wanted, restarts,
   checks /lecteurs, /sources, /identite. Proposed next engineering task: a guard map for Sonni per the

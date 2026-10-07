@@ -26,7 +26,8 @@ import {
 import { approvalRequired, decidePost, describePosts, setApprovalMode } from "./social.js";
 import { withSecrets } from "./selfhosted.js";
 import { runSonniCommand } from "../trader/cli.js";
-import { formatSonniStatus } from "../trader/status.js";
+import { budgetView, formatSonniStatus } from "../trader/status.js";
+import { buildSonniDailyReport } from "../trader/report.js";
 import { ensureTraderSchema } from "../trader/schema.js";
 
 const KV_OFFSET = "money_lab.telegram_offset";
@@ -51,7 +52,7 @@ export const TELEGRAM_HELP = `Commandes Money Lab :
 Tout autre message est transmis au bot.`;
 
 export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
-/statut — prix, prédictions, intuitions (+ budget)
+/statut — l'essentiel : portefeuille, marché, prédictions, apprentissage, budget
 /idee <texte> — ajouter une intuition à tester
 /intuitions — liste des intuitions
 /agenda — événements à venir (Fed, inflation, emploi)
@@ -63,7 +64,8 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /lecteurs — IA lectrices gratuites
 /sources — sources de données ; /source ok|non <id> pour décider d'une proposition
 /actifs — actifs suivis et changements décidés par Sonni
-/sante — rapport de santé
+/technique — état technique du programme (budget détaillé, pauses, cycles)
+/sante — rapport de santé du serveur ; chaque matin tu reçois le rapport de Sonni
 /pause [raison] — mettre Sonni en pause
 /reprendre — relancer Sonni
 /aides — demandes d'aide ouvertes
@@ -174,9 +176,12 @@ export class TelegramChannel {
       case "/status":
         if (this.config.trader) {
           ensureTraderSchema(this.raw);
-          return `${formatSonniStatus(this.raw, this.config.trader)}\n\n${formatStatus(this.raw, this.config, "BUDGET ET RUNTIME")}`;
+          const budget = this.config.moneyLab ? budgetView(this.raw, this.config.moneyLab) : null;
+          return formatSonniStatus(this.raw, this.config.trader, new Date(), budget);
         }
         return formatStatus(this.raw, this.config);
+      case "/technique":
+        return `${formatStatus(this.raw, this.config, "ÉTAT TECHNIQUE")}\n\nRapport de santé du serveur : /sante`;
       case "/idee":
       case "/idée":
       case "/intuitions":
@@ -285,7 +290,10 @@ export class TelegramChannel {
     const day = now.toISOString().slice(0, 10);
     if (now.getUTCHours() >= 7 && getKV(this.raw, KV_SUMMARY_DAY) !== day && this.config.moneyLab) {
       setKV(this.raw, KV_SUMMARY_DAY, day);
-      queueOwnerNotification(this.raw, buildHealthReport(this.raw, this.config.moneyLab, { now }).text);
+      // Sonni's own morning report; the technical health report stays behind /sante.
+      queueOwnerNotification(this.raw, this.config.trader
+        ? buildSonniDailyReport(this.raw, this.config.trader, this.config.moneyLab, withSecrets(), now).text
+        : buildHealthReport(this.raw, this.config.moneyLab, { now }).text);
     }
 
     for (const item of pendingOwnerNotifications(this.raw)) {

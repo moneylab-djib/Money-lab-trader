@@ -293,7 +293,7 @@ describe("Telegram", () => {
     expect(channel.handleOwnerText("/source ok nope", 9)).toContain("Source inconnue");
     expect(channel.handleOwnerText("/actifs", 10)).toContain("Actifs suivis (2, au plus 30)");
     expect(channel.handleOwnerText("/veto l_nope", 11)).toContain("Unknown lesson");
-    expect(channel.handleOwnerText("/statut", 12)).toContain("Vie de Sonni : 0 réveil(s) sur 6 aujourd'hui");
+    expect(channel.handleOwnerText("/statut", 12)).toContain("0 réveil sur 6 aujourd'hui (/reveils)");
     expect(openWatches(db.raw)).toEqual([]);
     db.close();
   });

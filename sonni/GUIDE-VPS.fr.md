@@ -150,7 +150,8 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 
 | Commande | Effet |
 | --- | --- |
-| `/statut` | prix, prédictions ouvertes et résolues avec leur score, intuitions, puis budget |
+| `/statut` | l'essentiel en quatre blocs (portefeuille, marché et prédictions, apprentissage, budget), heure de Paris |
+| `/technique` | état technique du programme (budget détaillé, pauses, cycles) |
 | `/idee <texte>` | lui donner une intuition à tester |
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
 | `/agenda` | les événements des 30 prochains jours (Fed, et inflation et emploi avec la clé FRED) |
@@ -162,7 +163,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/lecteurs` | l'état des IA lectrices gratuites (voir plus bas) |
 | `/sources` / `/source ok\|non <id>` | ses sources de données ; accepter ou refuser une source qu'il propose |
 | `/actifs` | les actifs qu'il suit et ses changements motivés |
-| `/sante` | rapport de santé (envoyé aussi chaque matin) |
+| `/sante` | rapport de santé du serveur ; chaque matin tu reçois plutôt le rapport de Sonni (veille, journée, vraies alertes) |
 | `/fonds 58` | ajouter le budget du mois suivant, en dollars |
 | `/pause [raison]` / `/reprendre` | arrêter / relancer ses dépenses |
 | tout autre message | transmis à Sonni comme une conversation |

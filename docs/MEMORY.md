@@ -64,7 +64,7 @@ Markdown notebooks are exported from them for the owner (section 8).
 
 | Store | Key fields | Notes |
 | --- | --- | --- |
-| `hypotheses` (intuitions) | statement, origin, conditions, test_rule, status, confidence, valid_from, valid_to, recorded_at, supersedes | origin: `prior` (Claude's knowledge), `observation`, `owner`, `review`. status: untested → testing → supported / refuted → retired. |
+| `hypotheses` (intuitions) | statement, statement_fr, origin, conditions, test_rule, status, confidence, valid_from, valid_to, recorded_at, supersedes | origin: `prior` (Claude's knowledge), `observation`, `owner`, `review`. status: untested → testing → supported / refuted → retired. `statement_fr` is what the owner reads: the owner's own text, or a free reader's translation of the model's statement (set once by code after the usual checks); the model keeps reasoning on `statement`, which it now writes in French too. |
 | `hypothesis_evidence` | hypothesis_id, kind (support / contradict), ref, source (`historical` / `forward`), weight | Each piece points to a reaction, prediction or trade. |
 | `traps` | name, description, warning_signs, occurrences, cost_so_far | Named mistakes, for example "buying a rumour already priced in". |
 | `trap_occurrences` | trap_id, trade_id or prediction_id, note | Written at post-mortem time. |
@@ -202,7 +202,10 @@ system prompt. `recall` searches the identity versions, reflections, lessons and
   with a reason, never deleted.
 - Owner commands (French): `/note <texte>` stores an observation with source `owner`; `/idee <texte>`
   creates a hypothesis with origin `owner`; `/memoire <sujet>` shows what it knows on a topic;
-  `/veto <règle>` retires a lesson. Implemented in step 3: `/identite` (and `/identite <texte>`, the
+  `/veto <règle>` retires a lesson. Step 4 A: `/statut` is four short blocks in French and in the
+  owner's time zone (`trader.timeZone`, default Europe/Paris) without identifiers, `/technique` keeps
+  the runtime's technical state, and the daily message is Sonni's own morning report (yesterday,
+  today, real alerts only; src/trader/report.ts). Implemented in step 3: `/identite` (and `/identite <texte>`, the
   owner's own version, recorded with source `owner`), `/journal`, `/lecons`, `/veto <id>`, `/bilan`,
   `/reveils`, `/lecteurs`, `/sources`, `/source ok|non <id>`, `/actifs`.
 

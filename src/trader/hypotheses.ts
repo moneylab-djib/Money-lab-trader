@@ -32,6 +32,13 @@ export interface Hypothesis {
   recordedAt: string;
   /** Machine-checkable form of the statement, tested by code on history; null when none. */
   testRule: TestRule | null;
+  /** French wording shown to the owner: the owner's own text, or a reader's translation; null until one exists. */
+  statementFr: string | null;
+}
+
+/** What the owner reads: French when available, else the statement as written. */
+export function displayStatement(h: Pick<Hypothesis, "statement" | "statementFr">): string {
+  return h.statementFr ?? h.statement;
 }
 
 function rowToHypothesis(row: any): Hypothesis {
@@ -45,6 +52,7 @@ function rowToHypothesis(row: any): Hypothesis {
     confidence: row.confidence,
     recordedAt: row.recorded_at,
     testRule: row.test_rule ? JSON.parse(row.test_rule) : null,
+    statementFr: row.statement_fr ?? null,
   };
 }
 
@@ -71,11 +79,25 @@ export function addHypothesis(
   if (!HYPOTHESIS_ORIGINS.includes(input.origin)) throw new Error(`Origine inconnue : ${input.origin}`);
   const id = `h_${ulid()}`;
   const at = now.toISOString();
+  // The owner writes in French; the model's text is translated for display by a reader later.
+  const statementFr = input.origin === "owner" ? statement : null;
   db.prepare(
-    `INSERT INTO trader_hypotheses (id, statement, origin, status, supports, contradicts, confidence, valid_from, recorded_at, test_rule)
-     VALUES (?, ?, ?, 'untested', 0, 0, 0.5, ?, ?, ?)`,
-  ).run(id, statement, input.origin, at, at, input.testRule ? JSON.stringify(input.testRule) : null);
+    `INSERT INTO trader_hypotheses (id, statement, origin, status, supports, contradicts, confidence, valid_from, recorded_at, test_rule, statement_fr)
+     VALUES (?, ?, ?, 'untested', 0, 0, 0.5, ?, ?, ?, ?)`,
+  ).run(id, statement, input.origin, at, at, input.testRule ? JSON.stringify(input.testRule) : null, statementFr);
   return getHypothesis(db, id)!;
+}
+
+/** Hypotheses without a French wording yet, oldest first. */
+export function hypothesesToTranslate(db: DB, limit: number): Hypothesis[] {
+  return (db.prepare(
+    "SELECT * FROM trader_hypotheses WHERE statement_fr IS NULL ORDER BY recorded_at ASC LIMIT ?",
+  ).all(limit) as any[]).map(rowToHypothesis);
+}
+
+/** Sets the French wording once; never changes the statement itself. */
+export function setStatementFr(db: DB, id: string, statementFr: string): void {
+  db.prepare("UPDATE trader_hypotheses SET statement_fr = ? WHERE id = ? AND statement_fr IS NULL").run(statementFr, id);
 }
 
 export function getHypothesis(db: DB, id: string): Hypothesis | undefined {
