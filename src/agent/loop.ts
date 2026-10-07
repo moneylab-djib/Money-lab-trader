@@ -71,7 +71,8 @@ import { seedAnthropicModels, survivalBalance } from "../money-lab/selfhosted.js
 import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
-import { SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { consolidationPending, markConsolidationDone } from "../trader/consolidation.js";
 import { markReflectionDone, reflectionDue, startReflection } from "../trader/soul.js";
 import { activeConfig } from "../trader/universe.js";
 import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
@@ -449,6 +450,7 @@ export async function runAgentLoop(
   let reviewModelTurns = 0;
   let intakePending = false;
   let reflectionPending = false;
+  let consolidationTurn = false;
   if (moneyLab) {
     const reason = db.getKV(MONEY_LAB_WAKE_REASON_KEY);
     if (reason) {
@@ -469,6 +471,11 @@ export async function runAgentLoop(
         startReflection(db.raw);
         reflectionPending = true;
         wakeupInput += `\n\n${SONNI_REFLECTION_INSTRUCTIONS}`;
+      }
+      // Step C3: the evening consolidation, when its wake was delivered today and it is not done.
+      if (consolidationPending(db.raw, activeConfig(db.raw, trader))) {
+        consolidationTurn = true;
+        wakeupInput += `\n\n${SONNI_EVENING_INSTRUCTIONS}`;
       }
     }
     if (isReviewDue(db.raw)) {
@@ -845,6 +852,10 @@ export async function runAgentLoop(
       if (reflectionPending && routerResult.finishReason !== "budget_exceeded") {
         markReflectionDone(db.raw);
         reflectionPending = false;
+      }
+      if (consolidationTurn && trader && routerResult.finishReason !== "budget_exceeded") {
+        markConsolidationDone(db.raw, activeConfig(db.raw, trader));
+        consolidationTurn = false;
       }
 
       // Build a compatible response for the rest of the loop

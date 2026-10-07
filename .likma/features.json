@@ -763,6 +763,53 @@
           }
         ]
       }
+    },
+    {
+      "id": "evening-consolidation",
+      "title": "Step C3: evening consolidation, one scheduled paid turn a day",
+      "criteria": [
+        "The consolidation is due from trader.consolidation (default 19:30) in the owner's time zone once per local day; it is delivered as a wake only while the agent sleeps unpaused and under its caps, and a wake landing after midnight is dropped",
+        "The wake carries the evening instructions (post-mortems due, trap hits, dossiers that changed, one daily reflection) and the day is marked done only after a paid turn ran",
+        "The evening summary tells whether the consolidation happened and shows the day's note",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "paths": [
+        "src",
+        "sonni"
+      ],
+      "implementation": {
+        "at": "2026-10-07T11:36:59.270450+00:00",
+        "note": "src/trader/consolidation.ts, config (trader.consolidation), prompt (SONNI_EVENING_INSTRUCTIONS), loop, index, report; tests src/__tests__/trader/consolidation.test.ts (2); e2e evening wake and /journee"
+      },
+      "verification": {
+        "at": "2026-10-07T11:49:20.305495+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "9b4c3ef175ff80a58409a9e09122e41d87b8a3ce2823f020093e5c0e09d53eca",
+        "scope": [
+          "src",
+          "sonni"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni"
+        },
+        "checks_hash": "ab9894fc0a2b326fd9cbdb573819ed6281b875178298c6733712cf287927f685",
+        "report": ".likma/checks/863fe1257ab84ce18fafbc48d206496c.json",
+        "contract": "bcc8488832f240d5d31663fe55486e44dcbc3581f58735a767cea7260083217b",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 15.365,
+            "output_bytes": 13970,
+            "output_sha256": "c7cef2cd756e6740d760d9965370e584fcf0fda02ec72e4e8bf365aa3e3b18d7"
+          }
+        ]
+      }
     }
   ]
 }

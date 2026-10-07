@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-07
-- Branch / commit: claude/sonni-cycles (step C2, stacked on claude/sonni-dossiers = PR #13 and claude/sonni-guards = PR #12; main after PRs #1 to #11)
+- Branch / commit: claude/sonni-evening (step C3, stacked on claude/sonni-cycles = PR #14, #13, #12; main after PRs #1 to #11)
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
@@ -171,7 +171,12 @@
   rate, z and verdict code computes on display; pack section for the events due within 7 days (detail
   "cycles"), /cycles, cycles.md. Tests: src/__tests__/trader/cycles.test.ts (3); e2e: a past Fed day in
   the fake calendar, a cycle named in the session, /cycles.
-- Next concrete action: owner merges PRs #12, #13 and the step C2 PR, runs the update block of
+- Step C3 (owner's decision of 2026-10-07): src/trader/consolidation.ts (due from `trader.consolidation`
+  19:30 local once per local day, own wake event `sonni_evening` under the usual gate, pending marker
+  dropped after midnight, done only after a paid turn), SONNI_EVENING_INSTRUCTIONS in prompt.ts, loop
+  hooks, the evening summary line and the day's note. Tests: src/__tests__/trader/consolidation.test.ts
+  (2); e2e: the consolidation scheduled 7 min into the run, delivered as a wake, /journee shows it.
+- Next concrete action: owner merges PRs #12, #13, #14 and the step C3 PR, runs the update block of
   sonni/GUIDE-VPS.fr.md (git pull, install, build, configure.mjs, restart); the portfolio opens at the
   first collected price; checks /statut, /portefeuille, and the evening summary at 20:00. Proposed next engineering task: a guard map for Sonni per the
   Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.

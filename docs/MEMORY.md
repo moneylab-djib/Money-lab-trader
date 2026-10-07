@@ -130,7 +130,7 @@ Implemented in step 1 ("Sonni already knows things", src/trader/intake.ts, rules
 | Measure | Every few minutes | Code | Prices, events | reactions, pattern stats |
 | Decide | ~3 sessions/day + triggers | Sonnet 5.5 | Memory pack (section 6) | predictions, virtual orders, theses |
 | Resolve | Continuous (every price collection) | Code | Prices, horizons, pending orders, invalidation levels | outcomes, Brier scores, fills, stops, expiries, trades with P&L, daily snapshot, hypothesis evidence |
-| Consolidate | Daily | Sonnet 5.5 | The day's resolutions and observations | post-mortems, trap occurrences, new hypotheses, dossier notes |
+| Consolidate (implemented, step C3: src/trader/consolidation.ts) | Daily, one paid turn from `trader.consolidation` (19:30 in the owner's time zone) delivered as a wake while the agent sleeps unpaused and under its caps; marked done only after a paid turn | Sonnet 5.5 | The day's resolutions, closed trades, observations and the owner's notes | post-mortems still due, trap hits, the dossiers that changed, one `daily` reflection shown in the owner's 20:00 summary |
 | Review | Weekly | Opus 5.5 | The week, hypothesis table, traps, rules | merged and retired hypotheses, lessons, new patterns to test, the owner's report |
 
 Triggers for an extra decision session (implemented in step 3, src/trader/curiosity.ts, evaluated by

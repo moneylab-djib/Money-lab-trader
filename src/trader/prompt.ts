@@ -120,6 +120,21 @@ export const SONNI_REFLECTION_INSTRUCTIONS = `SONNI REFLECTION (required in this
 4. Then continue with a normal session (new predictions, watches), or sleep.`;
 
 /**
+ * Evening consolidation (step C3): one paid turn a day in the owner's
+ * evening, before their 20:00 summary. Marked done once a paid turn ran.
+ */
+export const SONNI_EVENING_INSTRUCTIONS = `SONNI EVENING (required in this wake cycle; one turn a day, keep it short):
+1. Read your memory pack (sonni_memory): what resolved and what closed today, your positions, the day's
+   observations and the owner's notes.
+2. Write the post-mortems still due (write_reflection kind postmortem for scored predictions, kind trade for
+   closed trades), in French; note a trap hit (note_trap hit) when a named trap applies, name a new trap
+   only for a mistake you now see repeating.
+3. Rewrite the dossier of an asset whose picture changed today (update_dossier), not the others.
+4. Leave one reflection kind daily, in French, three to six sentences: what the day taught, what you
+   watch tomorrow. The owner reads it in their 20:00 summary.
+5. Then sleep. No new prediction or order tonight unless something real happened today.`;
+
+/**
  * Weekly review for Sonni, replacing Money Lab's experiment review while
  * the trader block is active.
  */

@@ -89,6 +89,10 @@
       "minOrderEur": 10,
       "eurUsd": 1.16,
       "maxOrdersPerDay": 10
+    },
+    "consolidation": {
+      "hour": 19,
+      "minute": 30
     }
   }
 }

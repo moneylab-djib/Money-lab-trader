@@ -12,6 +12,7 @@ import type { MoneyLabConfig } from "../money-lab/profile.js";
 import { getKV, getPauseState, OWNER_TELEGRAM_SENDER } from "../money-lab/journal.js";
 import { listHealthEvents } from "../money-lab/health.js";
 import { INCIDENT_LABEL_FR, listIncidents } from "./incidents.js";
+import { consolidationStatusFr } from "./consolidation.js";
 import { inferenceGetDailyCost } from "../state/database.js";
 import { EVENT_LABEL_FR, upcomingEvents } from "./events.js";
 import { getPrediction, listOpenPredictions, type Prediction } from "./predictions.js";
@@ -209,7 +210,9 @@ export function buildSonniEveningSummary(db: DB, baseCfg: TraderConfig, lab: Mon
   const lessons = count(db, "SELECT COUNT(*) AS n FROM trader_lessons WHERE recorded_at >= ?", sinceIso);
   const spentToday = inferenceGetDailyCost(db, now.toISOString().slice(0, 10));
   const cap = lab?.inference.dailyCents ?? null;
-  lines.push("", `Écrit : ${plural(reflections, "note de journal", "notes de journal")}, ${plural(lessons, "leçon")} · IA aujourd'hui : ${fmtUsdCents(spentToday)}${cap !== null ? ` sur ${fmtUsdCents(cap)}` : ""}`);
+  lines.push("", `Écrit : ${plural(reflections, "note de journal", "notes de journal")}, ${plural(lessons, "leçon")} · autopsie du soir : ${consolidationStatusFr(db, cfg, now)} · IA aujourd'hui : ${fmtUsdCents(spentToday)}${cap !== null ? ` sur ${fmtUsdCents(cap)}` : ""}`);
+  const daily = db.prepare("SELECT content FROM trader_reflections WHERE kind = 'daily' AND recorded_at >= ? ORDER BY recorded_at DESC LIMIT 1").get(sinceIso) as { content: string } | undefined;
+  if (daily) lines.push("", `Sa note du soir : ${daily.content}`);
   lines.push("", "Détails : /portefeuille · /statut · /journal");
   return lines.join("\n");
 }
