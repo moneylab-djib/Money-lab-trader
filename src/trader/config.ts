@@ -58,6 +58,22 @@ export interface TraderConfig {
 export const DEFAULT_CURIOSITY: CuriosityConfig = { moveAlertPct: 3, maxSelfWakesPerDay: 6, minMinutesBetweenWakes: 30 };
 export const DEFAULT_READ_PAGES_PER_DAY = 20;
 export const MAX_READERS = 6;
+/** Hosts a reader key may be sent to (free OpenAI-compatible providers, research of 2026-10-07). */
+export const READER_HOSTS: ReadonlySet<string> = new Set([
+  "generativelanguage.googleapis.com",
+  "api.groq.com",
+  "api.mistral.ai",
+  "openrouter.ai",
+  "api.cloudflare.com",
+  "integrate.api.nvidia.com",
+  "api.sambanova.ai",
+  "api.cohere.ai",
+  "ai-gateway.vercel.sh",
+  "router.huggingface.co",
+  "api.together.xyz",
+  "api.z.ai",
+  "ollama.com",
+]);
 
 /**
  * Tools denied while the trader block is active (decision 0002): Money
@@ -188,6 +204,10 @@ function parseReaders(raw: unknown): ReaderConfig[] {
     }
     if (typeof baseUrl !== "string" || url.protocol !== "https:" || url.search || url.hash || baseUrl.endsWith("/")) {
       throw new TraderConfigError(`${where}.baseUrl doit être une URL https sans paramètres ni barre oblique finale`);
+    }
+    // A sealed key is only ever sent to a known provider: an edited config cannot redirect it.
+    if (!READER_HOSTS.has(url.hostname.toLowerCase())) {
+      throw new TraderConfigError(`${where}.baseUrl : hôte ${url.hostname} inconnu ; lecteurs acceptés : ${[...READER_HOSTS].join(", ")}`);
     }
     const model = entry.model;
     if (typeof model !== "string" || model.length < 1 || model.length > 80) throw new TraderConfigError(`${where}.model doit être un nom de modèle`);

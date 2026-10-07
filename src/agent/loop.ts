@@ -73,6 +73,7 @@ import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 import { createTraderTools } from "../trader/tools.js";
 import { SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
 import { markReflectionDone, reflectionDue, startReflection } from "../trader/soul.js";
+import { activeConfig } from "../trader/universe.js";
 import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
 import { ensureTraderSchema } from "../trader/schema.js";
 import { paidCallBlockReason } from "../money-lab/guard.js";
@@ -453,7 +454,7 @@ export async function runAgentLoop(
     }
     ensureReviewClock(db.raw);
     // Sonni: the one-time intake of prior knowledge comes before anything else.
-    if (trader && intakeDue(db.raw, trader)) {
+    if (trader && intakeDue(db.raw, activeConfig(db.raw, trader))) {
       startIntake(db.raw);
       intakePending = true;
       reviewModelTurns = INTAKE_MODEL_TURNS;

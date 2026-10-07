@@ -606,6 +606,8 @@ async function run(): Promise<void> {
       logger.info("[MONEY LAB] Publication Bluesky active.");
     }
   }
+  // Sonni: true once the main loop has entered its sleep loop after a cycle (see canWake below).
+  let sonniLoopSlept = false;
   if (config.trader) {
     // Sonni: collection, resolution, history, calendar, headlines and their
     // digest, data sources and curiosity run on timers without inference
@@ -618,9 +620,12 @@ async function run(): Promise<void> {
     const { intakeDue } = await import("./trader/intake.js");
     const { curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
-    // A wake starts a paid cycle: only while sleeping, unpaused and not on a budget cap.
+    // A wake starts a paid cycle: only while sleeping, unpaused and not on a budget cap, and only
+    // once the main loop has actually slept (the state persisted by the last shutdown says
+    // "sleeping" before the first cycle, which would drain the event and waste a wake).
     const canWake = () =>
-      db.getAgentState() === "sleeping" && !getPauseState(db.raw) && !String(db.getKV("sleep_reason") ?? "").startsWith("plafond");
+      sonniLoopSlept && db.getAgentState() === "sleeping" && !getPauseState(db.raw) &&
+      !String(db.getKV("sleep_reason") ?? "").startsWith("plafond");
     every(traderBase.collectMinutes * 60_000, "Sonni prix", () => collectTick(db.raw, live()));
     every(6 * 60 * 60_000, "Sonni historique", async () => {
       const n = await historyTick(db.raw, live());
@@ -647,10 +652,16 @@ async function run(): Promise<void> {
       if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);
     });
     every(60 * 60_000, "Sonni actualité", async () => {
-      const added = await newsTick(db.raw);
+      // A GDELT failure must not skip the digest of the headlines already stored.
+      let newsError: unknown = null;
+      try {
+        await newsTick(db.raw);
+      } catch (err) {
+        newsError = err;
+      }
       const digest = await digestTick(db.raw, live(), withSecrets());
       if (digest.stored > 0) logger.info(`[SONNI] ${digest.stored} observation(s) extraite(s) de ${digest.sent} titre(s) par ${digest.readerId}.`);
-      return added;
+      if (newsError) throw newsError;
     });
     every(5 * 60_000, "Sonni sources", async () => {
       const r = await sourcesTick(db.raw, { env: withSecrets() });
@@ -754,6 +765,7 @@ async function run(): Promise<void> {
       }
 
       if (state === "sleeping") {
+        sonniLoopSlept = true;
         const sleepUntilStr = db.getKV("sleep_until");
         const sleepUntil = sleepUntilStr
           ? new Date(sleepUntilStr).getTime()

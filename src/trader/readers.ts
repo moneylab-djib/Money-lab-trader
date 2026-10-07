@@ -167,24 +167,25 @@ export async function callReader(
     throw new ReaderError("network", scrub(String(err?.message ?? err), key));
   }
   const text = await resp.text().catch(() => "");
+  // Error texts are code-owned (status and kind): a provider's body never reaches the owner or the model.
   if (resp.status === 401 || resp.status === 403) throw new ReaderError("auth", `HTTP ${resp.status}: key refused`, resp.status);
   if (resp.status === 429) throw new ReaderError("rate", `HTTP 429: rate limit`, resp.status);
-  if (!resp.ok) throw new ReaderError("http", `HTTP ${resp.status}: ${scrub(text, key)}`, resp.status);
+  if (!resp.ok) throw new ReaderError("http", `HTTP ${resp.status}`, resp.status);
   let data: any;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new ReaderError("parse", `not JSON: ${scrub(text, key)}`, resp.status);
+    throw new ReaderError("parse", `answer is not JSON (${text.length} bytes)`, resp.status);
   }
   const message = data?.choices?.[0]?.message?.content;
   const content = typeof message === "string"
     ? message
     : Array.isArray(message) ? message.map((p: any) => (typeof p?.text === "string" ? p.text : "")).join("") : "";
-  if (!content.trim()) throw new ReaderError("parse", `empty answer: ${scrub(text, key)}`, resp.status);
+  if (!content.trim()) throw new ReaderError("parse", "empty answer", resp.status);
   try {
     return { json: extractJson(content), status: resp.status };
-  } catch (err: any) {
-    throw new ReaderError("parse", `answer is not JSON: ${scrub(String(err?.message ?? err), key)}`, resp.status);
+  } catch {
+    throw new ReaderError("parse", `answer carries no JSON object (${content.length} chars)`, resp.status);
   }
 }
 

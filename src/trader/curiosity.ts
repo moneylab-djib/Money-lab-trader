@@ -13,9 +13,11 @@
 
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
+import { getKV, setKV } from "../money-lab/journal.js";
+import { containsInjectionPatterns } from "../soul/validator.js";
 import type { TraderConfig } from "./config.js";
 import { EVENT_LABEL_FR, type EventType } from "./events.js";
-import { isoSeconds, latestPrice, priceAtOrAfter, priceAtOrBefore, type PricePoint } from "./prices.js";
+import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter, priceAtOrBefore, type PricePoint } from "./prices.js";
 import type { SoulResult } from "./soul.js";
 
 type DB = Database.Database;
@@ -34,6 +36,7 @@ export const MAX_WATCH_DAYS = 30;
 export const WATCH_KINDS = ["price", "move", "time"] as const;
 export type WatchKind = (typeof WATCH_KINDS)[number];
 const NOTE_MAX = 300;
+const KV_RESOLVED_REPORTED = "sonni.resolved_reported_until";
 
 export function isSonniWake(event: { source: string }): boolean {
   return event.source.startsWith(SONNI_WAKE_PREFIX);
@@ -153,6 +156,8 @@ export function setWatch(db: DB, cfg: TraderConfig, input: WatchInput, now: Date
   if (!WATCH_KINDS.includes(kind)) return { ok: false, error: `kind must be one of ${WATCH_KINDS.join(", ")}.` };
   const note = String(input.note ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
   if (note.length < 5 || note.length > NOTE_MAX) return { ok: false, error: `note must be 5 to ${NOTE_MAX} characters: what to check when it fires.` };
+  // The note comes back to the model as a wake reason: plain text only.
+  if (containsInjectionPatterns(note)) return { ok: false, error: "note contains a prompt-boundary pattern; write it as plain text." };
   if (openWatches(db, now).length >= MAX_OPEN_WATCHES) {
     return { ok: false, error: `${MAX_OPEN_WATCHES} watches are already open; cancel one first.` };
   }
@@ -219,26 +224,28 @@ function fireWatches(db: DB, now: Date): Trigger[] {
   const out: Trigger[] = [];
   const fire = db.prepare("UPDATE trader_watches SET fired_at = ?, fired_reason = ? WHERE id = ? AND fired_at IS NULL AND cancelled_at IS NULL");
   for (const w of openWatches(db, now)) {
-    let reason: string | null = null;
+    // The condition is stated by code; the note is quoted as the model's own earlier words.
+    let condition: string | null = null;
     if (w.kind === "time") {
-      if (w.dueAt! <= now.toISOString()) reason = `time to revisit: ${w.note}`;
+      if (w.dueAt! <= now.toISOString()) condition = "the time you set has come";
     } else {
       const last = latestPrice(db, w.asset!);
       if (!last) continue;
       if (w.kind === "price") {
         const hit = w.direction === "above" ? last.price > w.value! : last.price < w.value!;
-        if (hit) reason = `${w.asset} ${w.direction} ${w.value} EUR (${last.price} EUR): ${w.note}`;
+        if (hit) condition = `${w.asset} is ${w.direction} ${w.value} EUR (${last.price} EUR)`;
       } else {
         const past = windowReference(db, w.asset!, last, w.windowHours! * 3_600_000);
         if (past) {
           const change = ((last.price - past.price) / past.price) * 100;
-          if (Math.abs(change) >= w.value!) reason = `${w.asset} ${pct(change)} in ${w.windowHours} h: ${w.note}`;
+          if (Math.abs(change) >= w.value!) condition = `${w.asset} moved ${pct(change)} in ${w.windowHours} h`;
         }
       }
     }
-    if (reason) {
+    if (condition) {
+      const reason = `${condition}; your note was: "${w.note}"`;
       fire.run(now.toISOString(), reason, w.id);
-      out.push({ key: `watch:${w.id}`, reason: `watch ${w.id}, ${reason}` });
+      out.push({ key: `watch:${w.id}`, reason: `your watch ${w.id} fired: ${reason}` });
     }
   }
   return out;
@@ -257,7 +264,8 @@ export function evaluateTriggers(db: DB, cfg: TraderConfig, now: Date = new Date
 
   for (const asset of cfg.assets) {
     const last = latestPrice(db, asset.symbol);
-    if (!last) continue;
+    // A stale price (collection down) cannot be a move worth a wake: nothing changed.
+    if (!last || ageMinutes(last, now) > cfg.staleMinutes) continue;
     const past = windowReference(db, asset.symbol, last, MOVE_WINDOW_MINUTES * 60_000);
     if (!past) continue;
     const change = ((last.price - past.price) / past.price) * 100;
@@ -282,13 +290,17 @@ export function evaluateTriggers(db: DB, cfg: TraderConfig, now: Date = new Date
     }
   }
 
+  // Resolutions already reported are remembered by their resolved_at (same precision as the
+  // predictions table), not by the wake time, so one resolution is never reported twice.
   const lastResolvedWake = lastWakeAt(db, "resolved");
+  const reportedUntil = getKV(db, KV_RESOLVED_REPORTED) ?? "";
   const resolved = db.prepare(
-    "SELECT id, outcome, void_reason FROM trader_predictions WHERE resolved_at IS NOT NULL AND resolved_at > ? ORDER BY resolved_at ASC",
-  ).all(lastResolvedWake ?? "") as { id: string; outcome: 0 | 1 | null; void_reason: string | null }[];
+    "SELECT id, outcome, void_reason, resolved_at FROM trader_predictions WHERE resolved_at IS NOT NULL AND resolved_at > ? ORDER BY resolved_at ASC",
+  ).all(reportedUntil) as { id: string; outcome: 0 | 1 | null; void_reason: string | null; resolved_at: string }[];
   if (resolved.length > 0 && hoursSince(lastResolvedWake, now) >= RESOLVED_COOLDOWN_HOURS) {
     const summary = resolved.slice(0, 5).map((p) => `${p.id} ${p.void_reason ? "void" : p.outcome === 1 ? "happened" : "did not happen"}`).join(", ");
     out.push({ key: "resolved", reason: `${resolved.length} prediction(s) resolved: ${summary}${resolved.length > 5 ? ", ..." : ""}` });
+    setKV(db, KV_RESOLVED_REPORTED, resolved[resolved.length - 1].resolved_at);
   }
 
   out.push(...fireWatches(db, now));

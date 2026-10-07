@@ -15,6 +15,7 @@
 
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
+import { containsInjectionPatterns } from "../soul/validator.js";
 import { SOURCE_CATALOG, DEFAULT_ENABLED_SOURCES, type SourceDef, type SourceMetric } from "./catalog.js";
 import { checkPublicUrl, readCapped, type Resolver } from "./pages.js";
 import type { SoulResult } from "./soul.js";
@@ -110,9 +111,11 @@ export function listSources(db: DB, status?: SourceStatus): SourceRow[] {
   return (rows as any[]).map(rowToSource);
 }
 
+/** Plain text written by the model that the owner and later turns will read: no prompt-boundary tricks. */
 function cleanReason(raw: unknown): string | null {
   const text = String(raw ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
-  return text.length >= 5 && text.length <= REASON_MAX ? text : null;
+  if (text.length < 5 || text.length > REASON_MAX || containsInjectionPatterns(text)) return null;
+  return text;
 }
 
 /** The model enables or disables a known source (catalog or owner-approved). */
@@ -166,8 +169,8 @@ export async function proposeSource(db: DB, input: ProposedSource, resolve?: Res
   const id = String(input.id ?? "").trim().toLowerCase();
   if (!SOURCE_ID.test(id)) return { ok: false, error: "id must be 2 to 40 lowercase letters, digits or _ (e.g. eth_gas)." };
   if (getSource(db, id)) return { ok: false, error: `Source ${id} already exists.` };
-  const label = String(input.label ?? "").replace(/\s+/g, " ").trim();
-  if (label.length < 3 || label.length > 80) return { ok: false, error: "label must be 3 to 80 characters." };
+  const label = String(input.label ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  if (label.length < 3 || label.length > 80 || containsInjectionPatterns(label)) return { ok: false, error: "label must be 3 to 80 characters of plain text." };
   const why = cleanReason(input.why);
   if (!why) return { ok: false, error: `why must be 5 to ${REASON_MAX} characters: what the numbers would tell you.` };
   const every = Number(input.everyMinutes);
@@ -259,20 +262,25 @@ export async function fetchSourceMetrics(src: SourceDef | SourceRow, deps: Fetch
   }
   let resp: Response;
   try {
+    // No redirect is followed: a source that moves is re-proposed, and a model-proposed
+    // host cannot bounce the runtime to a private address through a 3xx.
     resp = await (deps.fetchFn ?? fetch)(url, {
+      redirect: "manual",
       headers: { Accept: "application/json", "User-Agent": "Sonni/1.0 (personal research agent)" },
       signal: AbortSignal.timeout(SOURCE_TIMEOUT_MS),
     });
   } catch (err: any) {
     throw new Error(scrub(String(err?.message ?? err)));
   }
+  if (resp.status >= 300 && resp.status < 400) throw new Error(`redirect refused (HTTP ${resp.status})`);
   const text = await readCapped(resp, SOURCE_MAX_BYTES);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${scrub(text.replace(/\s+/g, " "))}`);
+  // Error texts are code-owned: a provider's body never reaches the owner or the model.
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(`not JSON: ${scrub(text.replace(/\s+/g, " "))}`);
+    throw new Error(`not JSON (${text.length} bytes)`);
   }
   const out: { name: string; value: number }[] = [];
   const missing: string[] = [];
@@ -394,8 +402,10 @@ export function describeSources(db: DB, lang: "en" | "fr" = "en"): string {
   return rows.map((s) => {
     const health = s.lastError ? (lang === "fr" ? ` ; dernière erreur : ${s.lastError.slice(0, 80)}` : `; last error: ${s.lastError.slice(0, 80)}`) : "";
     const every = lang === "fr" ? `toutes les ${s.everyMinutes} min` : `every ${s.everyMinutes} min`;
+    // The owner decides on a proposal from its URL: always shown for model-proposed sources.
+    const url = s.origin === "model" ? `\n    URL : ${s.url}` : "";
     return `- ${s.id} [${state(s.status)}${s.origin === "model" ? (lang === "fr" ? ", proposée par Sonni" : ", proposed by you") : ""}] ${s.label}: ` +
-      `${s.metrics.map((m) => m.name).join(", ")} ${every}${s.keyEnv ? ` (${lang === "fr" ? "clé" : "key"} ${s.keyEnv})` : ""} — ${s.reason}${health}`;
+      `${s.metrics.map((m) => m.name).join(", ")} ${every}${s.keyEnv ? ` (${lang === "fr" ? "clé" : "key"} ${s.keyEnv})` : ""} — ${s.reason}${health}${url}`;
   }).join("\n");
 }
 

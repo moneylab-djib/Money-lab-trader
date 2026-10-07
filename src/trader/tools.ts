@@ -348,7 +348,7 @@ export function createTraderTools(): AutomatonTool[] {
               id: args.id, label: args.label, url: args.url, metrics: args.metrics, everyMinutes: args.every_minutes, why: args.reason,
             });
             return r.ok
-              ? `Source ${r.value.id} proposed; the owner decides with /source ok ${r.value.id} on Telegram. Tell them why with message_owner.`
+              ? `Source ${r.value.id} proposed (${r.value.url}); the owner sees the URL in /sources and decides with /source ok ${r.value.id} on Telegram. Tell them why with message_owner.`
               : `Refused: ${r.error}`;
           }
           default:

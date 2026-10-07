@@ -257,6 +257,7 @@ export async function readPage(db: DB, cfg: TraderConfig, input: { url: unknown;
     ].join("\n"));
   }
   const raw = p.text.slice(0, PAGE_RAW_CHARS);
+  // The title is page text too: cleaned like the rest, and the URL stands in when nothing clean remains.
   insertObservation(db, {
     publishedAt: now.toISOString(),
     source: "page",
@@ -264,7 +265,7 @@ export async function readPage(db: DB, cfg: TraderConfig, input: { url: unknown;
     assets: [],
     kind: "other",
     sentiment: null,
-    summary: (cleanSummary(raw.slice(0, SUMMARY_MAX)) ?? p.title ?? p.finalUrl).slice(0, SUMMARY_MAX),
+    summary: (cleanSummary(raw.slice(0, SUMMARY_MAX)) ?? cleanSummary(p.title) ?? p.finalUrl).slice(0, SUMMARY_MAX),
     eventDate: null,
   }, now);
   return sanitizeToolResult(`${header}\n(no reader model available: raw text, first ${PAGE_RAW_CHARS} characters)\n${raw}`);

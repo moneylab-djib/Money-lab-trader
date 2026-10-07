@@ -57,12 +57,22 @@ Ce que je ne sais pas encore : si mes intuitions tiennent sur les mois à venir,
 
 export type SoulResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-/** Plain text only: no control characters, bounded length; refuses prompt-boundary tricks. */
+/** The runtime's own section markers: model text must not be able to forge them in the prompt. */
+const RUNTIME_MARKERS = /SONNI RULES|Sonni Mission|MEMORY PACK|UNTRUSTED DATA|Wake-up reason|SELF-REPORT|AVAILABLE TOOLS|CONSTITUTION/i;
+
+/**
+ * Plain text only: no control characters, bounded length; refuses
+ * prompt-boundary tricks and lines that would read as section headers or
+ * runtime markers once spliced into the system prompt.
+ */
 function cleanText(raw: unknown, min: number, max: number, what: string): SoulResult<string> {
   const text = String(raw ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").replace(/\r\n?/g, "\n").trim();
   if (text.length < min) return { ok: false, error: `${what} must be at least ${min} characters.` };
   if (text.length > max) return { ok: false, error: `${what} must be at most ${max} characters (got ${text.length}).` };
   if (containsInjectionPatterns(text)) return { ok: false, error: `${what} contains a prompt-boundary pattern; rewrite it as plain text.` };
+  if (RUNTIME_MARKERS.test(text) || /^\s*(#{1,6}\s|---)/m.test(text)) {
+    return { ok: false, error: `${what} must not contain section headers (#, ---) or the runtime's own markers; write prose.` };
+  }
   return { ok: true, value: text };
 }
 

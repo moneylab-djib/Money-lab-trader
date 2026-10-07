@@ -12,7 +12,7 @@ import { collectCandles } from "./candles.js";
 import { runAllHistoricalTests, runEventRuleTests } from "./historical.js";
 import { collectEvents } from "./events.js";
 import { collectHeadlines } from "./news.js";
-import { digestHeadlines, type DigestOutcome } from "./readers.js";
+import { DIGEST_BATCH, digestHeadlines, type DigestOutcome } from "./readers.js";
 
 type FetchFn = typeof fetch;
 
@@ -56,7 +56,10 @@ export async function newsTick(db: Database.Database, fetchFn: FetchFn = fetch):
   return collectHeadlines(db, fetchFn);
 }
 
-/** Turn the headlines fetched since the last digest into observations, through a free reader model. */
+/** Batches digested per tick at most: a busy hour (up to 75 headlines) is covered without unbounded reader use. */
+export const DIGEST_BATCHES_PER_TICK = 3;
+
+/** Turn the undigested headlines into observations, through a free reader model, batch by batch. */
 export async function digestTick(
   db: Database.Database,
   cfg: TraderConfig,
@@ -64,5 +67,18 @@ export async function digestTick(
   fetchFn: FetchFn = fetch,
   now: Date = new Date(),
 ): Promise<DigestOutcome> {
-  return digestHeadlines(db, cfg, env, fetchFn, now);
+  const total: DigestOutcome = { sent: 0, stored: 0, dropped: 0, readerId: null, skipped: null };
+  for (let i = 0; i < DIGEST_BATCHES_PER_TICK; i++) {
+    const r = await digestHeadlines(db, cfg, env, fetchFn, now);
+    if (r.skipped) {
+      if (total.sent === 0) total.skipped = r.skipped;
+      break;
+    }
+    total.sent += r.sent;
+    total.stored += r.stored;
+    total.dropped += r.dropped;
+    total.readerId = r.readerId;
+    if (r.sent < DIGEST_BATCH) break;
+  }
+  return total;
 }

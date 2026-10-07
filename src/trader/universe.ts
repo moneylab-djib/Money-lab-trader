@@ -14,6 +14,7 @@
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import { getKV, setKV } from "../money-lab/journal.js";
+import { containsInjectionPatterns } from "../soul/validator.js";
 import { PAIR, SYMBOL, type TraderAsset, type TraderConfig } from "./config.js";
 import type { SoulResult } from "./soul.js";
 
@@ -97,9 +98,11 @@ export async function krakenEurPairs(db: DB, fetchFn: FetchFn = fetch, now: Date
   return pairs;
 }
 
+/** Plain text the owner reads in /actifs: no prompt-boundary tricks. */
 function cleanReason(raw: unknown): string | null {
   const text = String(raw ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
-  return text.length >= 10 && text.length <= REASON_MAX ? text : null;
+  if (text.length < 10 || text.length > REASON_MAX || containsInjectionPatterns(text)) return null;
+  return text;
 }
 
 export async function followAsset(
