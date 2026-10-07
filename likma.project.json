@@ -41,7 +41,7 @@
     "pnpm-lock.yaml",
     "node_modules"
   ],
-  "check_timeout_seconds": 400,
+  "check_timeout_seconds": 900,
   "budget": {
     "max_failed_attempts": 3,
     "max_minutes": 60,
@@ -240,6 +240,18 @@
       "path": "src/trader/incidents.ts",
       "purpose": "Append-only log of what the runtime did on its own (pauses, caps, cut answers, failed backups), for /technique and the morning report",
       "edit_when": "A new automatic protection is added (keep docs/GUARDS.md in sync)"
+    },
+    {
+      "area": "Sonni dossiers and owner notes",
+      "path": "src/trader/dossiers.ts",
+      "purpose": "Versioned asset dossiers written by the model or the owner; the owner's trusted notes",
+      "edit_when": "What a dossier holds, its limits or the owner's note handling change (keep docs/MEMORY.md in sync)"
+    },
+    {
+      "area": "Sonni notebooks",
+      "path": "src/trader/notebooks.ts",
+      "purpose": "Markdown notebooks in ~/carnet written from the stores, every Sunday and on /carnets",
+      "edit_when": "A notebook's content or the export schedule changes"
     }
   ]
 }

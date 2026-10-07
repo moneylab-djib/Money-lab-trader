@@ -637,6 +637,7 @@ async function run(): Promise<void> {
     const { calendarTick, collectTick, digestTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
     const { translateHypothesesTick } = await import("./trader/readers.js");
     const { brokerTick } = await import("./trader/portfolio.js");
+    const { exportNotebooks, markNotebooksExported, notebooksDir, notebooksDue } = await import("./trader/notebooks.js");
     const { intakeDue } = await import("./trader/intake.js");
     const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
@@ -683,6 +684,14 @@ async function run(): Promise<void> {
     // Calendar once a day; headlines every hour (GDELT asks for one request per 5 s at most),
     // digested by a free reader when one is configured; sources on their own cadence.
     const fredKey = withSecrets().FRED_API_KEY || undefined;
+    every(60 * 60_000, "Sonni carnets", async () => {
+      // The owner's Markdown notebooks, every Sunday in their time zone (free: code only).
+      const cfg = live();
+      if (!notebooksDue(db.raw, cfg.timeZone)) return;
+      const files = exportNotebooks(db.raw, cfg, notebooksDir());
+      markNotebooksExported(db.raw, cfg.timeZone);
+      logger.info(`[SONNI] Carnets écrits dans ${notebooksDir()} : ${files.join(", ")}.`);
+    });
     every(24 * 60 * 60_000, "Sonni calendrier", async () => {
       const n = await calendarTick(db.raw, fredKey);
       if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);

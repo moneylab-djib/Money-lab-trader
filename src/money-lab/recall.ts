@@ -122,6 +122,17 @@ export function recall(query: string, options: { home: string; db?: Database.Dat
          UNION ALL SELECT 'hypothesis ' || id || ' [' || status || ']', statement FROM trader_hypotheses`,
       ).all() as { source: string; text: string }[];
       for (const row of rows) consider(row.source, row.text.split("\n"));
+      // Step C1: dossiers, traps, the owner's notes and the theses behind orders.
+      const hasDossiers = options.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_dossiers'").get();
+      if (hasDossiers) {
+        const more = options.db.prepare(
+          `SELECT 'dossier ' || asset || ' v' || version AS source, content AS text FROM trader_dossiers
+           UNION ALL SELECT 'trap ' || name, description || ' Signs: ' || warning_signs FROM trader_traps
+           UNION ALL SELECT 'owner note ' || substr(at, 1, 10), text FROM trader_owner_notes
+           UNION ALL SELECT 'order ' || id || ' ' || side || ' ' || asset || ' (' || status || ')', thesis FROM trader_orders`,
+        ).all() as { source: string; text: string }[];
+        for (const row of more) consider(row.source, row.text.split("\n"));
+      }
     }
   }
   hits.sort((a, b) => b.score - a.score);

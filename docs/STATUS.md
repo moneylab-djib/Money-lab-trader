@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-07
-- Branch / commit: claude/sonni-guards (guard map G1-G9, stacked on claude/sonni-portfolio = PR #11; main after PRs #1 to #10)
+- Branch / commit: claude/sonni-dossiers (step C1, stacked on claude/sonni-guards = PR #12; main after PRs #1 to #11)
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
@@ -159,7 +159,13 @@
   truncated answers never run their tool calls and unknown stop reasons pause (loop.ts), G6 page-injection
   test, G7 backups verified (integrity, row counts) before they count, G9 incident log (trader_incidents,
   /technique, morning report). G8 chaos e2e planned with step C1. Tests: src/__tests__/trader/guards.test.ts (8).
-- Next concrete action: owner merges PRs #11 and the guards PR, runs the update block of
+- Step C1 (owner's decision of 2026-10-07): src/trader/dossiers.ts (versioned asset dossiers, one model
+  revision per asset and day; the owner's trusted notes), src/trader/notebooks.ts (Markdown notebooks in
+  ~/carnet every Sunday and on /carnets), tool update_dossier, pack sections dossiers and notes, recall
+  over dossiers, traps, notes and order theses, commands /dossier, /note, /memoire, /carnets; G8 chaos
+  scenario in the e2e (3 API 529s, Telegram and Kraken down 40 s, owner message handled once). Tests:
+  src/__tests__/trader/dossiers.test.ts (6). The e2e now takes ~9 min (check timeout 900 s).
+- Next concrete action: owner merges PRs #12 and the step C1 PR, runs the update block of
   sonni/GUIDE-VPS.fr.md (git pull, install, build, configure.mjs, restart); the portfolio opens at the
   first collected price; checks /statut, /portefeuille, and the evening summary at 20:00. Proposed next engineering task: a guard map for Sonni per the
   Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.

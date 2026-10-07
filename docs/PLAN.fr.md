@@ -114,8 +114,19 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    du passage au réel. Pour toi : `/portefeuille`, `/journee`, et un résumé chaque soir à 20 h (ton
    choix : un résumé par jour plutôt qu'un message par ordre). Aucun compte, aucun argent réel : le
    portefeuille n'existe que dans sa base de données.
-3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.
-4. **Mémoire complète** : intuitions, pièges, cycles, autopsies quotidiennes.
+3. **Actualité et calendrier** ✅ (voir 1 ter).
+4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :
+   - *C1 — Dossiers et carnets* ✅ construit le 7 octobre : un dossier par actif suivi, écrit par Sonni
+     (thèse de fond, catalyseurs, niveaux, ce qu'il a appris ; une révision par jour et par actif au
+     plus, chaque version gardée, `/dossier <actif>`) ; `/note <texte>` pour lui laisser une information
+     fiable qu'il lit à sa prochaine séance (une information, pas un ordre) ; `/memoire <sujet>` pour
+     chercher dans tout ce qu'il sait ; et ses carnets Markdown dans `~/carnet/` sur le VPS, réécrits
+     chaque dimanche et sur `/carnets` (journal, intuitions, pièges, leçons, identité, portefeuille, un
+     fichier par actif). Au passage, le scénario « chaos » du test bout-en-bout (garde-fou G8) : API,
+     Telegram et Kraken en panne pendant 40 s, ton message pendant la panne traité une seule fois après.
+   - *C2 — Cycles* : réactions mesurées autour des événements, cycles nommés par Sonni et chiffrés par
+     le code, `/cycles`.
+   - *C3 — Autopsie du soir* : un réveil programmé chaque soir (1 tour payé par jour).
 5. **Ce que Claude sait déjà** : séance d'intuitions initiales + statistiques sur l'historique.
 6. **Revue hebdo** : rapport du dimanche sur Telegram, carnets lisibles dans `~/carnet/`.
 7. **Actions et ETF** en plus de la crypto, avec la liste d'actifs qu'il choisit lui-même.
@@ -202,6 +213,8 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 
 - `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
+- `/dossier <actif>`, `/note <texte>`, `/memoire <sujet>`, `/carnets` : ses dossiers par actif, tes
+  notes, sa mémoire en recherche, ses carnets Markdown (étape C1).
 - `/portefeuille` : son portefeuille virtuel (valeur, positions avec leur raison, ordres en attente
   et récents, résultats calculés par le code, opérations closes, pièges nommés). `/journee` : le
   résumé du jour, que tu reçois aussi chaque soir à 20 h.

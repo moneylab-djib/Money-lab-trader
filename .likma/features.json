@@ -657,6 +657,23 @@
           }
         ]
       }
+    },
+    {
+      "id": "dossiers-notebooks",
+      "title": "Step C1: asset dossiers, owner notes, /memoire, Markdown notebooks, chaos e2e (G8)",
+      "criteria": [
+        "The model keeps one versioned dossier per followed asset (update_dossier), at most one revision per asset and UTC day, checked and append-only; the owner reads it with /dossier",
+        "The owner's /note stores a trusted note tagged with the assets it mentions; the pack shows notes of the last 7 days as information, not orders",
+        "The memory pack shows the latest dossier per asset and the detail views dossiers and notes; /memoire searches dossiers, traps, notes, order theses, journal, lessons, hypotheses and identity in French without identifiers",
+        "Markdown notebooks (journal, intuitions, pieges, lecons, identite, portefeuille, one per asset) are written to ~/carnet every Sunday in the owner's time zone and on /carnets",
+        "Chaos e2e (G8): three API 529s, Telegram and Kraken down 40 s; the process survives, collection resumes, the owner's message is handled exactly once",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "planned",
+      "paths": [
+        "src",
+        "sonni"
+      ]
     }
   ]
 }

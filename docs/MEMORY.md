@@ -75,7 +75,8 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `trader_trap_hits` (implemented, step 4 B) | trap_id, trade_id, note, recorded_at | A closed trade counted against a trap, once per pair, written by the model at post-mortem time (`note_trap hit`); append-only. |
 | `trader_positions` (implemented, step 4 B) | asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at | The current holding per asset: quantity and average cost are changed only by code on fills; the model moves `invalidation` and `horizon_until` with a logged reason (`manage_position`). Not append-only: it is state, and the ledger, orders and trades are its record. |
 | `patterns` (cycles) | name, event_type, sequence, stats, n, last_seen | Recurring event → reaction sequences; `stats` and `n` are computed by code from `reactions`. |
-| `dossiers` | asset, notes, catalysts, calendar | One per followed asset. |
+| `trader_dossiers` (implemented, step C1) | asset, version, content, reason, source (model / owner), recorded_at | One dossier per followed asset, in French: long-term thesis, catalysts, levels, what it learned. The model rewrites it with `update_dossier` (at most one revision per asset and UTC day, 40 to 1,500 characters, prompt-boundary patterns refused); the owner's `/dossier` reads it; every version is kept, append-only. The latest version per asset is in every memory pack (400 characters each; `sonni_memory {"section": "dossiers"}` for the full texts). |
+| `trader_owner_notes` (implemented, step C1) | at, text, assets | The owner's notes (`/note <texte>`), the one trusted writer besides code: shown in the pack for 7 days as information to weigh, never as orders to trade; the followed symbols a note mentions are tagged. Append-only. |
 | `trader_universe` (implemented) | asset, kraken_pair, action (follow / unfollow), reason, recorded_at | The watch list the agent chooses (decision 0003): a Kraken EUR pair checked against the public pair list, every change with a reason, append-only; the followed set is the config plus this log replayed. The owner's configuration keeps authority: at startup code compares the configured assets with the previous start (KV `sonni.config_assets`) and logs a follow for an added asset, a follow with the new pair when the owner corrects the pair of an asset an older follow entry carries, and an unfollow for a removed one; a removed asset with open predictions stays followed until they resolve (retried at the next start), and the last followed asset is never dropped. |
 | `trader_identity` (implemented) | version, content, reason, source (seed / model / owner), recorded_at | The model's self-description, in French, seeded by code; a new version per revision (at most one model revision per day, anchor words kept), never edited. |
 | `trader_sources` + `trader_source_log` (implemented) | id, label, url, metrics (JSON paths), every_minutes, key_env, origin (catalog / model), status (enabled / disabled / proposed / rejected), reason, failures | Data sources polled by code (src/trader/catalog.ts). The model enables, disables or proposes one with a reason; the owner approves or rejects proposals (the proposal shows the exact URL); every action is logged append-only. At startup a catalog row whose label, URL, metrics, cadence or key changed in the code is updated in place, keeping its status and reason and resetting its failure count. Requests use HTTPS, refuse redirects and keep only the declared numeric paths; 20 failures in a row disable a source and the owner is told. |
@@ -177,7 +178,7 @@ scale and cost nothing per query.
 
 Implemented pack (step 3, src/trader/pack.ts), within 9,000 characters, in order: what happened
 since the previous session (triggers, resolutions, new headlines and observations, computed by code);
-prices and changes; the virtual portfolio (step 4 B: cash, positions with stop, horizon and thesis,
+prices and changes; the owner's notes of the last 7 days (trusted); the virtual portfolio (step 4 B: cash, positions with stop, horizon and thesis,
 pending orders, the last 24 h of settled orders, closed trades waiting for a post-mortem, the names of
 the traps); open predictions (15); recent resolutions (6), with the ids still waiting for a
 post-mortem; open watches; the self-report (calibration, Brier by asset, horizon and direction,
@@ -187,11 +188,13 @@ last 24 h per asset with code-averaged sentiment, dated items and the pages the 
 two reflections (shortened); raw headlines (12). Code fills sections in that order and, when the
 budget runs out, cuts the section with a note naming how many lines were not shown, or lists the
 omitted sections; nothing is silently dropped. The model reads any group in full with
-`sonni_memory {"section": ...}` (portfolio with trades and traps, trades, traps, hypotheses,
-predictions, observations, headlines, reflections, watches, sources, events); a detail view does not move the "since the previous session" reference.
+`sonni_memory {"section": ...}` (dossiers, notes, portfolio with trades and traps, trades, traps,
+hypotheses, predictions, observations, headlines, reflections, watches, sources, events); ranked
+hypotheses are followed by the latest dossier per followed asset; a detail view does not move the "since the previous session" reference.
 The identity text and the active lessons are not in the pack: they sit in the cached part of the
 system prompt. `recall` searches the identity versions, reflections, lessons and hypotheses by terms
-(no FTS5 index yet).
+(no FTS5 index yet), and since step C1 the dossiers, traps, the owner's notes and the theses behind
+orders; the owner searches the same stores with `/memoire <sujet>` (labels in French, no identifiers).
 
 ## 7. Integrity
 
@@ -212,13 +215,16 @@ system prompt. `recall` searches the identity versions, reflections, lessons and
 
 ## 8. Owner view and hygiene
 
-- Weekly export to `~/carnet/` as Markdown: `pieges.md`, `intuitions.md`, `cycles.md`, `lecons.md`,
-  `journal.md`, one file per asset. French headings, versioned with git.
+- Weekly export to `~/carnet/` as Markdown (implemented, step C1, src/trader/notebooks.ts: every
+  Sunday in the owner's time zone and on `/carnets`, files rewritten whole from the stores):
+  `journal.md`, `intuitions.md`, `pieges.md`, `lecons.md`, `identite.md`, `portefeuille.md`, one file
+  per followed asset (dossier versions, predictions, closed trades). `cycles.md` comes with step C2.
 - Size caps per store; duplicates merged at weekly review; hypotheses untouched for 90 days retired
   with a reason, never deleted.
-- Owner commands (French): `/note <texte>` stores an observation with source `owner`; `/idee <texte>`
-  creates a hypothesis with origin `owner`; `/memoire <sujet>` shows what it knows on a topic;
-  `/veto <règle>` retires a lesson. Step 4 A: `/statut` is four short blocks in French and in the
+- Owner commands (French): `/note <texte>` stores a trusted owner note (step C1); `/idee <texte>`
+  creates a hypothesis with origin `owner`; `/memoire <sujet>` shows what it knows on a topic (step
+  C1); `/dossier [actif]` shows a dossier and its versions (step C1); `/carnets` writes the
+  notebooks now (step C1); `/veto <règle>` retires a lesson. Step 4 A: `/statut` is four short blocks in French and in the
   owner's time zone (`trader.timeZone`, default Europe/Paris) without identifiers, `/technique` keeps
   the runtime's technical state, and the daily message is Sonni's own morning report (yesterday,
   today, real alerts only; src/trader/report.ts). Step 4 B: `/portefeuille` (value, positions with

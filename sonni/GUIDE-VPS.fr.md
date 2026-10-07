@@ -153,6 +153,10 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/statut` | l'essentiel en quatre blocs (portefeuille, marché et prédictions, apprentissage, budget), heure de Paris |
 | `/portefeuille` | son portefeuille virtuel : valeur, positions avec leur raison, ordres, résultats calculés par le code, pièges |
 | `/journee` | le résumé du jour (ordres et raisons, valeur, prédictions, journal, dépense) ; tu le reçois aussi chaque soir à 20 h |
+| `/dossier [actif]` | son dossier sur un actif (thèse, catalyseurs, niveaux, versions) |
+| `/note <texte>` | lui laisser une note : une information fiable de ta part, lue à sa prochaine séance (pas un ordre) |
+| `/memoire <sujet>` | ce qu'il sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres) |
+| `/carnets` | écrire ses carnets Markdown dans `/home/sonni/carnet/` (aussi chaque dimanche) ; lis-les avec `sudo -u sonni cat /home/sonni/carnet/btc.md` |
 | `/technique` | état technique du programme (budget détaillé, pauses, cycles) et les incidents des 7 derniers jours (ce que le programme a fait seul : pause, plafond, erreurs, sauvegarde) |
 | `/idee <texte>` | lui donner une intuition à tester |
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
