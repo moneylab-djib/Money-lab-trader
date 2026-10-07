@@ -82,6 +82,15 @@ function model(body) {
     booted = true;
     return reply([use("sleep", { duration_seconds: 3600, reason: "waiting for history" })]);
   }
+  // The evening consolidation (step C3): code wakes the model with its instructions, once a day.
+  if (/SONNI EVENING \(required/.test(lastUserText) && !eveningSeen) {
+    eveningSeen = true;
+    /Wake-up reason: evening consolidation due/.test(lastUserText) ? ok("evening consolidation delivered as a wake with its reason and instructions") : fail("evening instructions without the wake reason");
+    return reply([
+      use("write_reflection", { kind: "daily", content: "Journée calme : une prédiction prudente et une petite position ; demain je surveille la Fed." }),
+      use("sleep", { duration_seconds: 3600, reason: "evening done" }),
+    ]);
+  }
   // The self-wake after the price jump: the runtime says why it woke the model.
   if (/Wake-up reason: BTC \+\d/.test(lastUserText) && !wokenByMove) {
     wokenByMove = true;
@@ -182,6 +191,8 @@ let jump = false;
 /** Guard G8: outage windows served by the fake servers (count of 529s left, and until-timestamps). */
 const chaos = { anthropic: 0, telegramUntil: 0, krakenUntil: 0 };
 let ownerHelloSeen = 0;
+/** Step C3: the evening consolidation, scheduled 7 minutes after the start (Paris time) in this run. */
+let eveningSeen = false;
 
 const server = http.createServer(async (req, res) => {
   let raw = "";
@@ -325,7 +336,9 @@ const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 if (config.moneyLab.stripe !== null || config.moneyLab.resources[0].expectedDailyCostCents !== 0) fail("configure kept Stripe or a VPS cost");
 if (fs.existsSync(path.join(HOME, ".automaton", "skills", "money-lab-strategy"))) fail("Money Lab strategy skill installed for Sonni");
 // Faster than production (5 / 15 min) so the run fits in two minutes.
-config.trader = { ...config.trader, collectMinutes: 1, staleMinutes: 2 };
+const eveningAt = new Date(Date.now() + 7 * 60_000);
+const [eveningHour, eveningMinute] = eveningAt.toLocaleTimeString("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hour12: false }).split(":").map(Number);
+config.trader = { ...config.trader, collectMinutes: 1, staleMinutes: 2, consolidation: { hour: eveningHour, minute: eveningMinute } };
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 run(["dist/index.js", "--money-lab", "ledger-add", "owner_funding", "5800", "budget-octobre"]);
 console.log(run(["dist/index.js", "--sonni", "idee", "BTC reste au-dessus de 59 000 EUR quand la semaine est calme"]).trim());
@@ -461,6 +474,13 @@ await until(() => tgOutbox.some((m) => /📚 Carnets écrits dans/.test(m.text))
 const btcNotebook = path.join(HOME, "carnet", "btc.md");
 fs.existsSync(btcNotebook) && /Thèse : le BTC tient/.test(fs.readFileSync(btcNotebook, "utf-8")) && fs.existsSync(path.join(HOME, "carnet", "journal.md"))
   ? ok("notebooks on disk carry the dossier and the journal") : fail("notebooks missing or incomplete");
+
+// ─── Evening consolidation (step C3), scheduled 7 minutes after the start in this run ───
+await until(() => eveningSeen, 300_000) || fail("no evening consolidation wake within 5 minutes of its time");
+/\[SONNI\] Autopsie du soir : réveil\./.test(out) ? ok("runtime logged the evening wake") : fail("evening wake not logged");
+tgSend("/journee");
+await until(() => tgOutbox.filter((m) => /🌙 Sonni — .*, résumé du jour/.test(m.text)).some((m) => /autopsie du soir : faite/.test(m.text) && /Sa note du soir : Journée calme/.test(m.text)), 60_000)
+  ? ok("/journee reports the evening consolidation done and its daily note") : fail("/journee lacks the evening consolidation");
 
 // ─── Chaos (guard G8): the API, Telegram and Kraken fail for 40 s while the owner writes; the process
 // survives, collection resumes, the message is handled once after the outage (retried with the same input).

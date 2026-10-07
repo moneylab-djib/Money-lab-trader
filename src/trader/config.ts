@@ -77,6 +77,8 @@ export interface TraderConfig {
   /** IANA time zone of the owner, for everything they read (default Europe/Paris). */
   timeZone: string;
   portfolio: PortfolioConfig;
+  /** Evening consolidation time in the owner's time zone (step C3). */
+  consolidation: ConsolidationConfig;
 }
 
 export const DEFAULT_TIME_ZONE = "Europe/Paris";
@@ -237,7 +239,25 @@ export class TraderConfigError extends Error {
 
 const KEYS = ["enabled", "quoteCurrency", "assets", "collectMinutes", "staleMinutes"];
 /** Keys added by later slices: absent means the default, so older configs keep working. */
-const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone", "portfolio"];
+const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone", "portfolio", "consolidation"];
+const CONSOLIDATION_KEYS = ["hour", "minute"];
+
+/** Local time of the evening consolidation (step C3), before the 20:00 summary. */
+export interface ConsolidationConfig {
+  hour: number;
+  minute: number;
+}
+export const DEFAULT_CONSOLIDATION: ConsolidationConfig = { hour: 19, minute: 30 };
+
+function parseConsolidation(raw: unknown): ConsolidationConfig {
+  if (raw === undefined) return { ...DEFAULT_CONSOLIDATION };
+  if (!isObject(raw)) throw new TraderConfigError("consolidation doit être un objet");
+  checkKeys(raw, [], "trader.consolidation", CONSOLIDATION_KEYS);
+  return {
+    hour: raw.hour === undefined ? DEFAULT_CONSOLIDATION.hour : intInRange(raw.hour, 0, 23, "consolidation.hour"),
+    minute: raw.minute === undefined ? DEFAULT_CONSOLIDATION.minute : intInRange(raw.minute, 0, 59, "consolidation.minute"),
+  };
+}
 const CURIOSITY_KEYS = ["moveAlertPct", "maxSelfWakesPerDay", "minMinutesBetweenWakes"];
 const READER_KEYS = ["id", "baseUrl", "model", "keyEnv", "dailyRequests"];
 const READER_OPTIONAL_KEYS = ["jsonMode"];
@@ -372,6 +392,7 @@ export function parseTraderConfig(raw: unknown): TraderConfig | null {
     readPagesPerDay,
     timeZone,
     portfolio: parsePortfolio(raw.portfolio),
+    consolidation: parseConsolidation(raw.consolidation),
   };
 }
 

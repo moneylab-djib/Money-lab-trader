@@ -184,8 +184,10 @@ avec les frais Kraken ; il vend tout seul si le niveau d'invalidation est attein
 quand un actif bouge de 3 % en une heure, les jours d'événement, quand des prédictions sont résolues,
 quand un stop se déclenche, qu'un ordre expire ou qu'une position arrive à son horizon, ou quand une de ses veilles se
 déclenche (6 réveils par jour au plus). Après chaque résultat et chaque opération close, il écrit un
-post-mortem dans son journal. Chaque soir à 20 h, tu reçois son résumé du jour. Chaque dimanche, il
-fait sa revue et t'envoie un rapport en français.
+post-mortem dans son journal. Chaque soir à 19 h 30, le code le réveille pour une courte séance
+d'autopsie (post-mortems dus, pièges, dossiers, une note du jour : un tour payé) ; à 20 h, tu reçois
+son résumé du jour avec cette note. Chaque dimanche, il fait sa revue et t'envoie un rapport en
+français.
 
 ## Facultatif — Des IA gratuites pour lire l'actualité
 

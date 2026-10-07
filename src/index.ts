@@ -639,6 +639,7 @@ async function run(): Promise<void> {
     const { brokerTick } = await import("./trader/portfolio.js");
     const { exportNotebooks, markNotebooksExported, notebooksDir, notebooksDue } = await import("./trader/notebooks.js");
     const { reactionsTick } = await import("./trader/cycles.js");
+    const { CONSOLIDATION_WAKE_REASON, CONSOLIDATION_WAKE_SOURCE, consolidationDue, consolidationPending, markConsolidationPending } = await import("./trader/consolidation.js");
     const { intakeDue } = await import("./trader/intake.js");
     const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
@@ -676,6 +677,14 @@ async function run(): Promise<void> {
       // reader call only while some lack it (new intuitions right after an intake).
       const translated = await translateHypothesesTick(db.raw, live(), withSecrets());
       if (translated.stored > 0) logger.info(`[SONNI] ${translated.stored} intuition(s) traduite(s) par ${translated.readerId}.`);
+    });
+    every(60_000, "Sonni soirée", async () => {
+      // Step C3: one paid turn in the owner's evening; the wake is delivered once per local day.
+      const cfg = live();
+      if (!consolidationDue(db.raw, cfg) || consolidationPending(db.raw, cfg) || !canWake()) return;
+      markConsolidationPending(db.raw, cfg);
+      insertWakeEvent(db.raw, CONSOLIDATION_WAKE_SOURCE, CONSOLIDATION_WAKE_REASON);
+      logger.info("[SONNI] Autopsie du soir : réveil.");
     });
     every(60_000, "Sonni curiosité", async () => {
       const outcome = curiosityTick(db.raw, live(), { canWake, wake: (source, reason) => insertWakeEvent(db.raw, source, reason) });
