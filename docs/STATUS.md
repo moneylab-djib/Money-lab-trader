@@ -60,6 +60,15 @@
     money-lab 110, build, sonni-e2e 263 s): PASS, 2026-10-07 01:09 UTC after the review fixes, report
     .likma/checks/36ce9c9dbfad44fb9fb7fa670d4448b0.json (an earlier PASS before the fixes:
     5df38e141a1a4b4cb3b4eed392df5069). Feature verifications: see docs/FEATURES.md.
+  - Checks after the second review round (run 2026-10-07, this sandbox): typecheck PASS; sonni suite
+    91/91 (sonni 20, knowledge 13, world 9, soul 10, curiosity 10, readers 12, sources 9, alive 8);
+    money-lab suite 110/110; build PASS; sonni-e2e PASS (37 checks, 263 s, including the history wake
+    for the intake). The recorded check session begun at 00:44 UTC reached its 60-minute limit with
+    10 attempts, all passed; it was archived and a new one begun for this verification (no failure
+    budget evaded). Likma `project check`: PASS at 04:07 UTC (report
+    .likma/checks/3ed267e76fc84166a9a01f85c9c2d6b3.json) and, after the pair-correction fix, PASS at
+    04:13 UTC (report .likma/checks/44f6f681d44f4f4aa7cc811f134a9b44.json). The new pair-correction
+    test was confirmed to fail without the fix. CI on PR #5: green through ef29aa1.
   - Research by web agents (2026-10-07, reports kept in the session scratchpad, conclusions applied):
     free LLM APIs: Gemini free tier is the primary reader (`gemini-3.5-flash-lite`; limits no longer
     published, EEA users get the no-training terms; auth keys since May 2026), Groq free plan the
