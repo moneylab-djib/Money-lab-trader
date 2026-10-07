@@ -669,11 +669,15 @@
         "Chaos e2e (G8): three API 529s, Telegram and Kraken down 40 s; the process survives, collection resumes, the owner's message is handled exactly once",
         "Tests make no network or paid inference calls"
       ],
-      "status": "planned",
+      "status": "built",
       "paths": [
         "src",
         "sonni"
-      ]
+      ],
+      "implementation": {
+        "at": "2026-10-07T11:06:30.200590+00:00",
+        "note": "src/trader/dossiers.ts, notebooks.ts, schema, tools (update_dossier), pack, prompt, recall, cli, telegram, index; tests src/__tests__/trader/dossiers.test.ts (6); e2e commands and chaos scenario"
+      }
     }
   ]
 }
