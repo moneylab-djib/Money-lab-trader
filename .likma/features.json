@@ -153,8 +153,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T01:18:24.982291+00:00",
-        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
+        "at": "2026-10-07T04:23:21.628022+00:00",
+        "fingerprint": "5158310123ba14fb3f408c6ce36219916f96fae4d96a984d1f8250f85fdf57c3",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -163,7 +163,7 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "report": ".likma/checks/6b509c2eafd54589a2edaf6bc8aa55b4.json",
+        "report": ".likma/checks/27f4a60fb55b41b2a7faacaed905f444.json",
         "contract": "45411f2ce61d048ddb37a6bc928911c3f12758114da974089e3bf9129c73e9f7"
       }
     },
@@ -184,8 +184,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T01:18:31.433592+00:00",
-        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
+        "at": "2026-10-07T04:23:29.236662+00:00",
+        "fingerprint": "5158310123ba14fb3f408c6ce36219916f96fae4d96a984d1f8250f85fdf57c3",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -194,7 +194,7 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "report": ".likma/checks/9abc39f360434007993d11d28eb0f1a5.json",
+        "report": ".likma/checks/ae47a196ad45469985ddf68d860b1878.json",
         "contract": "47231d04281bb3d7ffd1b431324d90bfcf953be7e7b9e4d59b9f120e50a46a3b"
       }
     },
@@ -214,8 +214,8 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T01:18:37.833718+00:00",
-        "fingerprint": "3ee35ac63a7705109047fad92bb1378bf0c753d228587b727e7b933975466ae0",
+        "at": "2026-10-07T04:23:35.701463+00:00",
+        "fingerprint": "5158310123ba14fb3f408c6ce36219916f96fae4d96a984d1f8250f85fdf57c3",
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -223,7 +223,7 @@
           "4": "sonni",
           "5": "sonni"
         },
-        "report": ".likma/checks/6fee0ab85add46afb7eb2abd095694eb.json",
+        "report": ".likma/checks/7f58d0614ef14f7aa8dae0abc5cc32a8.json",
         "contract": "c8aea13a223c15f7a6b3e19f1dfe969eaa1d8708853a503bca0a282920bd7913"
       }
     }
