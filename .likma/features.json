@@ -548,7 +548,7 @@
         "The model sees its portfolio, trades and traps in the memory pack and writes one post-mortem per closed trade; the self-report carries the three proofs of decision 0003",
         "The owner has /portefeuille, /journee and an evening summary at 20:00 local in French without identifiers; the e2e places and fills an order"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "src",
         "sonni"
@@ -556,6 +556,43 @@
       "implementation": {
         "at": "2026-10-07T09:34:38.170632+00:00",
         "note": "src/trader/portfolio.ts, schema, tools, pack, prompt, curiosity, soul, status, report, cli, telegram, index; tests src/__tests__/trader/portfolio.test.ts (5) and the e2e order scenario"
+      },
+      "verification": {
+        "at": "2026-10-07T10:09:25.393851+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "4746378c4ddcfaf4fdf81f1c1c6ca507b8cfbdf8131c6eef68af3d55c63fbf38",
+        "scope": [
+          "src",
+          "sonni"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni-e2e"
+        },
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/aeff9af961e94d17a6381aeba3c7431c.json",
+        "contract": "25135845d18109a61417b6ea86906d1768e8a0966453d960eddcfe3d4c198d45",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 9.998,
+            "output_bytes": 9221,
+            "output_sha256": "465d10575b00ae63bdf0b963946f1b759e3d27d6ad8ad763d98f84b2795ecf25"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 366.692,
+            "output_bytes": 3127,
+            "output_sha256": "bcecd92b4e0e410eadd1bdc0a7095b46406019b5b6b053862240f283b08be09b"
+          }
+        ]
       }
     }
   ]
