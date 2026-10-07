@@ -58,6 +58,35 @@ function migrateReflectionKinds(db: DB): void {
   `);
 }
 
+/** Step C2: reactions measured by code around events, and the cycles the model names on them. */
+function ensureCycleSchema(db: DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_reactions (
+      type TEXT NOT NULL,
+      day TEXT NOT NULL,
+      asset TEXT NOT NULL,
+      window TEXT NOT NULL CHECK (window IN ('run_up', 'day', 'week', 'hour')),
+      return_pct REAL NOT NULL,
+      computed_at TEXT NOT NULL,
+      PRIMARY KEY (type, day, asset, window)
+    );
+    ${appendOnly("trader_reactions")}
+
+    CREATE TABLE IF NOT EXISTS trader_patterns (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      event_type TEXT NOT NULL,
+      asset TEXT NOT NULL,
+      window TEXT NOT NULL CHECK (window IN ('run_up', 'day', 'week', 'hour')),
+      direction TEXT NOT NULL CHECK (direction IN ('up', 'down', 'big_move')),
+      threshold_pct REAL,
+      note TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_patterns")}
+  `);
+}
+
 /** Step C1: asset dossiers (versioned) and the owner's notes. */
 function ensureDossierSchema(db: DB): void {
   db.exec(`
@@ -367,6 +396,7 @@ function ensureKnowledgeSchema(db: DB): void {
   ensurePortfolioSchema(db);
   ensureGuardSchema(db);
   ensureDossierSchema(db);
+  ensureCycleSchema(db);
 }
 
 /** Append-only: refuse every update and delete on a table. */

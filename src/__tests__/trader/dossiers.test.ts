@@ -157,7 +157,7 @@ describe("Notebooks", () => {
     db.raw.prepare("INSERT INTO trader_reflections (id, kind, subject_id, content, recorded_at) VALUES ('r1', 'session', NULL, 'Première séance : marché calme.', ?)").run(T0.toISOString());
     const dir = path.join(tmp(), "carnet");
     const files = exportNotebooks(db.raw, TRADER, dir, hours(1));
-    expect(files).toEqual(["btc.md", "eth.md", "identite.md", "intuitions.md", "journal.md", "lecons.md", "pieges.md", "portefeuille.md"]);
+    expect(files).toEqual(["btc.md", "cycles.md", "eth.md", "identite.md", "intuitions.md", "journal.md", "lecons.md", "pieges.md", "portefeuille.md"]);
     const btc = fs.readFileSync(path.join(dir, "btc.md"), "utf-8");
     expect(btc).toMatch(/^# Dossier BTC\n\n_Écrit par le code le mercredi 7 octobre à 11:00/);
     expect(btc).toContain("## Version 1 — mer. 7 oct. 10:00 (Sonni)\n\nThèse : le BTC tient");
@@ -175,7 +175,7 @@ describe("Notebooks", () => {
     const out: string[] = [];
     const home = tmp();
     expect(runSonniCommand(["carnets"], db.raw, TRADER, (t) => out.push(t), { home })).toBe(0);
-    expect(out[0]).toContain(`📚 Carnets écrits dans ${path.join(home, "carnet")} : btc.md, eth.md`);
+    expect(out[0]).toContain(`📚 Carnets écrits dans ${path.join(home, "carnet")} : btc.md, cycles.md, eth.md`);
     expect(fs.existsSync(path.join(home, "carnet", "lecons.md"))).toBe(true);
     db.close();
   });

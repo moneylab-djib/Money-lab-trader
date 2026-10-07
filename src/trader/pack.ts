@@ -20,7 +20,8 @@ import type { TraderConfig } from "./config.js";
 import { listHypotheses, type Hypothesis } from "./hypotheses.js";
 import { describeTest, latestHistoricalTest, verdictCounts, type HistoricalTest } from "./historical.js";
 import { MIN_CASES, SUPPORT_Z } from "./rules.js";
-import { eventReactions, upcomingEvents } from "./events.js";
+import { upcomingEvents } from "./events.js";
+import { describeCycles } from "./cycles.js";
 import { recentHeadlines } from "./news.js";
 import { listTrades, listTraps, pendingOrders, recentOrders, tradesAwaitingPostmortem, valuation } from "./portfolio.js";
 import { brierSummary, listOpenPredictions, listResolvedPredictions, type Prediction } from "./predictions.js";
@@ -37,7 +38,7 @@ export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
 const DOSSIER_PREVIEW = 400;
 
-export const PACK_SECTIONS = ["dossiers", "notes", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
+export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -273,18 +274,22 @@ function indicatorsSection(db: DB, now: Date): Section | null {
     : null;
 }
 
-function reactionsSection(db: DB, cfg: TraderConfig, now: Date): Section | null {
-  const lines: string[] = [];
-  for (const asset of cfg.assets) {
-    for (const r of eventReactions(db, asset.symbol, now)) {
-      if (r.past === 0 || r.meanAbsMove === null) continue;
-      lines.push(
-        `- ${asset.symbol} on ${r.type} days (${r.past} past): average move ${r.meanAbsMove.toFixed(2)} % vs ` +
-          `${r.meanAbsMoveAllDays!.toFixed(2)} % on all days; last ${r.last.map((l) => `${l.day} ${l.move >= 0 ? "+" : ""}${l.move.toFixed(1)} %`).join(", ")}`,
-      );
-    }
-  }
-  return lines.length ? { title: "Event reactions (computed by code from daily candles, close before to close of the event day):", lines, detail: "events" } : null;
+/**
+ * Event cycles (step C2): reactions measured by code around the event
+ * types due within a week (all types in the detail view), and the cycles
+ * the model named, with code's verdicts.
+ */
+function cyclesSection(db: DB, cfg: TraderConfig, now: Date, all: boolean): Section | null {
+  const soon = all ? null : [...new Set(upcomingEvents(db, now, 7).map((e) => e.type))];
+  const lines = describeCycles(db, cfg, soon);
+  if (lines.length === 0) return null;
+  return {
+    title: all
+      ? "Event cycles (reactions measured by code per event, asset and window; your named cycles with code's verdicts):"
+      : `Event cycles for the events due within 7 days (${soon!.join(", ")}; measured by code; ${moreHint("cycles")} for all types):`,
+    lines,
+    detail: "cycles",
+  };
 }
 
 function pageLine(o: Observation): string {
@@ -439,7 +444,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     hypothesesSection(db, PACK_HYPOTHESES, STATEMENT_PREVIEW),
     dossiersSection(db, cfg, DOSSIER_PREVIEW),
     indicatorsSection(db, now),
-    reactionsSection(db, cfg, now),
+    cyclesSection(db, cfg, now, false),
     observationsSection(db, cfg, now, 2),
     reflectionsSection(db, PACK_REFLECTIONS, REFLECTION_PREVIEW),
     headlinesSection(db, now, PACK_HEADLINES),
@@ -498,9 +503,13 @@ export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSecti
       const ind = indicatorsSection(db, now);
       return fitSections(head, [{ title: "Sources:", lines: describeSources(db, "en").split("\n") }, ...(ind ? [ind] : [])]);
     }
+    case "cycles": {
+      const cycles = cyclesSection(db, cfg, now, true);
+      return fitSections(head, [cycles ?? { title: "Event cycles:", lines: ["- no reaction measured yet (needs the daily history and past event days)"] }]);
+    }
     case "events": {
-      const reactions = reactionsSection(db, cfg, now);
-      return fitSections(head, [upcomingSection(db, now, 30), ...(reactions ? [reactions] : [])]);
+      const cycles = cyclesSection(db, cfg, now, true);
+      return fitSections(head, [upcomingSection(db, now, 30), ...(cycles ? [cycles] : [])]);
     }
   }
 }

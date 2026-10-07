@@ -156,6 +156,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/dossier [actif]` | son dossier sur un actif (thèse, catalyseurs, niveaux, versions) |
 | `/note <texte>` | lui laisser une note : une information fiable de ta part, lue à sa prochaine séance (pas un ordre) |
 | `/memoire <sujet>` | ce qu'il sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres) |
+| `/cycles` | réactions mesurées par le code autour des événements (Fed, inflation, emploi) et cycles nommés par Sonni, avec leur verdict |
 | `/carnets` | écrire ses carnets Markdown dans `/home/sonni/carnet/` (aussi chaque dimanche) ; lis-les avec `sudo -u sonni cat /home/sonni/carnet/btc.md` |
 | `/technique` | état technique du programme (budget détaillé, pauses, cycles) et les incidents des 7 derniers jours (ce que le programme a fait seul : pause, plafond, erreurs, sauvegarde) |
 | `/idee <texte>` | lui donner une intuition à tester |
