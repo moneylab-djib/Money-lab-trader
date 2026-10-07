@@ -649,6 +649,10 @@ async function run(): Promise<void> {
     every(60_000, "Sonni résolution", async () => {
       const n = resolveTick(db.raw, live());
       if (n > 0) logger.info(`[SONNI] ${n} prédiction(s) résolue(s).`);
+      // French wording of the model's new hypotheses for the owner: one cheap query a minute, a
+      // reader call only while some lack it (new intuitions right after an intake).
+      const translated = await translateHypothesesTick(db.raw, live(), withSecrets());
+      if (translated.stored > 0) logger.info(`[SONNI] ${translated.stored} intuition(s) traduite(s) par ${translated.readerId}.`);
     });
     every(60_000, "Sonni curiosité", async () => {
       const outcome = curiosityTick(db.raw, live(), { canWake, wake: (source, reason) => insertWakeEvent(db.raw, source, reason) });
@@ -675,9 +679,6 @@ async function run(): Promise<void> {
       }
       const digest = await digestTick(db.raw, live(), withSecrets());
       if (digest.stored > 0) logger.info(`[SONNI] ${digest.stored} observation(s) extraite(s) de ${digest.sent} titre(s) par ${digest.readerId}.`);
-      // French wording of the model's hypotheses for the owner (nothing to do once all have one).
-      const translated = await translateHypothesesTick(db.raw, live(), withSecrets());
-      if (translated.stored > 0) logger.info(`[SONNI] ${translated.stored} intuition(s) traduite(s) par ${translated.readerId}.`);
       if (newsError) throw newsError;
     });
     every(5 * 60_000, "Sonni sources", async () => {

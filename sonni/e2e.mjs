@@ -382,7 +382,8 @@ const statut = tgOutbox.find((m) => /SONNI/.test(m.text))?.text ?? "";
 /💶 Budget\nIA aujourd'hui : \d+,\d\d \$ sur 1,93 \$/.test(statut) ? ok("/statut shows today's spend against the cap") : fail("/statut lacks the budget line");
 !/[hp]_01[0-9A-Z]{20}/.test(statut) ? ok("/statut shows no identifiers") : fail("/statut still shows identifiers");
 tgSend("/intuitions");
-await until(() => tgOutbox.some((m) => /\[FR\] BTC rebounds the day after a drop/.test(m.text)), 30000)
+// The translation runs on the minute timer: allow a full minute after the intake.
+await until(() => tgOutbox.some((m) => /\[FR\] BTC rebounds the day after a drop/.test(m.text)), 90000)
   ? ok("/intuitions shows the hypothesis in French, translated by the fake reader") : fail("/intuitions lacks the translated hypothesis");
 tgSend("/technique");
 await until(() => tgOutbox.some((m) => /ÉTAT TECHNIQUE/.test(m.text)), 30000) ? ok("/technique shows the runtime's technical state") : fail("/technique got no answer");
