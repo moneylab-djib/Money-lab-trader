@@ -13,6 +13,7 @@
  * description is enforced in the module it calls.
  */
 
+import { DOSSIER_MAX_CHARS, MAX_DOSSIER_REVISIONS_PER_DAY, updateDossier } from "./dossiers.js";
 import type { AutomatonTool } from "../types.js";
 import { withSecrets } from "../money-lab/selfhosted.js";
 import { buildMemoryPack, buildMemorySection, PACK_SECTIONS, type PackSection } from "./pack.js";
@@ -40,7 +41,7 @@ const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 /** Sonni tools that write to its memory or fetch the world: work, never idle turns (src/agent/loop.ts). */
 export const SONNI_WORK_TOOLS: ReadonlySet<string> = new Set([
   "propose_hypothesis", "record_prediction", "write_reflection", "add_lesson", "retire_lesson", "revise_identity",
-  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap",
+  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier",
 ]);
 
 function str(v: unknown): string {
@@ -260,6 +261,31 @@ export function createTraderTools(): AutomatonTool[] {
         if (!ctx.config.trader) return NOT_CONFIGURED;
         const r = reviseIdentity(ctx.db.raw, { content: args.content, reason: args.reason, source: "model" });
         return r.ok ? `Identity version ${r.value.version} recorded.` : `Refused: ${r.error}`;
+      },
+    },
+    {
+      name: "update_dossier",
+      description:
+        "Rewrite your dossier on one followed asset, in French, at most " + DOSSIER_MAX_CHARS + " characters: your long-term " +
+        "thesis, the catalysts ahead (dated when known), the levels you watch, what you learned on this asset (predictions, " +
+        "trades, traps). Every version is kept and the owner reads them (/dossier). At most " + MAX_DOSSIER_REVISIONS_PER_DAY +
+        " revision per asset and day: revise when something real changed, and at the weekly review.",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: {
+        type: "object",
+        properties: {
+          asset: { type: "string", description: "A followed asset symbol, e.g. BTC" },
+          content: { type: "string", description: "The full new dossier text" },
+          reason: { type: "string", description: "What changed and why, one or two sentences" },
+        },
+        required: ["asset", "content", "reason"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const db = ctx.db.raw;
+        const r = updateDossier(db, activeConfig(db, ctx.config.trader), { asset: args.asset, content: args.content, reason: args.reason });
+        return r.ok ? `Dossier ${r.value.asset} version ${r.value.version} recorded.` : `Refused: ${r.error}`;
       },
     },
     {

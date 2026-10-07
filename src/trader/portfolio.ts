@@ -344,6 +344,13 @@ export function placeOrder(db: DB, cfg: TraderConfig, input: OrderInput, now: Da
   if (ids.length > MAX_HYPOTHESES_PER_ORDER) return { ok: false, error: `At most ${MAX_HYPOTHESES_PER_ORDER} hypothesis ids.` };
   for (const id of ids) if (!getHypothesis(db, id)) return { ok: false, error: `Unknown hypothesis ${id}.` };
   if (pendingOrders(db, asset).some((o) => o.side === side)) return { ok: false, error: `A ${side} order on ${asset} is already pending; cancel it first (cancel_order).` };
+  if (origin === "model") {
+    const dayStart = `${now.toISOString().slice(0, 10)}T00:00:00.000Z`;
+    const today = (db.prepare("SELECT COUNT(*) AS n FROM trader_orders WHERE origin = 'model' AND placed_at >= ?").get(dayStart) as { n: number }).n;
+    if (today >= pc.maxOrdersPerDay) {
+      return { ok: false, error: `Daily order cap: ${today} orders placed today (max ${pc.maxOrdersPerDay} per UTC day, cancelled ones included). Fewer, better-reasoned orders; the cap resets at 00:00 UTC.` };
+    }
+  }
 
   let amountEur: number | null = null;
   let quantity: number | null = null;

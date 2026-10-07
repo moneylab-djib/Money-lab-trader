@@ -34,6 +34,9 @@
 | Sonni paper broker | src/trader/portfolio.ts | Virtual portfolio: funding, orders checked and filled by code at later prices with fees and slippage, positions, stops, horizons, trades with P&L, traps, snapshots, performance | Order rules, fees, the position cap, fills or the performance figures change (keep docs/MEMORY.md and ARCHITECTURE.md in sync) |
 | Sonni owner reports | src/trader/report.ts | Morning report and evening summary for the owner, in French | What the owner receives each morning or evening changes |
 | Sonni French formatting | src/trader/format.ts | Euro, percent, date and time formatting in the owner's time zone | Owner-facing number or date formats change |
+| Sonni incident log | src/trader/incidents.ts | Append-only log of what the runtime did on its own (pauses, caps, cut answers, failed backups), for /technique and the morning report | A new automatic protection is added (keep docs/GUARDS.md in sync) |
+| Sonni dossiers and owner notes | src/trader/dossiers.ts | Versioned asset dossiers written by the model or the owner; the owner's trusted notes | What a dossier holds, its limits or the owner's note handling change (keep docs/MEMORY.md in sync) |
+| Sonni notebooks | src/trader/notebooks.ts | Markdown notebooks in ~/carnet written from the stores, every Sunday and on /carnets | A notebook's content or the export schedule changes |
 
 Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

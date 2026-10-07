@@ -594,6 +594,128 @@
           }
         ]
       }
+    },
+    {
+      "id": "guard-map",
+      "title": "Guard map G1-G9 (autonomous-agents method): no shell for Sonni, order cap, stop reasons, injection test, verified backups, incident log",
+      "criteria": [
+        "No shell, file, installer, self-edit, git, port, sandbox, credit, sub-agent or scheduled-command tool is offered to or runnable by Sonni (G1)",
+        "An unknown inference cost is charged at the estimate and pauses the agent; a paid cycle without journal progress counts and the model's orders count as progress (G2, G3)",
+        "The model places at most maxOrdersPerDay orders per UTC day, cancelled ones included; code's stops are exempt (G4)",
+        "An answer cut at the output limit never runs its tool calls and the model is told; an unknown stop reason pauses the agent (G5)",
+        "A page claiming the owner's approval produces an untrusted observation only (G6)",
+        "A daily backup is opened, integrity-checked and row-counted before it counts; a failing copy is reported (G7)",
+        "Automatic actions are logged as incidents, append-only with keys scrubbed, shown by /technique and counted in the morning report (G9)",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "paths": [
+        "src",
+        "sonni"
+      ],
+      "implementation": {
+        "at": "2026-10-07T10:30:00.832332+00:00",
+        "note": "src/trader/incidents.ts, config.ts (SONNI_DENIED_TOOLS, maxOrdersPerDay), portfolio.ts, loop.ts, backup.ts, index.ts, journal.ts, telegram.ts, report.ts, sources.ts, readers.ts; tests src/__tests__/trader/guards.test.ts (8); docs/GUARDS.md"
+      },
+      "verification": {
+        "at": "2026-10-07T10:40:16.200554+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "21a8db9b8bfcbeb641836325a372c525515ae7cc882d428ae572b5dde05ca4b8",
+        "scope": [
+          "src",
+          "sonni"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "money-lab",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni",
+          "7": "sonni",
+          "8": "sonni"
+        },
+        "checks_hash": "210ba7f9855ac672f0063194667e9b122d16ca1dcc80f1203a0d6d6afffdfd1c",
+        "report": ".likma/checks/399c0e709e14475e98c66037b79b4413.json",
+        "contract": "f5d1247de86c14cae41710ca67b4795d3701599864fe09dfd0c48ecac10f7eb5",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 12.765,
+            "output_bytes": 11418,
+            "output_sha256": "93c40b03ec4031f935c6387668d1a914a0487c5dabd15df6fb8f34c8c48f38ce"
+          },
+          {
+            "name": "money-lab",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 83.563,
+            "output_bytes": 40205,
+            "output_sha256": "2afbb7afc8db91ab3906d6645d8d816db53742af28d482640202bf64943ed7ba"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dossiers-notebooks",
+      "title": "Step C1: asset dossiers, owner notes, /memoire, Markdown notebooks, chaos e2e (G8)",
+      "criteria": [
+        "The model keeps one versioned dossier per followed asset (update_dossier), at most one revision per asset and UTC day, checked and append-only; the owner reads it with /dossier",
+        "The owner's /note stores a trusted note tagged with the assets it mentions; the pack shows notes of the last 7 days as information, not orders",
+        "The memory pack shows the latest dossier per asset and the detail views dossiers and notes; /memoire searches dossiers, traps, notes, order theses, journal, lessons, hypotheses and identity in French without identifiers",
+        "Markdown notebooks (journal, intuitions, pieges, lecons, identite, portefeuille, one per asset) are written to ~/carnet every Sunday in the owner's time zone and on /carnets",
+        "Chaos e2e (G8): three API 529s, Telegram and Kraken down 40 s; the process survives, collection resumes, the owner's message is handled exactly once",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "paths": [
+        "src",
+        "sonni"
+      ],
+      "implementation": {
+        "at": "2026-10-07T11:06:30.200590+00:00",
+        "note": "src/trader/dossiers.ts, notebooks.ts, schema, tools (update_dossier), pack, prompt, recall, cli, telegram, index; tests src/__tests__/trader/dossiers.test.ts (6); e2e commands and chaos scenario"
+      },
+      "verification": {
+        "at": "2026-10-07T11:15:09.536261+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "51e85bedf56071e1d47d141be43d56911cd6a5a4095cb1d588c6bd9be3e6c06b",
+        "scope": [
+          "src",
+          "sonni"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni-e2e",
+          "6": "sonni"
+        },
+        "checks_hash": "fb886b17f4937132c93ded570fef9a2cef1d7ad28a0129742a5a81561e9b98d9",
+        "report": ".likma/checks/5f8f7d5f57474cc7959dc28ffa1feb8d.json",
+        "contract": "639637716a663c81c92345e617c1e983827b4018b5a785308ee38bfd1e7cf6e2",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 13.412,
+            "output_bytes": 11477,
+            "output_sha256": "ebee20e93657bc1a17956f00995c09fb37ddbb51d9fc3967d1f0376b8f8f5d6e"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 505.647,
+            "output_bytes": 3799,
+            "output_sha256": "c4d291414b1cf4d8ecaa0639d9991b89a236a32ce75054d5fc6d9a0075177afd"
+          }
+        ]
+      }
     }
   ]
 }

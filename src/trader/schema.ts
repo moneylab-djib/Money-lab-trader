@@ -58,6 +58,45 @@ function migrateReflectionKinds(db: DB): void {
   `);
 }
 
+/** Step C1: asset dossiers (versioned) and the owner's notes. */
+function ensureDossierSchema(db: DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_dossiers (
+      id TEXT PRIMARY KEY,
+      asset TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      source TEXT NOT NULL CHECK (source IN ('model', 'owner')),
+      recorded_at TEXT NOT NULL,
+      UNIQUE (asset, version)
+    );
+    ${appendOnly("trader_dossiers")}
+
+    CREATE TABLE IF NOT EXISTS trader_owner_notes (
+      id TEXT PRIMARY KEY,
+      at TEXT NOT NULL,
+      text TEXT NOT NULL,
+      assets TEXT NOT NULL
+    );
+    ${appendOnly("trader_owner_notes")}
+  `);
+}
+
+/** Guard G9: the incident log, written by code only. */
+function ensureGuardSchema(db: DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_incidents (
+      id TEXT PRIMARY KEY,
+      at TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      message TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_incidents_at ON trader_incidents (at);
+    ${appendOnly("trader_incidents")}
+  `);
+}
+
 function ensurePortfolioSchema(db: DB): void {
   migrateReflectionKinds(db);
   const ORDER_FIXED = ["id", "placed_at", "asset", "side", "kind", "amount_eur", "quantity", "limit_price", "thesis", "probability",
@@ -326,6 +365,8 @@ function ensureKnowledgeSchema(db: DB): void {
   if (!headlineColumns.includes("digested_at")) db.exec("ALTER TABLE trader_headlines ADD COLUMN digested_at TEXT");
   ensureAliveSchema(db);
   ensurePortfolioSchema(db);
+  ensureGuardSchema(db);
+  ensureDossierSchema(db);
 }
 
 /** Append-only: refuse every update and delete on a table. */

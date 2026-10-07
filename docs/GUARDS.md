@@ -1,0 +1,56 @@
+# Sonni guard map
+
+Method: Likma `agents/autonomous-agents` (envelope, then guard → threat → code → test). Owner's
+decision of 2026-10-07: build G1 to G9. Status column: `verified` means the named test passed in the
+configured check (`sonni`, `money-lab` or `sonni-e2e`) on the commit named in docs/STATUS.md; a guard
+without a passing test is `unverified`.
+
+## Envelope
+
+- Goal: learn to read markets on a virtual portfolio; owner channel on Telegram; no real money.
+- Forbidden capabilities: real orders, exchange or broker accounts, credentials, replication,
+  editing its own runtime, configuration, state or constitution, publishing, buying anything, a shell
+  (G1). Enforced by the tool set offered to the model and by policy; stated in the prompt.
+- Spend: integer cents; caps per call, per hour and per UTC day from the owner's 50 EUR/month
+  (configure.mjs), enforced by the inference router; the Anthropic workspace spend limit the owner
+  sets in the console is the backstop and the only limit the process cannot change.
+- Isolation statement: the runtime is launched as root only to switch at once to the `sonni` user
+  (non-dumpable). In-process limits (caps, policy, append-only triggers) are not an isolation
+  boundary: a bug in the runtime or the owner's own shell can still reach the database. Since G1
+  the model has no shell, file or installer tool, so a prompt injection has no path to the host.
+
+## Guard map
+
+| # | Guard | Threat | Code | Test | Status |
+| --- | --- | --- | --- | --- | --- |
+| G1 | No shell, file, installer, self-edit, git, port, sandbox, credit, sub-agent or scheduled-command tool is offered to or runnable by Sonni | A page or headline talks the model into reading its database, its config or `/etc/sonni.env`, installing code or editing the runtime | `SONNI_DENIED_TOOLS` in src/trader/config.ts; removed from the offered list in src/agent/loop.ts; denied by policy in src/money-lab/guard.ts (`SONNI_TOOL_DISABLED`) | guards.test "G1" (policy denies with any arguments); sonni.test "offers the agent no tool to change a prediction" and "Decision session" (offered list); e2e "no shell, file, installer or git tool offered" | verified |
+| G2 | Unknown inference cost is charged at the estimate and pauses the agent until the owner reconciles | A timeout or a response without usage counts as free | src/inference/router.ts (`costEstimated`), src/agent/loop.ts (pause, incident `unknown_cost`) | money-lab.test "coût d'inférence inconnu" (pause), router estimate tests | verified |
+| G3 | No progress: a paid wake cycle that leaves the journal fingerprint unchanged counts; after `noProgressCycles` (5) the runtime sleeps `noProgressSleepMinutes` and tells the owner; the model's orders, level changes and traps count as progress | A loop that spends without producing | src/money-lab/cycle.ts, `journalFingerprint` in src/money-lab/journal.ts, incident `no_progress` in src/index.ts | money-lab-vps.test (afterWakeCycle), money-lab.test no-progress cases, guards.test "G3" (orders change the fingerprint, code's stops do not) | verified |
+| G4 | At most `portfolio.maxOrdersPerDay` (10) model orders per UTC day, cancelled ones included; code's stops are not counted | Churn: orders placed and cancelled in a loop, fees and paid turns wasted | `placeOrder` in src/trader/portfolio.ts | guards.test "G4" | verified |
+| G5 | Stop reasons mapped to one action: `tool_calls` run, `stop`/`refusal` end the turn, `length` (answer cut at the output limit) never runs its tool calls and tells the model to continue in shorter steps, `budget_exceeded` sleeps or pauses, anything else pauses for the operator | A truncated tool call executed with incomplete arguments; a new API behaviour acted on blindly | src/agent/loop.ts (`KNOWN_FINISH_REASONS`, truncation guard), src/conway/inference.ts (`normalizeAnthropicFinishReason`) | guards.test "G5" (cut answer: no order, note in the next request, incident; unknown reason: pause) | verified |
+| G6 | Fetched pages, headlines and reader output are data: they become untrusted observations only; nothing they say changes caps, owners, orders or settings | Prompt injection through content | src/trader/pages.ts, src/trader/readers.ts (field validation, prompt-boundary patterns), owner identity by Telegram chat id in src/money-lab/telegram.ts | guards.test "G6" (page claiming the owner's approval), readers.test (injected digest refused), clarity.test (injected translation refused), portfolio.test (thesis with a boundary pattern refused) | verified |
+| G7 | A daily backup counts only once opened read-only, `integrity_check` = ok and row counts at least those of the live database before the copy; a failing copy is a health event and an incident | A corrupt or partial backup discovered when it is needed | `tableCounts`, `verifyBackup` in src/money-lab/backup.ts; hourly task in src/index.ts | guards.test "G7" (sound copy, rows added after, short copy, corrupt file, missing file) | verified |
+| G8 | Chaos scenario in the e2e: three API 529s, Telegram and Kraken down for 40 s while the owner writes; the process survives, collection resumes, the message is handled exactly once after the outage (retried with the same input), /sante names the failed task | Real outages on the VPS | sonni/e2e.mjs (chaos block), retry logic in src/agent/loop.ts, health events | e2e "process alive after 40 s…", "price collection resumed…", "the owner's message… exactly once" | verified (sonni-e2e) |
+| G9 | Incident log: automatic pauses, caps, unknown cost, error streaks, cut answers, unknown stop reasons, no-progress sleeps, disabled sources, refused readers, failed backups, forced sleeps; append-only, keys scrubbed; shown by /technique (7 days) and counted in the morning report (24 h) | Silent drift: the runtime protecting itself without the owner knowing | src/trader/incidents.ts; hooks in src/agent/loop.ts, src/money-lab/journal.ts (`pause`), src/index.ts, src/trader/sources.ts, src/trader/readers.ts | guards.test "G9" | verified |
+
+Guards that existed before this map and stay verified by their own tests: identical-call detection
+(name and arguments, warn then forced sleep: src/agent/loop.ts, money-lab tests), sleep clamp 6 h
+(src/agent/tools.ts), pause record checked before every paid call and tool (src/money-lab/guard.ts),
+owner authenticated by chat id and Telegram offset persisted before processing, outbox with retries,
+sealed secrets (never in outbound text: e2e), append-only predictions, orders, trades, journal
+(schema triggers), `read_page` host checks (private and link-local addresses, redirects, size caps),
+daily backup rotation (7 copies).
+
+## Incident log and health report
+
+- Incidents: `trader_incidents` (id, at, kind, message). Kinds: pause, cap, unknown_cost, errors,
+  truncated, unknown_stop, no_progress, source_disabled, reader_refused, backup, loop.
+- Owner view: `/technique` lists the last 7 days (10 most recent); the morning report adds one
+  "À surveiller" line when any incident happened in the last 24 h.
+- Health report: Money Lab's `/sante` (process, tasks, spend on the same UTC windows as the caps).
+
+## Live-run protocol
+
+Already live on the owner's VPS since 2026-10-06 under the owner's caps (1.93 USD/day). After each
+deployment: `/technique` for incidents, `/sante`, the morning report. Caps are widened only by the
+owner after a clean window.

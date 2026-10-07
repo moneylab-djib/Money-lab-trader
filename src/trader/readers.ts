@@ -17,6 +17,7 @@
  * request per cooldown, not one per tick.
  */
 
+import { recordIncident } from "./incidents.js";
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import { containsInjectionPatterns } from "../soul/validator.js";
@@ -223,6 +224,7 @@ export async function askReader(
       const pause = e.kind === "auth" ? AUTH_COOLDOWN_MS : e.kind === "rate" ? RATE_COOLDOWN_MS : ERROR_COOLDOWN_MS;
       // Same clock as availableReaders (injected in tests), not the wall clock.
       resting.set(reader.id, { until: now().getTime() + pause, why: `${e.kind}: ${e.message}`.slice(0, 120) });
+      if (e.kind === "auth") recordIncident(db, "reader_refused", `${reader.id} refuse la clé (${e.message.slice(0, 80)}) ; au repos ${Math.round(pause / 3_600_000)} h`, now());
     }
   }
   return null;

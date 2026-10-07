@@ -87,7 +87,8 @@
       "makerFeePct": 0.4,
       "slippageBps": 5,
       "minOrderEur": 10,
-      "eurUsd": 1.16
+      "eurUsd": 1.16,
+      "maxOrdersPerDay": 10
     }
   }
 }

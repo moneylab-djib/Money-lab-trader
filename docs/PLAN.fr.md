@@ -114,8 +114,19 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    du passage au réel. Pour toi : `/portefeuille`, `/journee`, et un résumé chaque soir à 20 h (ton
    choix : un résumé par jour plutôt qu'un message par ordre). Aucun compte, aucun argent réel : le
    portefeuille n'existe que dans sa base de données.
-3. **Actualité et calendrier** : lecture des news, événements datés, mesure des réactions de prix.
-4. **Mémoire complète** : intuitions, pièges, cycles, autopsies quotidiennes.
+3. **Actualité et calendrier** ✅ (voir 1 ter).
+4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :
+   - *C1 — Dossiers et carnets* ✅ construit le 7 octobre : un dossier par actif suivi, écrit par Sonni
+     (thèse de fond, catalyseurs, niveaux, ce qu'il a appris ; une révision par jour et par actif au
+     plus, chaque version gardée, `/dossier <actif>`) ; `/note <texte>` pour lui laisser une information
+     fiable qu'il lit à sa prochaine séance (une information, pas un ordre) ; `/memoire <sujet>` pour
+     chercher dans tout ce qu'il sait ; et ses carnets Markdown dans `~/carnet/` sur le VPS, réécrits
+     chaque dimanche et sur `/carnets` (journal, intuitions, pièges, leçons, identité, portefeuille, un
+     fichier par actif). Au passage, le scénario « chaos » du test bout-en-bout (garde-fou G8) : API,
+     Telegram et Kraken en panne pendant 40 s, ton message pendant la panne traité une seule fois après.
+   - *C2 — Cycles* : réactions mesurées autour des événements, cycles nommés par Sonni et chiffrés par
+     le code, `/cycles`.
+   - *C3 — Autopsie du soir* : un réveil programmé chaque soir (1 tour payé par jour).
 5. **Ce que Claude sait déjà** : séance d'intuitions initiales + statistiques sur l'historique.
 6. **Revue hebdo** : rapport du dimanche sur Telegram, carnets lisibles dans `~/carnet/`.
 7. **Actions et ETF** en plus de la crypto, avec la liste d'actifs qu'il choisit lui-même.
@@ -170,6 +181,30 @@ gros au moment du passage au réel.
 - **Écartés** : bases vectorielles et frameworks de mémoire en Python (un deuxième langage, des
   coûts en plus, sans besoin prouvé).
 
+## Garde-fous (ta décision du 7 octobre)
+
+Ce que le code fait tout seul pour que Sonni reste dans son cadre (détail : `docs/GUARDS.md`) :
+- **Pas de shell** : Sonni n'a plus aucun outil pour exécuter une commande, lire ou écrire un fichier,
+  installer quoi que ce soit ou toucher au code. Une page piégée n'a donc aucun chemin vers le serveur.
+- **Coût inconnu = pause** : si l'API ne dit pas ce qu'un appel a coûté, il est compté à l'estimation
+  et Sonni attend que tu vérifies (`/reprendre`).
+- **Sans progrès = long sommeil** : cinq cycles payés qui ne changent rien à sa mémoire, et il dort
+  deux heures en te prévenant.
+- **Dix ordres par jour au plus** (annulations comprises) : pas d'agitation en boucle.
+- **Réponse coupée = rien d'exécuté** : si sa réponse dépasse la limite de sortie, ses appels d'outils
+  ne sont pas lancés et on lui demande de faire plus court ; une raison d'arrêt inconnue de l'API le
+  met en pause.
+- **Le web reste de la donnée** : une page qui prétend que tu as autorisé une dépense ne produit
+  qu'une observation marquée « non fiable », testé.
+- **Sauvegarde vérifiée** : chaque copie quotidienne est rouverte et contrôlée (intégrité, nombre de
+  lignes) avant de compter ; sinon tu le vois dans `/technique` et le rapport du matin.
+- **Journal des incidents** : tout ce que le programme fait seul pour se protéger (pause, plafond,
+  erreurs en série, réponse coupée, source désactivée, IA lectrice refusée, sauvegarde invalide) est
+  daté dans `/technique` et compté dans ton rapport du matin.
+- À venir avec l'étape C : un scénario « chaos » dans le test bout-en-bout (API en panne, Telegram
+  et Kraken injoignables).
+Seule la limite de dépense que tu fixes dans la console Anthropic est hors de portée du programme.
+
 ## Seuils de passage au réel
 
 On les fixera ensemble après ses premiers mois de résultats (ta décision du 6 octobre).
@@ -178,6 +213,8 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 
 - `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
+- `/dossier <actif>`, `/note <texte>`, `/memoire <sujet>`, `/carnets` : ses dossiers par actif, tes
+  notes, sa mémoire en recherche, ses carnets Markdown (étape C1).
 - `/portefeuille` : son portefeuille virtuel (valeur, positions avec leur raison, ordres en attente
   et récents, résultats calculés par le code, opérations closes, pièges nommés). `/journee` : le
   résumé du jour, que tu reçois aussi chaque soir à 20 h.

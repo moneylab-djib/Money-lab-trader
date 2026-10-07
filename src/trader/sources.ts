@@ -13,6 +13,7 @@
  * errors or the model's context.
  */
 
+import { recordIncident } from "./incidents.js";
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import { containsInjectionPatterns } from "../soul/validator.js";
@@ -342,6 +343,7 @@ export async function sourcesTick(db: DB, deps: FetchDeps, now: Date = new Date(
         db.prepare("UPDATE trader_sources SET status = 'disabled', last_fetch_at = ?, last_error = ?, failures = ?, reason = ?, updated_at = ? WHERE id = ?")
           .run(now.toISOString(), message, failures, `désactivée par le code après ${failures} échecs`, now.toISOString(), src.id);
         logAction(db, src.id, "disable", "code", `${failures} échecs consécutifs : ${message}`, now);
+        recordIncident(db, "source_disabled", `source ${src.id} désactivée après ${failures} échecs : ${message}`, now);
         out.disabled.push(src.id);
       } else {
         db.prepare("UPDATE trader_sources SET last_fetch_at = ?, last_error = ?, failures = ?, updated_at = ? WHERE id = ?")

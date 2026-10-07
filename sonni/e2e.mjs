@@ -102,7 +102,11 @@ function model(body) {
       for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap"]) {
         if (!offered.has(t)) fail(`tool ${t} not offered`);
       }
-      for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal"]) if (offered.has(t)) fail(`tool ${t} offered`);
+      for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal",
+        "exec", "read_file", "write_file", "edit_own_file", "install_npm_package", "install_skill", "install_mcp_server", "git_push", "expose_port", "schedule_job", "delegate"]) {
+        if (offered.has(t)) fail(`tool ${t} offered`);
+      }
+      offered.has("sonni_memory") && !offered.has("exec") ? ok("no shell, file, installer or git tool offered to Sonni (guard G1)") : fail("guard G1 not in effect");
       step++;
       return reply([use("sonni_memory", {})]);
     }
@@ -138,12 +142,15 @@ function model(body) {
         use("write_reflection", { kind: "session", content: "Première séance : marché calme, une prédiction prudente à 24 h et une veille au-dessus de 70 000 EUR." }),
         use("place_order", { asset: "BTC", side: "buy", amount_eur: 100, invalidation: 55000, horizon_hours: 72, probability: 0.6,
           thesis: "Marché calme et BTC au-dessus de 59 000 : une petite position de test, stop à 55 000 si je me trompe." }),
+        use("update_dossier", { asset: "BTC", reason: "Premier dossier après la première séance.",
+          content: "Thèse : le BTC tient au-dessus de 59 000 EUR dans un marché calme. Catalyseur : décision de la Fed dans 9 jours. Niveaux : 55 000 (invalidation), 70 000 (à revoir)." }),
       ]);
     }
     case 3: {
       results.some((r) => /Watch set: w_\w+ \[price\] BTC above 70000 EUR/.test(r)) ? ok("watch set through the agent loop") : fail(`watch not set: ${results.at(-1)}`);
       results.some((r) => /Reflection r_\w+ \(session\) recorded/.test(r)) ? ok("reflection written through the agent loop") : fail(`reflection not written: ${results.at(-1)}`);
       results.some((r) => /Order o_\w+ pending: market buy 100 EUR of BTC, stop at 55000 EUR/.test(r)) ? ok("virtual order placed through the agent loop, pending until the next price") : fail(`order not placed: ${results.at(-1)}`);
+      results.some((r) => /Dossier BTC version 1 recorded\./.test(r)) ? ok("asset dossier written through the agent loop") : fail(`dossier not written: ${results.at(-1)}`);
       step++;
       return reply([use("sleep", { duration_seconds: 3600, reason: "next session" })]);
     }
@@ -170,6 +177,9 @@ const sourceCalls = { fng: 0, coingecko: 0, mempool: 0, depth: 0 };
 let tick = 0;
 /** Once set, the fake ticker jumps 4 % so code wakes the sleeping agent. */
 let jump = false;
+/** Guard G8: outage windows served by the fake servers (count of 529s left, and until-timestamps). */
+const chaos = { anthropic: 0, telegramUntil: 0, krakenUntil: 0 };
+let ownerHelloSeen = 0;
 
 const server = http.createServer(async (req, res) => {
   let raw = "";
@@ -177,7 +187,12 @@ const server = http.createServer(async (req, res) => {
   const send = (status, obj) => { res.writeHead(status, { "content-type": "application/json", "request-id": "req_e2e" }); res.end(JSON.stringify(obj)); };
   const url = new URL(req.url, "http://x");
   if (url.pathname.startsWith("/anthropic/v1/messages")) {
+    if (chaos.anthropic > 0) {
+      chaos.anthropic--;
+      return send(529, { type: "error", error: { type: "overloaded_error", message: "Overloaded" } });
+    }
     const body = JSON.parse(raw);
+    if (/es-tu toujours là/.test(JSON.stringify([...body.messages].reverse().find((m) => m.role === "user") ?? ""))) ownerHelloSeen++;
     const errs = validate(body);
     if (errs.length) {
       fail(`Anthropic would reject request (step ${step}): ${errs.join("; ")}`);
@@ -256,12 +271,14 @@ const server = http.createServer(async (req, res) => {
     return send(200, { error: [], result: { [`X${pair}Z`]: rows, last } });
   }
   if (url.pathname.startsWith("/kraken/0/public/Ticker")) {
+    if (Date.now() < chaos.krakenUntil) return send(503, { error: ["EService:Unavailable"] });
     const pair = url.searchParams.get("pair");
     krakenCalls.push({ at: Date.now(), pair });
     const price = pair === "XBTEUR" ? (jump ? 62500 : 60000 + 10 * ++tick) : 2400 + tick;
     return send(200, { error: [], result: { [`X${pair}Z`]: { c: [String(price), "0.01"] } } });
   }
   if (url.pathname.startsWith("/telegram/")) {
+    if (Date.now() < chaos.telegramUntil) return send(502, { ok: false, error_code: 502, description: "Bad Gateway" });
     const method = url.pathname.split("/").pop();
     const params = raw ? JSON.parse(raw) : {};
     if (method === "getUpdates") {
@@ -422,6 +439,35 @@ await until(() => tgOutbox.some((m) => /Première séance : marché calme/.test(
   ? ok("/journal shows the reflection written by the model") : fail("/journal lacks the reflection");
 tgSend("/bilan");
 await until(() => tgOutbox.some((m) => /BILAN DE SONNI/.test(m.text)), 30000) ? ok("/bilan answers in French") : fail("/bilan got no answer");
+tgSend("/note Le BTC me semble fragile cette semaine, prudence.");
+await until(() => tgOutbox.some((m) => /Note enregistrée \(BTC\)/.test(m.text)), 30000) ? ok("/note stores the owner's note with the asset it mentions") : fail("/note got no confirmation");
+tgSend("/dossier BTC");
+await until(() => tgOutbox.some((m) => /📁 Dossier BTC — version 1, écrite par Sonni/.test(m.text) && /Thèse : le BTC tient/.test(m.text)), 30000)
+  ? ok("/dossier shows the dossier the model wrote") : fail("/dossier lacks the dossier");
+tgSend("/memoire catalyseur");
+await until(() => tgOutbox.some((m) => /🧠 Ce que Sonni sait sur « catalyseur »/.test(m.text) && /\[dossier BTC v1\]/.test(m.text)), 30000)
+  ? ok("/memoire finds the dossier by a word it contains") : fail("/memoire lacks the dossier");
+tgSend("/carnets");
+await until(() => tgOutbox.some((m) => /📚 Carnets écrits dans/.test(m.text)), 30000) ? ok("/carnets writes the notebooks") : fail("/carnets got no answer");
+const btcNotebook = path.join(HOME, "carnet", "btc.md");
+fs.existsSync(btcNotebook) && /Thèse : le BTC tient/.test(fs.readFileSync(btcNotebook, "utf-8")) && fs.existsSync(path.join(HOME, "carnet", "journal.md"))
+  ? ok("notebooks on disk carry the dossier and the journal") : fail("notebooks missing or incomplete");
+
+// ─── Chaos (guard G8): the API, Telegram and Kraken fail for 40 s while the owner writes; the process
+// survives, collection resumes, the message is handled once after the outage (retried with the same input).
+chaos.anthropic = 3;
+chaos.telegramUntil = Date.now() + 40_000;
+chaos.krakenUntil = Date.now() + 40_000;
+const krakenBefore = krakenCalls.length;
+tgSend("Sonni, es-tu toujours là ?");
+await wait(45_000);
+child.exitCode === null ? ok("process alive after 40 s of API, Telegram and Kraken failures") : fail("process died during the outage");
+await until(() => krakenCalls.length > krakenBefore, 90_000) ? ok("price collection resumed after Kraken came back") : fail("collection did not resume after the outage");
+await until(() => ownerHelloSeen >= 1 && chaos.anthropic === 0, 150_000) && ownerHelloSeen === 1
+  ? ok("the owner's message sent during the outage reached the model exactly once, after three 529s") : fail(`owner message seen ${ownerHelloSeen} time(s), 529s left ${chaos.anthropic}`);
+tgSend("/sante");
+await until(() => tgOutbox.some((m) => /santé|Santé/.test(m.text) && m.text.includes("Sonni prix")), 30000)
+  ? ok("/sante after the outage names the collection task that failed") : fail("/sante lacks the failed collection task");
 
 // Restart: stored prices and the prediction survive, collection resumes.
 child.kill("SIGTERM");

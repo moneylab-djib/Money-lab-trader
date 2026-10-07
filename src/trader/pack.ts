@@ -12,6 +12,8 @@
  * `section`), which returns that group alone within the same budget.
  */
 
+import { activeAssets } from "./universe.js";
+import { DOSSIER_MAX_CHARS, listDossiers, listOwnerNotes } from "./dossiers.js";
 import type Database from "better-sqlite3";
 import { getKV, setKV } from "../money-lab/journal.js";
 import type { TraderConfig } from "./config.js";
@@ -33,7 +35,9 @@ type DB = Database.Database;
 /** Characters the pack may use: below the 10,000-character cut of tool results, with room for notes. */
 export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
-export const PACK_SECTIONS = ["portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
+const DOSSIER_PREVIEW = 400;
+
+export const PACK_SECTIONS = ["dossiers", "notes", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -393,6 +397,30 @@ function trapsSection(db: DB): Section {
   return { title: "Your traps (named mistakes):", lines, detail: "traps" };
 }
 
+/** The latest dossier per followed asset: the model's own long-term view, kept across sessions. */
+function dossiersSection(db: DB, cfg: TraderConfig, preview: number): Section {
+  const dossiers = listDossiers(db, cfg);
+  const assets = activeAssets(db, cfg).map((a) => a.symbol);
+  const lines = assets.map((symbol) => {
+    const d = dossiers.find((x) => x.asset === symbol);
+    return d
+      ? `- ${symbol} (v${d.version}, ${d.recordedAt.slice(0, 10)}${d.source === "owner" ? ", written by the owner" : ""}): ${short(d.content, preview)}`
+      : `- ${symbol}: no dossier yet (update_dossier: thesis, catalysts, levels, what you learned)`;
+  });
+  return { title: `Your asset dossiers (${dossiers.length} of ${assets.length}; ${moreHint("dossiers")} for the full texts):`, lines, detail: "dossiers" };
+}
+
+/** The owner's notes: the one trusted writer besides code. */
+function ownerNotesSection(db: DB, now: Date, days: number): Section | null {
+  const notes = listOwnerNotes(db, new Date(now.getTime() - days * 86_400_000).toISOString(), 20);
+  if (notes.length === 0) return null;
+  return {
+    title: `Notes from the owner, last ${days} days (${notes.length}; the owner is trusted: weigh them, they are not orders to trade):`,
+    lines: notes.map((n) => `- ${n.at.slice(5, 16).replace("T", " ")}${n.assets.length ? ` [${n.assets.join(",")}]` : ""}: ${n.text}`),
+    detail: "notes",
+  };
+}
+
 // ─── Pack and detail views ──────────────────────────────────────
 
 export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(), dailyCapCents: number | null = null): string {
@@ -401,6 +429,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
   const sections: (Section | null)[] = [
     previous ? sinceSection(db, previous) : null,
     pricesSection(db, cfg, now),
+    ownerNotesSection(db, now, 7),
     portfolioSection(db, cfg, now),
     openSection(db, PACK_OPEN),
     resolvedSection(db, PACK_RESOLVED),
@@ -408,6 +437,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     selfSection(db, cfg, dailyCapCents, now),
     upcomingSection(db, now, 14),
     hypothesesSection(db, PACK_HYPOTHESES, STATEMENT_PREVIEW),
+    dossiersSection(db, cfg, DOSSIER_PREVIEW),
     indicatorsSection(db, now),
     reactionsSection(db, cfg, now),
     observationsSection(db, cfg, now, 2),
@@ -424,6 +454,10 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
 export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSection, now: Date = new Date()): string {
   const head = [`MEMORY SECTION "${section}" — ${isoSeconds(now)}`];
   switch (section) {
+    case "dossiers":
+      return fitSections(head, [dossiersSection(db, cfg, DOSSIER_MAX_CHARS)]);
+    case "notes":
+      return fitSections(head, [ownerNotesSection(db, now, 30) ?? { title: "Notes from the owner (last 30 days):", lines: ["- none"] }]);
     case "portfolio":
       return fitSections(head, [portfolioSection(db, cfg, now), tradesSection(db, 10), trapsSection(db)]);
     case "trades":

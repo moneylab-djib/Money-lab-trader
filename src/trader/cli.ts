@@ -13,12 +13,36 @@ import { decideSource, formatSourcesFr } from "./sources.js";
 import { formatSelfReportFr, IDENTITY_ANCHOR, retireLesson, reviseIdentity, selfReport } from "./soul.js";
 import { type BudgetView, formatAgenda, formatHypotheses, formatIdentityFr, formatJournalFr, formatLessonsFr, formatPortfolioFr, formatSonniStatus } from "./status.js";
 import { buildSonniEveningSummary } from "./report.js";
+import { addOwnerNote, formatDossierFr, listDossiers, listOwnerNotes, refusalFr } from "./dossiers.js";
+import { exportNotebooks, notebooksDir } from "./notebooks.js";
+import { fmtWhen } from "./format.js";
+import { recall, type RecallHit } from "../money-lab/recall.js";
 import type { MoneyLabConfig } from "../money-lab/profile.js";
 import { activeConfig, formatUniverseFr } from "./universe.js";
+
+const SOURCE_FR: [RegExp, string][] = [
+  [/^identity v(\d+)/, "identité v$1"], [/^reflection \S+ \((\w+)\)/, "journal ($1)"], [/^lesson \S+ \[(\w+)\]/, "leçon ($1)"],
+  [/^hypothesis \S+ \[(\w+)\]/, "intuition ($1)"], [/^dossier (\w+) v(\d+)/, "dossier $1 v$2"], [/^trap (.+)/, "piège « $1 »"],
+  [/^owner note (\S+)/, "ta note du $1"], [/^order \S+ (\w+) (\w+) \((\w+)\)/, "ordre $1 $2 ($3)"], [/^experiment /, "expérience "],
+];
+
+/** /memoire: recall's hits, labelled in French, without identifiers. */
+export function formatMemoireFr(query: string, hits: RecallHit[]): string {
+  if (hits.length === 0) return `🧠 Rien dans la mémoire de Sonni sur « ${query} » (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres).`;
+  const label = (source: string) => {
+    for (const [re, fr] of SOURCE_FR) if (re.test(source)) return source.replace(re, fr);
+    return source;
+  };
+  return [`🧠 Ce que Sonni sait sur « ${query} » :`, ...hits.map((h) => `- [${label(h.source)}] ${h.text.replace(/\s+/g, " ").trim().slice(0, 300)}`)].join("\n");
+}
 
 export const SONNI_USAGE = `Commandes Sonni :
   statut                 état de Sonni (prix, prédictions, intuitions)
   intuitions             liste des intuitions
+  dossier [actif]        son dossier sur un actif (thèse, catalyseurs, niveaux, versions)
+  note <texte>           lui laisser une note (information fiable, lue à sa prochaine séance)
+  memoire <sujet>        ce qu'il sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, notes)
+  carnets                écrire ses carnets Markdown dans ~/carnet (aussi chaque dimanche)
   portefeuille           son portefeuille virtuel : valeur, positions, ordres, résultats
   journee                le résumé du jour (envoyé chaque soir)
   agenda                 événements des 30 prochains jours
@@ -56,6 +80,8 @@ export interface SonniCommandOptions {
   budget?: BudgetView | null;
   /** Money Lab profile, for the evening summary's cap. */
   lab?: MoneyLabConfig | null;
+  /** Home directory for the notebooks and recall (defaults to $HOME). */
+  home?: string;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -76,6 +102,43 @@ export function runSonniCommand(
     case "intuitions":
       print(formatHypotheses(db));
       return 0;
+    case "dossier": {
+      const asset = rest[0] ?? "";
+      if (!asset) {
+        const all = listDossiers(db, live);
+        print(all.length === 0 ? "Aucun dossier encore. Sonni les écrit en séance et à sa revue du dimanche." : `Dossiers : ${all.map((d) => `${d.asset} (v${d.version})`).join(", ")}. Détail : /dossier <actif>.`);
+        return 0;
+      }
+      print(formatDossierFr(db, live, asset, live.timeZone));
+      return 0;
+    }
+    case "note": {
+      const text = rest.join(" ").trim();
+      if (!text) {
+        const notes = listOwnerNotes(db, undefined, 5);
+        print(notes.length === 0 ? "Aucune note. /note <texte> pour en laisser une : Sonni la lit à sa prochaine séance." : `Tes dernières notes :\n${notes.map((n) => `- ${fmtWhen(n.at, live.timeZone)}${n.assets.length ? ` [${n.assets.join(", ")}]` : ""} : ${n.text}`).join("\n")}`);
+        return 0;
+      }
+      const r = addOwnerNote(db, live, text);
+      print(r.ok ? `Note enregistrée${r.value.assets.length ? ` (${r.value.assets.join(", ")})` : ""} : Sonni la verra à sa prochaine séance, comme une information de ta part, pas comme un ordre.` : `Refusé : ${refusalFr(r.error)}`);
+      return r.ok ? 0 : 1;
+    }
+    case "memoire":
+    case "mémoire": {
+      const query = rest.join(" ").trim();
+      if (!query) {
+        print("Usage : /memoire <sujet> — ce que Sonni sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres).");
+        return 1;
+      }
+      print(formatMemoireFr(query, recall(query, { home: options.home ?? process.env.HOME ?? "/root", db, limit: 8 })));
+      return 0;
+    }
+    case "carnets": {
+      const dir = notebooksDir(options.home ?? process.env.HOME ?? "/root");
+      const files = exportNotebooks(db, live, dir);
+      print(`📚 Carnets écrits dans ${dir} : ${files.join(", ")}. Ils sont réécrits chaque dimanche et à chaque /carnets.`);
+      return 0;
+    }
     case "portefeuille":
       print(formatPortfolioFr(db, live));
       return 0;

@@ -49,6 +49,7 @@ import { afterWakeCycle, inferenceCallCount, isOperatorWake } from "./money-lab/
 import { MONEY_LAB_WAKE_REASON_KEY } from "./money-lab/journal.js";
 import { isReviewDue } from "./money-lab/review.js";
 import { recordHealthEvent } from "./money-lab/health.js";
+import { recordIncident } from "./trader/incidents.js";
 import {
   createSelfHostedClient,
   environmentProtected,
@@ -587,10 +588,20 @@ async function run(): Promise<void> {
     }
   }
   if (moneyLab) {
-    const { backupStateDaily } = await import("./money-lab/backup.js");
+    const { backupStateDaily, tableCounts, verifyBackup } = await import("./money-lab/backup.js");
     every(60 * 60_000, "Sauvegarde", async () => {
+      const expected = tableCounts(db.raw);
       const file = await backupStateDaily(db.raw);
-      if (file) logger.info(`[MONEY LAB] Sauvegarde quotidienne : ${file}`);
+      if (!file) return;
+      // Guard G7: a backup counts only once it has been opened and checked (integrity, row counts).
+      const check = verifyBackup(file, expected);
+      if (check.ok) {
+        logger.info(`[MONEY LAB] Sauvegarde quotidienne vérifiée : ${file} (${check.detail})`);
+      } else {
+        logger.error(`[MONEY LAB] Sauvegarde ${file} invalide : ${check.detail}`);
+        recordHealthEvent(db.raw, "Sauvegarde", check.detail);
+        recordIncident(db.raw, "backup", `copie ${file.split("/").pop()} invalide : ${check.detail}`);
+      }
     });
   }
   if (moneyLab && selfHosted) {
@@ -626,6 +637,7 @@ async function run(): Promise<void> {
     const { calendarTick, collectTick, digestTick, historyTick, newsTick, resolveTick } = await import("./trader/runtime.js");
     const { translateHypothesesTick } = await import("./trader/readers.js");
     const { brokerTick } = await import("./trader/portfolio.js");
+    const { exportNotebooks, markNotebooksExported, notebooksDir, notebooksDue } = await import("./trader/notebooks.js");
     const { intakeDue } = await import("./trader/intake.js");
     const { canDeliverWake, curiosityTick } = await import("./trader/curiosity.js");
     const { sourcesTick, MAX_FAILURES } = await import("./trader/sources.js");
@@ -672,6 +684,14 @@ async function run(): Promise<void> {
     // Calendar once a day; headlines every hour (GDELT asks for one request per 5 s at most),
     // digested by a free reader when one is configured; sources on their own cadence.
     const fredKey = withSecrets().FRED_API_KEY || undefined;
+    every(60 * 60_000, "Sonni carnets", async () => {
+      // The owner's Markdown notebooks, every Sunday in their time zone (free: code only).
+      const cfg = live();
+      if (!notebooksDue(db.raw, cfg.timeZone)) return;
+      const files = exportNotebooks(db.raw, cfg, notebooksDir());
+      markNotebooksExported(db.raw, cfg.timeZone);
+      logger.info(`[SONNI] Carnets écrits dans ${notebooksDir()} : ${files.join(", ")}.`);
+    });
     every(24 * 60 * 60_000, "Sonni calendrier", async () => {
       const n = await calendarTick(db.raw, fredKey);
       if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);
@@ -778,6 +798,7 @@ async function run(): Promise<void> {
           logger.info(
             `[MONEY LAB] ${cycle.noProgressCycles} cycles sans progrès du journal : sommeil jusqu'à ${cycle.longSleepUntil}.`,
           );
+          if (config.trader) recordIncident(db.raw, "no_progress", `${cycle.noProgressCycles} cycles payés sans progrès : sommeil jusqu'à ${cycle.longSleepUntil}`);
         }
       }
 

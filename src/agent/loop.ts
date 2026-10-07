@@ -76,6 +76,7 @@ import { markReflectionDone, reflectionDue, startReflection } from "../trader/so
 import { activeConfig } from "../trader/universe.js";
 import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
 import { ensureTraderSchema } from "../trader/schema.js";
+import { recordIncident } from "../trader/incidents.js";
 import { paidCallBlockReason } from "../money-lab/guard.js";
 import { recordHealthEvent } from "../money-lab/health.js";
 import { REVIEW_INSTRUCTIONS, REVIEW_MODEL, REVIEW_MODEL_TURNS, ensureReviewClock, isReviewDue, markReviewed } from "../money-lab/review.js";
@@ -85,6 +86,8 @@ import { MONEY_LAB_WAKE_REASON_KEY, OWNER_TELEGRAM_SENDER, ensureMoneyLabSchema,
 const logger = createLogger("loop");
 const MAX_TOOL_CALLS_PER_TURN = 10;
 const MAX_CONSECUTIVE_ERRORS = 5;
+/** Stop reasons the loop maps to an action (playbook table); anything else pauses Sonni. */
+const KNOWN_FINISH_REASONS: ReadonlySet<string> = new Set(["stop", "tool_calls", "refusal", "length", "budget_exceeded"]);
 const MAX_REPETITIVE_TURNS = 3;
 const MONEY_LAB_IDLE_SLEEP_MS = 15 * 60_000;
 const MONEY_LAB_WINDOW = 20;
@@ -794,6 +797,7 @@ export async function runAgentLoop(
         if (routerResult.costEstimated && hasInferenceLimits(moneyLab)) {
           // With owner-set limits, an unknown cost blocks further paid calls
           // until the operator reconciles (it is always recorded at the estimate).
+          if (trader) recordIncident(db.raw, "unknown_cost", `usage absent ou délai dépassé : l'appel est compté à l'estimation (${routerResult.costCents} c)`);
           pauseMoneyLab(db.raw, "coût d'inférence inconnu (usage absent ou délai dépassé) ; rapprocher avec la facturation avant de reprendre", "runtime");
           log(config, "[MONEY LAB] Inference cost unknown; paused pending operator reconciliation.");
         }
@@ -811,6 +815,7 @@ export async function runAgentLoop(
             log(config, `[MONEY LAB] ${routerResult.content}. Sleeping until ${reset.toISOString()}.`);
             db.setKV("sleep_until", reset.toISOString());
             db.setKV("sleep_reason", `plafond ${limit === "daily" ? "journalier" : "horaire"} atteint`);
+            if (trader) recordIncident(db.raw, "cap", `plafond ${limit === "daily" ? "journalier" : "horaire"} atteint ; sommeil jusqu'à ${reset.toISOString().slice(11, 16)} UTC`);
           } else {
             pauseMoneyLab(db.raw, `limite ${limit ?? "inconnue"} : ${routerResult.content}`, "runtime");
             log(config, `[MONEY LAB] ${routerResult.content}. Paused for operator review.`);
@@ -853,6 +858,26 @@ export async function runAgentLoop(
         },
         finishReason: routerResult.finishReason,
       };
+
+      // Guard G5 (Sonni): an answer cut at the output limit never runs its tool calls, whose
+      // arguments may be incomplete; the model is told to continue in shorter steps. A stop
+      // reason the loop does not know pauses for the operator instead of being guessed at.
+      if (trader && response.finishReason === "length" && response.toolCalls?.length) {
+        const n = response.toolCalls.length;
+        log(config, `[GUARD] Answer cut at the output limit: ${n} tool call(s) not executed.`);
+        recordIncident(db.raw, "truncated", `réponse coupée à la limite de sortie : ${n} appel(s) d'outil non exécuté(s)`);
+        response.toolCalls = undefined;
+        pendingInput = {
+          content: `Your previous answer was cut at the output limit and its ${n} tool call(s) were NOT executed. Continue in shorter steps: one or two tool calls per answer, shorter texts.`,
+          source: "system",
+        };
+      }
+      if (trader && !KNOWN_FINISH_REASONS.has(response.finishReason)) {
+        log(config, `[GUARD] Unknown stop reason "${response.finishReason}": pausing.`);
+        recordIncident(db.raw, "unknown_stop", `raison d'arrêt inconnue de l'API : ${String(response.finishReason).slice(0, 60)}`);
+        pauseMoneyLab(db.raw, `raison d'arrêt inconnue de l'API (${String(response.finishReason).slice(0, 60)}) ; vérifier les logs avant de reprendre`, "runtime");
+        response.toolCalls = undefined;
+      }
 
       const turn: AgentTurn = {
         id: ulid(),
@@ -1000,6 +1025,7 @@ export async function runAgentLoop(
           lastToolPatterns.every((p) => p === currentPattern)
         ) {
           log(config, `[LOOP] Enforcement: agent ignored loop warning, forcing sleep.`);
+          if (trader) recordIncident(db.raw, "loop", `le modèle a répété « ${currentPattern.slice(0, 80)} » malgré l'avertissement : sommeil forcé`);
           pendingInput = {
             content:
               `LOOP ENFORCEMENT: You were warned about repeating "${currentPattern}" but continued. ` +
@@ -1182,6 +1208,7 @@ export async function runAgentLoop(
         );
         // Money Lab: tell the owner instead of failing silently (at most hourly).
         if (moneyLab) {
+          if (trader) recordIncident(db.raw, "errors", `${MAX_CONSECUTIVE_ERRORS} erreurs consécutives, repos 5 min ; dernière : ${String(err?.message ?? err).slice(0, 160)}`);
           const last = Number(db.getKV("money_lab.last_error_alert") ?? "0");
           if (Date.now() - last > 60 * 60_000) {
             db.setKV("money_lab.last_error_alert", String(Date.now()));
