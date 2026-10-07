@@ -24,7 +24,8 @@ import { digestTick } from "../../trader/runtime.js";
 import { runSonniCommand } from "../../trader/cli.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
-const BASE: TraderConfig = parseTraderConfig(EXAMPLE.trader)!;
+/** The example without its readers: the defaults a config without the key gets. */
+const BASE: TraderConfig = parseTraderConfig({ ...EXAMPLE.trader, readers: undefined })!;
 const READERS = [
   { id: "gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-test", keyEnv: "GEMINI_TEST_KEY", dailyRequests: 3 },
   { id: "groq", baseUrl: "https://api.groq.com/openai/v1", model: "llama-test", keyEnv: "GROQ_TEST_KEY", dailyRequests: 5, jsonMode: false },

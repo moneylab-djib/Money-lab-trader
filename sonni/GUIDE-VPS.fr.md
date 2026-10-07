@@ -186,18 +186,28 @@ services ont une offre gratuite sans carte bancaire ; une clé suffit, deux donn
 secours. **N'active aucune facturation** sur ces comptes : Sonni est plafonné en appels par jour, mais
 ta vraie protection est l'absence de moyen de paiement.
 
-1. Google AI Studio (Gemini) : https://aistudio.google.com → *Get API key* → *Create API key*, avec
-   ton compte Google. Copie la clé.
-2. Groq : https://console.groq.com → *API Keys* → *Create API Key*. Copie la clé.
+1. Google AI Studio (Gemini) : https://aistudio.google.com/apikey avec ton compte Google, accepte
+   les conditions, puis *Create API key* (les clés créées depuis mai 2026 sont des « auth keys »,
+   limitées à l'API Gemini : c'est ce qu'il faut). Copie la clé. Google ne publie plus les limites
+   gratuites : regarde-les sur https://aistudio.google.com/rate-limit pour le modèle
+   `gemini-3.5-flash-lite` (Sonni s'arrête à 200 appels par jour ; baisse ce nombre dans
+   `sonni/automaton.sonni.example.json` si ta page affiche moins). **Ne relie jamais de compte de
+   facturation** à ce projet. Pour un compte en Europe, Google n'utilise pas tes requêtes pour
+   entraîner ses modèles, même en gratuit (conditions Gemini, lues le 7 octobre 2026).
+2. Groq : https://console.groq.com → *API Keys* → *Create API Key* (nom : `sonni-reader`). Copie la
+   clé tout de suite (elle ne se réaffiche pas). Dans *Settings → Data Controls*, active *Zero Data
+   Retention*. Reste sur le plan *Free* (modèle `openai/gpt-oss-20b` : 1 000 requêtes et
+   200 000 jetons par jour publiés ; Sonni s'arrête à 80 appels par jour pour tenir dans les jetons).
 3. Sur le serveur : `nano /etc/sonni.env`, mets les clés après `GEMINI_API_KEY=` et `GROQ_API_KEY=`
    (laisse vide celle que tu n'as pas), enregistre (Ctrl+O, Entrée, Ctrl+X), puis
    `systemctl restart sonni`.
 4. Vérifie sur Telegram avec `/lecteurs` : chaque lecteur doit être « disponible ». Une heure plus
    tard, `/statut` compte les observations extraites. Sonni ne peut pas lire ces clés.
 
-Les limites gratuites changent souvent ; les plafonds de Sonni (150 appels par jour pour Gemini, 300
-pour Groq) sont en dessous des limites publiées au 7 octobre 2026. Si un lecteur répond « quota »,
-Sonni le met au repos et passe au suivant.
+Les limites gratuites changent souvent (vérifiées le 7 octobre 2026). Si un lecteur répond « quota »
+ou « clé refusée », Sonni le met au repos et passe au suivant ; `/lecteurs` le dit. D'autres offres
+gratuites existent (Cloudflare Workers AI, Mistral « Free », OpenRouter) : on les ajoutera si les
+deux premières ne suffisent pas.
 
 ## Facultatif — Les dates d'inflation et d'emploi américains
 

@@ -405,5 +405,7 @@ export function formatSourcesFr(db: DB, now: Date = new Date()): string {
   if (proposed.length) lines.push("", `Pour décider : /source ok <id> ou /source non <id> [raison]. ${proposed.length} proposition(s) en attente.`);
   const metrics = metricsForPack(db, now);
   if (metrics.length) lines.push("", "Dernières valeurs :", ...metrics);
+  lines.push("", "Données : CoinGecko, alternative.me (Fear & Greed), Kraken, mempool.space, DefiLlama, OKX. " +
+    "This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St. Louis.");
   return lines.join("\n");
 }

@@ -187,7 +187,7 @@ const server = http.createServer(async (req, res) => {
     readerCalls++;
     if (req.headers.authorization !== "Bearer gem-e2e") fail(`reader called without the sealed key (${req.headers.authorization})`);
     const body = JSON.parse(raw);
-    if (body.model !== "gemini-2.5-flash" || body.response_format?.type !== "json_object") fail(`reader request unexpected: ${JSON.stringify(body).slice(0, 200)}`);
+    if (body.model !== "gemini-3.5-flash-lite" || body.response_format?.type !== "json_object") fail(`reader request unexpected: ${JSON.stringify(body).slice(0, 200)}`);
     const content = JSON.stringify({ items: [{ i: 0, assets: ["BTC"], kind: "etf", sentiment: 0.6, summary: "Record inflows into spot bitcoin ETFs." }] });
     return send(200, { id: "chatcmpl-e2e", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] });
   }

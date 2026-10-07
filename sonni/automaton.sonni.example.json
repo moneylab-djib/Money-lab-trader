@@ -59,16 +59,16 @@
       {
         "id": "gemini",
         "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "model": "gemini-2.5-flash",
+        "model": "gemini-3.5-flash-lite",
         "keyEnv": "GEMINI_API_KEY",
-        "dailyRequests": 150
+        "dailyRequests": 200
       },
       {
         "id": "groq",
         "baseUrl": "https://api.groq.com/openai/v1",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-20b",
         "keyEnv": "GROQ_API_KEY",
-        "dailyRequests": 300
+        "dailyRequests": 80
       }
     ],
     "readPagesPerDay": 20

@@ -54,9 +54,18 @@
     sonni-e2e PASS (35 checks, about 4 min: fake Kraken, Anthropic, Telegram, reader and sources;
     self-wake after a 4 % move observed end to end). Likma `project check` and the four feature
     verifications: after the adversarial review (see below).
-  - Research (free LLM APIs, free data APIs, liveness patterns, reader safety) by web agents: in
-    progress at the time of writing; the catalog's URLs and the example readers' model names are to be
-    confirmed against it (a wrong path shows as "metric absent" in /sources, never as a wrong number).
+  - Research by web agents (2026-10-07, reports kept in the session scratchpad, conclusions applied):
+    free LLM APIs: Gemini free tier is the primary reader (`gemini-3.5-flash-lite`; limits no longer
+    published, EEA users get the no-training terms; auth keys since May 2026), Groq free plan the
+    fallback (`openai/gpt-oss-20b`, 1K requests and 200K tokens per day per model, no Llama models any
+    more; cap set to 80 calls/day), Cloudflare Workers AI, Mistral Free and OpenRouter documented as
+    later options; GitHub Models retired, Cerebras needs a card. Free data APIs: every catalog entry
+    verified live (alternative.me, CoinGecko global keyless, Kraken Depth, mempool.space, DefiLlama,
+    FRED), two keyless derivatives sources added disabled by default (Kraken Futures BTC funding and
+    open interest, OKX funding), FRED attribution printed by /sources. The two other research tasks
+    (agent liveness patterns, reader safety checklist) were lost in a container restart and not
+    re-run: the design already follows the project's own rules (observations only, validation,
+    caps, public hosts); nothing from them is claimed.
 - Known gaps (deliberate, later slices):
   - Monthly budget pacing is approximated by Money Lab's daily cap (1/30 of the month) and funding balance.
   - Only price-threshold predictions; no virtual orders, traps or cycles yet; readiness thresholds left

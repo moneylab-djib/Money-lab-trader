@@ -136,7 +136,9 @@ describe("Prompt and memory pack", () => {
     const rules = buildSonniPromptBlock(db.raw, config.moneyLab!, config.trader!);
     expect(rules.startsWith("--- SONNI RULES")).toBe(true);
     expect(rules).toContain("Curiosity: 0 of 6 self-wakes used today (move alert 3 % in 1 h");
-    expect(rules).toContain("Pages read today: 0 of 20. Readers: none configured");
+    // The example config names two readers; without keys in this test they are reported as such.
+    expect(rules).toContain("Pages read today: 0 of 20. Readers: gemini no key, groq no key.");
+    expect(buildSonniPromptBlock(db.raw, config.moneyLab!, { ...config.trader!, readers: [] })).toContain("Readers: none configured");
     expect(rules).toContain("Followed assets: BTC, ETH");
     db.close();
   });
@@ -147,7 +149,7 @@ describe("Prompt and memory pack", () => {
     const h = addHypothesis(db.raw, { statement: "BTC holds above 50k in calm weeks", origin: "owner" }, T0);
     price(db, "BTC", T0, 60000);
     price(db, "ETH", T0, 2400);
-    const first = buildMemoryPack(db.raw, TRADER, T0, 193);
+    const first = buildMemoryPack(db.raw, { ...TRADER, readers: [] }, T0, 193);
     expect(first).not.toContain("Since your last pack");
     expect(first).toContain("SELF-REPORT (computed by code");
     expect(first).toContain("Open watches (0; code wakes you when one fires)");
@@ -225,7 +227,7 @@ describe("Telegram", () => {
     expect(channel.handleOwnerText("/lecons", 4)).toContain("Aucune leçon encore");
     expect(channel.handleOwnerText("/bilan", 5)).toContain("sur 1.93 $");
     expect(channel.handleOwnerText("/reveils", 6)).toContain("aucun déclencheur");
-    expect(channel.handleOwnerText("/lecteurs", 7)).toContain("Aucune IA lectrice configurée");
+    expect(channel.handleOwnerText("/lecteurs", 7)).toContain("gemini (gemini-3.5-flash-lite) : clé absente");
     expect(channel.handleOwnerText("/sources", 8)).toContain("fear_greed [active]");
     expect(channel.handleOwnerText("/source ok nope", 9)).toContain("Source inconnue");
     expect(channel.handleOwnerText("/actifs", 10)).toContain("Actifs suivis (2, au plus 30)");

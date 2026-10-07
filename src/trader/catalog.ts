@@ -3,9 +3,10 @@
  * (src/trader/sources.ts). Each entry is data: a URL, a cadence and the
  * JSON paths of the numbers to keep. Keyed sources name the environment
  * variable that holds the owner's free key; "{key}" in the URL is replaced
- * at fetch time. Formats checked against the providers' public
- * documentation on 2026-10-07 (docs/RESEARCH.md); a changed format shows
- * up as "metric absent" in /sources, never as a wrong number.
+ * at fetch time. Formats checked live against the providers on 2026-10-07
+ * (research report); a changed format shows up as "metric absent" in
+ * /sources, never as a wrong number. Attribution the providers ask for
+ * (CoinGecko, alternative.me, FRED's notice) is printed by /sources.
  */
 
 export interface SourceMetric {
@@ -78,6 +79,26 @@ export const SOURCE_CATALOG: SourceDef[] = [
     everyMinutes: 360,
     metrics: [{ name: "tvl_usd", path: "-1.tvl" }],
     note: "Value locked in Ethereum DeFi, in USD: on-chain activity on ETH.",
+  },
+  {
+    id: "kraken_futures_btc",
+    label: "Kraken Futures BTC perpetual",
+    url: "https://futures.kraken.com/derivatives/api/v3/tickers?symbol=PF_XBTUSD",
+    everyMinutes: 60,
+    metrics: [
+      { name: "funding_rate_abs", path: "tickers.0.fundingRate" },
+      { name: "open_interest_btc", path: "tickers.0.openInterest" },
+      { name: "mark_usd", path: "tickers.0.markPrice" },
+    ],
+    note: "Funding rate (absolute, divide by mark for a ratio) and open interest: leverage and positioning on BTC.",
+  },
+  {
+    id: "okx_funding_btc",
+    label: "OKX BTC-USDT perpetual funding",
+    url: "https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP",
+    everyMinutes: 60,
+    metrics: [{ name: "funding_pct", path: "data.0.fundingRate", scale: 100 }],
+    note: "Current 8-hour funding rate in %: positive when longs pay shorts (crowded longs).",
   },
   {
     id: "fred_fedfunds",
