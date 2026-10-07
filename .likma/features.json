@@ -233,8 +233,19 @@
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
       "verification": {
-        "at": "2026-10-07T04:18:50.927785+00:00",
-        "fingerprint": "5158310123ba14fb3f408c6ce36219916f96fae4d96a984d1f8250f85fdf57c3",
+        "at": "2026-10-07T04:53:05.298072+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -244,8 +255,27 @@
           "6": "sonni-e2e",
           "7": "sonni"
         },
-        "report": ".likma/checks/ac73ec9c7e894450951706fb9ab3cd6d.json",
-        "contract": "88330250b30d790e8c930b81e84fa2c8fda3a116f4517ef0b04389a8916f2bf6"
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/cb23d625840543b18c82f2fbd8dbe075.json",
+        "contract": "228797aaac3d5223783bc0f72fa42f7fe7afbbc004d4bab499e0f7ea1652166f",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.418,
+            "output_bytes": 9104,
+            "output_sha256": "6d2c0384824b82171136277efa90b8b186e885ec56aaf4a9b4cd2f7a1d2adae3"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 264.357,
+            "output_bytes": 2181,
+            "output_sha256": "66d7bbb2d3d23da25629fa3f21968d051f68fe454facb65219df3a3b179e70cf"
+          }
+        ]
       },
       "paths": [
         "src",
