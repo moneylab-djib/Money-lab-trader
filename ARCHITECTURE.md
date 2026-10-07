@@ -1,6 +1,7 @@
 # Architecture brief
 
-Status: proposed (2026-10-06). Nothing below is implemented yet.
+Status: proposed (2026-10-06); rows marked "implemented" exist in src/trader/ (steps 1 to 3). The
+virtual portfolio, paper broker and consolidation are still proposals.
 
 ## Boundaries
 
@@ -24,7 +25,10 @@ Status: proposed (2026-10-06). Nothing below is implemented yet.
 | Calendar and headlines | None | Fed decisions daily from federalreserve.gov (CPI and jobs from FRED with an optional key); GDELT headlines hourly; reactions to past events computed from daily candles. |
 | Historical tests | None | Evaluate hypotheses' test rules on daily history; append verdicts (docs/MEMORY.md section 4). |
 | Intake | Opus 5.5, then Sonnet 5.5 | Once history is stored: Sonni writes its prior market knowledge as hypotheses with propose_hypothesis. |
-| Digest | Haiku 4.5 | Turn news and filings into dated observations and events. |
+| Readers (implemented, step 3) | Free OpenAI-compatible models (Gemini, Groq...), owner's free-tier keys | Turn the hour's headlines and the pages Sonni asks to read into dated, validated observations; they read, never decide; counted and capped per day. |
+| Curiosity (implemented, step 3) | None | Every minute, evaluate triggers (3 % move in an hour, event day, morning after, resolved predictions, the model's watches) and wake the sleeping agent within the owner's daily cap. |
+| Sources (implemented, step 3) | None | Poll the enabled catalog entries (Fear & Greed, market cap, Kraken order book, Bitcoin fees, FRED series with a key) and model-proposed endpoints the owner approved, into metrics for the pack. |
+| Identity and journal (implemented, step 3) | Decision model | Versioned identity, append-only reflections and post-mortems, lessons with evidence; the self-report they rely on is computed by code. |
 | Statistics | None | Measure event reactions, pattern statistics, hypothesis confidence, and the indicators the model reads (returns, volatility, drawdown, moving-average position, volume ratios); the model never reads raw candles (docs/RESEARCH.md). |
 | Decision agent | Sonnet 5.5 | Read the memory pack, record predictions, place virtual orders with a thesis. |
 | Paper broker | None | Fill virtual orders realistically, track positions, cash, fees, contributions. |
@@ -67,7 +71,7 @@ Web searches are billed on top of tokens and count against the same budget.
 
 | Purpose | Model | Share | About |
 | --- | --- | --- | --- |
-| News and data digest | Haiku 4.5 (Batch API where latency allows); deferred: headlines go to the memory pack as titles for now | 30 % | 15 EUR |
+| News and data digest | Free reader models since step 3 (Gemini, Groq; no Anthropic spend); Haiku 4.5 (Batch API) only if the owner chooses it later | 30 % planned, nothing spent now | 15 EUR |
 | Decision sessions | Sonnet 5.5 | 40 % | 20 EUR |
 | Consolidation and weekly review | Sonnet 5.5 daily, Opus 5.5 weekly | 20 % | 10 EUR |
 | Reserve for market events | any | 10 % | 5 EUR |

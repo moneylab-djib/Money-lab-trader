@@ -1,11 +1,11 @@
 # Working status
-- Updated: 2026-10-06
-- Branch / commit: claude/sonni-world (step 2, stacked on claude/sonni-knowledge, PR #3)
-- Current goal: steps 1 and 2 built (owner's order 2026-10-06); next, on the owner's request, more
-  autonomy ("as alive as possible"), planned with the owner before building. First slice is live on the
-  owner's VPS since 2026-10-06 22:12 UTC.
+- Updated: 2026-10-07
+- Branch / commit: claude/sonni-alive (step 3, stacked on claude/sonni-world, PR #4)
+- Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
+  consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
+  owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
 - Accepted decisions: 0001 (owner direction), 0002 (start from Money Lab), 0003 (capital, data, assets,
-  readiness measures; thresholds to be set after the first months of results), name Sonni.
+  readiness measures; thresholds to be set after the first months of results), 0004 (dedicated VPS), name Sonni.
 - Completed behaviour (first slice, docs/FIRST-SLICE.md):
   - Money Lab imported verbatim at 2c5580ac18bc49dcb133dafef7cdb8b06d0399e5 (separate commit).
   - src/trader/: strict `trader` config block; Kraken public price collection every collectMinutes;
@@ -14,46 +14,123 @@
     (Brier score, evidence, or void when no price exists in the window); memory pack tool; Sonni
     mission, rules and weekly review replacing Money Lab's; Money Lab web-business tools denied;
     French /statut, /idee, /intuitions on Telegram and `--sonni` CLI.
-  - Prompt caching keeps working: the Sonni rules block is the volatile part (src/conway/inference.ts).
-- Checks run (command, result, date):
-  - likma project check (types, sonni 20 tests, money-lab 110 tests, build, sonni-e2e): PASS, 2026-10-06.
-  - likma project feature verify first-prediction (criteria 1 via sonni-e2e, 2-8 via sonni): PASS, 2026-10-06.
-  - node sonni/e2e.mjs: real built process against fake Kraken/Anthropic/Telegram: PASS, 2026-10-06.
-  - After the discovery-cap fix (22:20 UTC): the same five checks run directly (typecheck, sonni 20/20,
-    money-lab 110/110, build, sonni-e2e PASS). The Likma session had reached its 60-minute limit and was
-    not renewed, so the feature board shows the earlier verification as stale.
 - Step 1 built (2026-10-06): Kraken daily candles (720 days) refreshed every 6 h; test-rule language;
   historical tests by code (30 cases, z >= 2.33), append-only; propose_hypothesis tool with origins and
   daily limit; intake on Opus for 8 turns until 30 prior hypotheses (3 attempts max, counted on paid
-  turns); wake for the intake when history arrives; historical verdicts in the memory pack, /statut
-  and /intuitions. Live check (read-only, no key): 720 days for BTC and ETH, 2024-10-16..2026-10-05;
-  "BTC rebounds the day after a -3 % day" scored 19/47 = 40 % vs 51 % on all days, refuted.
-  - Found while testing: the runtime runs at most 10 tool calls per turn; the intake text says so.
-  - Checks (new Likma session begun deliberately for step 1 after the previous one reached its time
-    limit): likma project check PASS (types, sonni 33/33, money-lab 110/110, build, sonni-e2e);
-    features knowledge-intake and first-prediction verified, 2026-10-06.
-- Step 2 built (2026-10-06): event calendar (FOMC from federalreserve.gov, parsed live on 2026-10-06:
-  56 decision days 2021-2027; CPI and jobs from FRED with an optional FRED_API_KEY), GDELT headlines
-  hourly (rate-limited from this sandbox, format covered by fixtures), event conditions in test rules
-  (re-tested when the calendar changes), reactions to past events in the memory pack, /agenda. The
-  Haiku news digest is deferred: titles go to the memory pack directly.
-  Checks: likma project check PASS (types, sonni 42/42, money-lab 110/110, build, sonni-e2e with fake
-  Fed and GDELT); features first-prediction, knowledge-intake and sees-the-world verified, 2026-10-06.
+  turns); historical verdicts in the memory pack, /statut and /intuitions. Live check (read-only, no
+  key): 720 days for BTC and ETH; "BTC rebounds the day after a -3 % day" scored 19/47 = 40 % vs 51 %, refuted.
+- Step 2 built (2026-10-06): event calendar (FOMC from federalreserve.gov, parsed live: 56 decision days
+  2021-2027; CPI and jobs from FRED with an optional FRED_API_KEY), GDELT headlines hourly, event
+  conditions in test rules, reactions to past events in the memory pack, /agenda.
+- Step 3 built (2026-10-07, "Sonni alive", src/trader/soul.ts, curiosity.ts, readers.ts, pages.ts,
+  sources.ts + catalog.ts, universe.ts; docs/MEMORY.md updated):
+  - A. Identity (versioned, seed by code, one model revision per day, anchor kept), journal
+    (append-only; post-mortem once per scored prediction), lessons with evidence ids (3/day, 40 active,
+    retired by the model or by /veto), self-report computed by code (calibration buckets, Brier by
+    asset/horizon/direction, spend) in the pack and /bilan; reflection instructions on the first wake
+    after a scored prediction, marked done by code after a paid turn; identity and lessons in the cached
+    part of the system prompt, rules block last.
+  - B. Curiosity: code triggers every minute (3 % move in 1 h, event day 07:00 UTC, morning after 06:00
+    UTC, resolved predictions every 6 h at most, model watches: price level / move over a window / date),
+    logged delivered or not; at most 6 self-wakes per UTC day, 30 min apart, only while sleeping, unpaused
+    and not on a budget cap; Sonni's own wake events now end a Money Lab sleep (the step-1 `sonni_history`
+    intake wake was being ignored by `isOperatorWake`: fixed); /reveils.
+  - C. Catalog of free sources polled by code by JSON path (Fear & Greed, CoinGecko global, Kraken BTC
+    order-book top, mempool fees enabled by default; DefiLlama ETH TVL, FRED fed funds / 10 y / CPI with
+    the owner's key available), enable/disable/propose by the model with reasons, owner /source ok|non,
+    auto-disable after 20 failures with a Telegram notice; read_page (https only, public hosts, 1 MB,
+    12 000 chars, 20/day, untrusted); follow_asset/unfollow_asset checked against Kraken's EUR pairs,
+    logged, used live by every tick, tool, pack and status (/actifs).
+  - D. Readers: OpenAI-compatible free models (example config: Gemini via Google AI Studio, Groq) with
+    sealed keys, per-day caps, resting after errors, fallback order; hourly digest of headlines into
+    validated observations (assets, kind, sentiment, summary, event date; prompt-boundary patterns
+    rejected; untrusted); page summaries; observations per asset with code-averaged sentiment in the
+    pack; /lecteurs. Without a key, headlines stay raw as before.
+  - Prompt and cost: automaton survival/orchestration layers and status removed from Sonni's prompt;
+    Automaton soul/memory/relay tools denied; Automaton memory retrieval and ingestion skipped for
+    Sonni; the volatile rules block is the last system text so the tool list and the mission are cached.
+  - Checks (run 2026-10-07, this sandbox): typecheck PASS; sonni suite 82/82 (sonni 20, knowledge 13,
+    world 9, soul 9, curiosity 8, readers 9, sources 8, alive 6); money-lab suite 110/110; build PASS;
+    sonni-e2e PASS (35 checks, about 4 min: fake Kraken, Anthropic, Telegram, reader and sources;
+    self-wake after a 4 % move observed end to end). The Likma runtime run opened for the build and the
+    recorded check session opened for steps 1-2 (all attempts passed) both reached their 60-minute
+    limit before the final `project check`; the run was ended with its summary and a new run and a new
+    check session were begun deliberately for the verification phase (no failure budget was evaded;
+    the previous session is archived under .likma/sessions/). Likma `project check` (types, sonni 84,
+    money-lab 110, build, sonni-e2e 263 s): PASS, 2026-10-07 01:09 UTC after the review fixes, report
+    .likma/checks/36ce9c9dbfad44fb9fb7fa670d4448b0.json (an earlier PASS before the fixes:
+    5df38e141a1a4b4cb3b4eed392df5069). Feature verifications: see docs/FEATURES.md.
+  - Checks after the second review round (run 2026-10-07, this sandbox): typecheck PASS; sonni suite
+    91/91 (sonni 20, knowledge 13, world 9, soul 10, curiosity 10, readers 12, sources 9, alive 8);
+    money-lab suite 110/110; build PASS; sonni-e2e PASS (37 checks, 263 s, including the history wake
+    for the intake). The recorded check session begun at 00:44 UTC reached its 60-minute limit with
+    10 attempts, all passed; it was archived and a new one begun for this verification (no failure
+    budget evaded). Likma `project check`: PASS at 04:07 UTC (report
+    .likma/checks/3ed267e76fc84166a9a01f85c9c2d6b3.json) and, after the pair-correction fix, PASS at
+    04:13 UTC (report .likma/checks/44f6f681d44f4f4aa7cc811f134a9b44.json). The new pair-correction
+    test was confirmed to fail without the fix. CI on PR #5: green through 5a71cdd.
+  - Owner's update on the VPS (2026-10-07, 06:32 Paris): /lecteurs answered "Aucune IA lectrice
+    configurée", i.e. the new code ran with the old config (the configure.mjs step was skipped or run as
+    root). configure.mjs now says "Mise à jour" on later runs instead of asking for the month's budget
+    again (which would have funded the month twice) and warns when run as root; the guide says how to
+    check the readers line; the e2e re-runs it. Likma `project check` PASS (report
+    .likma/checks/00293b38e9f4469c90a31db9d0aec3f1.json).
+  - Likma upgraded to 0.7.0 (system checkout fast-forwarded to 902f3e9, `validate` and its 112 tests
+    pass): `project upgrade` wrote the managed block in AGENTS.md (routine and ai-product skill index,
+    which now lists agents/autonomous-agents) and docs/LIKMA.md; `commands.start_disabled` records why
+    no start command exists; the seven features are scoped to the code they depend on (src, sonni,
+    constitution.md, package and build files), so documentation edits no longer make evidence stale,
+    and were re-verified under fingerprint v2 (see docs/FEATURES.md).
+  - Research by web agents (2026-10-07, reports kept in the session scratchpad, conclusions applied):
+    free LLM APIs: Gemini free tier is the primary reader (`gemini-3.5-flash-lite`; limits no longer
+    published, EEA users get the no-training terms; auth keys since May 2026), Groq free plan the
+    fallback (`openai/gpt-oss-20b`, 1K requests and 200K tokens per day per model, no Llama models any
+    more; cap set to 80 calls/day), Cloudflare Workers AI, Mistral Free and OpenRouter documented as
+    later options; GitHub Models retired, Cerebras needs a card. Free data APIs: every catalog entry
+    verified live (alternative.me, CoinGecko global keyless, Kraken Depth, mempool.space, DefiLlama,
+    FRED), two keyless derivatives sources added disabled by default (Kraken Futures BTC funding and
+    open interest, OKX funding), FRED attribution printed by /sources. The two other research tasks
+    (agent liveness patterns, reader safety checklist) were lost in a container restart and not
+    re-run: the design already follows the project's own rules (observations only, validation,
+    caps, public hosts); nothing from them is claimed.
+  - Adversarial review (five reviewer agents over the diff, 2026-10-07): 14 findings, 13 fixed with a
+    test each (model-proposed sources followed redirects; the owner never saw a proposed source's URL;
+    reader keys could be sent to any https host named in the editable config; watch notes and reasons
+    unchecked; raw page title stored unchecked; provider bodies in error texts; identity text could forge
+    the runtime's prompt sections; the "resolved" trigger re-fired after 6 h on a timestamp-precision
+    mismatch; the move trigger re-fired on stale prices; the startup tick wasted a wake; a GDELT error
+    skipped the digest; digest capacity below the headline inflow; intake checked on the base config in
+    the loop). Not fixed, documented: the agent's shell runs as the same OS user as the runtime, so it
+    could edit state.db or the config (known limitation, AGENTS.md; a second OS user is deployment work
+    for the real-money phase).
+  - Second round (the review's other candidates, checked by hand against the code because its verifier
+    agents stopped on a session limit), each with a test: the memory pack exceeded the runtime's
+    10,000-character tool-result cut, so open predictions, watches and reflections were never seen (now
+    9,000 characters, Sonni's own state first, cuts announced, `sonni_memory {"section"}` for detail);
+    pages read were invisible in the pack; void predictions could get a post-mortem; Sonni's own writes
+    did not count as work, so a forced end of cycle restarted a paid cycle within two minutes (now 15
+    minutes); self-wakes ignored the long sleep after cycles without progress; the progress fingerprint
+    counted the owner's writes; failed page reads escaped the daily cap; catalog changes never reached
+    existing rows; a prediction scored during a reflection turn was skipped by the next reflection
+    (marker `sonni.reflection_upto`); removing an asset from the config had no effect once Sonni had
+    followed assets (the config now keeps authority, open predictions are respected, a pair corrected in
+    the config replaces the one an older follow entry carries); the owner could
+    not write the identity (`/identite <texte>`, refusals in French); the e2e never exercised the
+    history wake (the fake Kraken now holds the history until the startup cycle sleeps, and the test
+    requires a `sonni_history` wake for the intake); MEMORY.md still described a Haiku ingest.
 - Known gaps (deliberate, later slices):
-  - Monthly budget pacing is approximated by Money Lab's daily cap (1/30 of the month: $1.93/day for 50 EUR) and its funding
-    balance (example: $58, topped up monthly by the owner with /fonds). Remaining/remaining-days pacing
-    and per-purpose shares are not implemented.
-  - Only price-threshold predictions; no virtual orders, news, events, traps or cycles yet; historical
-    statistics cover daily price rules only (no event reactions). Readiness thresholds are left for after the first results (owner, 2026-10-06).
-  - Money Lab's experiment-oriented parts remain in the runtime (no-progress sleep, /resume summary);
-    they do not block Sonni but some owner texts still mention experiments. The idea-discovery sleep cap
-    no longer applies to Sonni (seen on the first live run, fixed 2026-10-06).
-- First live run (owner's VPS, 2026-10-06 22:12 UTC): Sonni read its memory pack and recorded two
-  predictions due 2026-10-07 22:12 UTC, then slept.
-- Blockers: none for code. The owner is renting a dedicated VPS (decision 0004) and will follow
-  sonni/GUIDE-VPS.fr.md: own Anthropic workspace and key with a spend limit, new Telegram bot.
-- Next concrete action: owner merges PRs #1 and #2 (or clones the branch), sets up the VPS with the
-  guide, then a supervised first run.
+  - Monthly budget pacing is approximated by Money Lab's daily cap (1/30 of the month) and funding balance.
+  - Only price-threshold predictions; no virtual orders, traps or cycles yet; readiness thresholds left
+    for after the first results (owner, 2026-10-06).
+  - read_page checks DNS before fetching, then fetch resolves again (DNS rebinding not covered); reader
+    rest state is process memory (a restart retries); daily caps count UTC days.
+  - Money Lab's experiment-oriented texts remain in some owner commands (/aides, /resume).
+- First live run (owner's VPS, 2026-10-06 22:12 UTC): two predictions due 2026-10-07 22:12 UTC.
+- Blockers: none for code. The owner must create free reader keys (optional) and update the VPS.
+- Next concrete action: owner re-runs `sudo -u sonni -H node sonni/vps/configure.mjs ...` on the VPS
+  (without adding budget), adds GEMINI_API_KEY / GROQ_API_KEY to /etc/sonni.env if wanted, restarts,
+  checks /lecteurs, /sources, /identite. Proposed next engineering task: a guard map for Sonni per the
+  Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.

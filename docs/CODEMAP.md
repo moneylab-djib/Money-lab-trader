@@ -15,15 +15,22 @@
 | Sonni calendar | src/trader/events.ts | FOMC days from the Fed page, CPI and jobs from FRED, reactions from daily candles | An event source, type or reaction window changes |
 | Sonni headlines | src/trader/news.ts | Hourly GDELT headlines, deduplicated, untrusted data | News source, query or retention changes |
 | Sonni memory pack | src/trader/pack.ts | Deterministic memory pack read before decisions | Retrieval order, indicators or bounds change |
-| Sonni agent tools | src/trader/tools.ts | sonni_memory and record_prediction | The model's tools change |
-| Sonni prompt | src/trader/prompt.ts | Sonni mission and rules block (replaces Money Lab's mission) | The mission or stated rules change |
+| Sonni agent tools | src/trader/tools.ts | sonni_memory, record_prediction, propose_hypothesis, write_reflection, add_lesson, retire_lesson, revise_identity, set_watch, read_page, manage_source, follow_asset | The model's tools change |
+| Sonni prompt | src/trader/prompt.ts | Sonni core and mission, identity block (cached), rules block (volatile, last), reflection and review instructions | The mission or stated rules change |
 | Sonni operator | src/trader/status.ts | French status and hypothesis list; CLI and Telegram commands in src/trader/cli.ts | Owner-facing output or commands change |
-| Sonni background work | src/trader/runtime.ts | Collection and resolution ticks scheduled by src/index.ts | Scheduling or failure reporting changes |
-| Runtime integration | src/index.ts | Profile validation, timers, --sonni CLI; loop.ts, system-prompt.ts, guard.ts, telegram.ts and conway/inference.ts carry small Sonni hooks | How Sonni plugs into the Money Lab runtime changes |
-| Sonni tests | src/__tests__/trader/ | sonni.test.ts (first slice) and knowledge.test.ts (step 1), network and inference mocked | Any Sonni behaviour changes |
+| Sonni background work | src/trader/runtime.ts | Collection, resolution, history, calendar, news and digest ticks scheduled by src/index.ts (curiosity and sources ticks are called directly) | Scheduling or failure reporting changes |
+| Runtime integration | src/index.ts | Profile validation, secret sealing, timers (prices, history, resolution, curiosity, calendar, news + digest, sources), Sonni wake gate, --sonni CLI; loop.ts, system-prompt.ts, guard.ts, telegram.ts, journal.ts, recall.ts and conway/inference.ts carry small Sonni hooks | How Sonni plugs into the Money Lab runtime changes |
+| Sonni tests | src/__tests__/trader/ | sonni (first slice), knowledge (step 1), world (step 2), soul, curiosity, readers, sources, alive (step 3); network and inference mocked | Any Sonni behaviour changes |
 | Sonni end-to-end | sonni/e2e.mjs | Real built process against fake Kraken, Anthropic and Telegram | Startup, timers, prompt, tools or Telegram behaviour change |
 | Sonni example config | sonni/automaton.sonni.example.json | Money Lab block plus trader block for a separate VPS user | Config keys or recommended limits change |
 | Sonni VPS setup | sonni/vps/configure.mjs | Writes Sonni's config on its own VPS; with sonni.service, sonni.env.example and sonni/GUIDE-VPS.fr.md | Deployment layout, config keys, budget rule or owner steps change |
 | Money Lab runtime | src/money-lab/ | Imported runtime (budgets, Telegram, guards, journal); see docs/upstream/MONEY-LAB-README.md | A runtime behaviour Sonni relies on changes |
+| Sonni identity and journal | src/trader/soul.ts | Versioned identity, append-only reflections, lessons with evidence and owner veto, self-report computed by code, reflection clock | Identity, journal, lesson or self-report rules change (keep docs/MEMORY.md in sync) |
+| Sonni curiosity | src/trader/curiosity.ts | Code-evaluated self-wake triggers, model watches, wake log and caps | Trigger kinds, caps or watch rules change |
+| Sonni readers | src/trader/readers.ts | Free OpenAI-compatible reader models: calls, caps, resting, headline digest into validated observations | A reader provider, the digest schema or observation validation changes |
+| Sonni page reading | src/trader/pages.ts | read_page: public-host checks, capped fetch, reader summary, observation | URL rules, caps or page summary schema change |
+| Sonni data sources | src/trader/sources.ts | Catalog loading, polling by JSON path, model enable/disable/propose, owner decisions, metrics for the pack; catalog in src/trader/catalog.ts | A source, its cadence, failure rule or proposal rule changes |
+| Sonni universe | src/trader/universe.ts | Followed assets: config plus the model's logged follow/unfollow choices checked against Kraken EUR pairs; activeConfig | Asset rules or pair validation change |
 
+Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

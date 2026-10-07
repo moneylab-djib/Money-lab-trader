@@ -160,6 +160,190 @@ function ensureKnowledgeSchema(db: DB): void {
   `);
   const columns = (db.prepare("PRAGMA table_info(trader_hypotheses)").all() as { name: string }[]).map((c) => c.name);
   if (!columns.includes("test_rule")) db.exec("ALTER TABLE trader_hypotheses ADD COLUMN test_rule TEXT");
+  // Step 3: a headline is marked once a reader digested it (or skipped it), so no batch is lost.
+  const headlineColumns = (db.prepare("PRAGMA table_info(trader_headlines)").all() as { name: string }[]).map((c) => c.name);
+  if (!headlineColumns.includes("digested_at")) db.exec("ALTER TABLE trader_headlines ADD COLUMN digested_at TEXT");
+  ensureAliveSchema(db);
+}
+
+/** Append-only: refuse every update and delete on a table. */
+function appendOnly(table: string): string {
+  return `
+    CREATE TRIGGER IF NOT EXISTS ${table}_no_update BEFORE UPDATE ON ${table}
+      BEGIN SELECT RAISE(ABORT, '${table} is append-only'); END;
+    CREATE TRIGGER IF NOT EXISTS ${table}_no_delete BEFORE DELETE ON ${table}
+      BEGIN SELECT RAISE(ABORT, '${table} is append-only'); END;`;
+}
+
+/**
+ * Step 3 ("Sonni alive", docs/MEMORY.md): identity versions, reflections,
+ * lessons, watches, the wake log, observations from reader models, reader
+ * calls, sources with their metrics, and the asset universe log. Model
+ * texts are versioned or append-only; code-computed numbers live in
+ * their own tables.
+ */
+function ensureAliveSchema(db: DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trader_identity (
+      id TEXT PRIMARY KEY,
+      version INTEGER NOT NULL UNIQUE,
+      content TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      source TEXT NOT NULL CHECK (source IN ('seed', 'model', 'owner')),
+      recorded_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_identity")}
+
+    CREATE TABLE IF NOT EXISTS trader_reflections (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('postmortem', 'session', 'daily', 'weekly')),
+      subject_id TEXT,
+      content TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_reflections_subject ON trader_reflections (subject_id);
+    ${appendOnly("trader_reflections")}
+
+    CREATE TABLE IF NOT EXISTS trader_lessons (
+      id TEXT PRIMARY KEY,
+      text TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('active', 'retired')),
+      recorded_at TEXT NOT NULL,
+      retired_at TEXT,
+      retired_by TEXT CHECK (retired_by IN ('model', 'owner')),
+      retire_reason TEXT
+    );
+    CREATE TRIGGER IF NOT EXISTS trader_lessons_no_delete BEFORE DELETE ON trader_lessons
+      BEGIN SELECT RAISE(ABORT, 'trader_lessons is append-only'); END;
+    CREATE TRIGGER IF NOT EXISTS trader_lessons_retire_once BEFORE UPDATE ON trader_lessons
+      WHEN OLD.status = 'retired' OR NEW.text IS NOT OLD.text OR NEW.evidence IS NOT OLD.evidence
+        OR NEW.recorded_at IS NOT OLD.recorded_at
+      BEGIN SELECT RAISE(ABORT, 'trader_lessons: a lesson can only be retired, once'); END;
+
+    CREATE TABLE IF NOT EXISTS trader_watches (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('price', 'move', 'time')),
+      asset TEXT,
+      direction TEXT CHECK (direction IN ('above', 'below')),
+      value REAL,
+      window_hours INTEGER,
+      due_at TEXT,
+      note TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      fired_at TEXT,
+      fired_reason TEXT,
+      cancelled_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_watches_open ON trader_watches (fired_at, cancelled_at, expires_at);
+    CREATE TRIGGER IF NOT EXISTS trader_watches_no_delete BEFORE DELETE ON trader_watches
+      BEGIN SELECT RAISE(ABORT, 'trader_watches is append-only'); END;
+    CREATE TRIGGER IF NOT EXISTS trader_watches_condition_fixed BEFORE UPDATE ON trader_watches
+      WHEN NEW.kind IS NOT OLD.kind OR NEW.asset IS NOT OLD.asset OR NEW.direction IS NOT OLD.direction
+        OR NEW.value IS NOT OLD.value OR NEW.window_hours IS NOT OLD.window_hours OR NEW.due_at IS NOT OLD.due_at
+        OR NEW.note IS NOT OLD.note OR NEW.created_at IS NOT OLD.created_at OR NEW.expires_at IS NOT OLD.expires_at
+        OR (OLD.fired_at IS NOT NULL AND NEW.fired_at IS NOT OLD.fired_at)
+        OR (OLD.cancelled_at IS NOT NULL AND NEW.cancelled_at IS NOT OLD.cancelled_at)
+      BEGIN SELECT RAISE(ABORT, 'trader_watches: only fired_at and cancelled_at may be set, once'); END;
+
+    CREATE TABLE IF NOT EXISTS trader_wakes (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      key TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      at TEXT NOT NULL,
+      delivered INTEGER NOT NULL CHECK (delivered IN (0, 1))
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_wakes_at ON trader_wakes (at);
+    CREATE INDEX IF NOT EXISTS idx_trader_wakes_key ON trader_wakes (key, at);
+    ${appendOnly("trader_wakes")}
+
+    CREATE TABLE IF NOT EXISTS trader_observations (
+      id TEXT PRIMARY KEY,
+      observed_at TEXT NOT NULL,
+      published_at TEXT NOT NULL,
+      source TEXT NOT NULL,
+      url TEXT,
+      assets TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      sentiment REAL CHECK (sentiment IS NULL OR (sentiment >= -1 AND sentiment <= 1)),
+      summary TEXT NOT NULL,
+      event_date TEXT,
+      trust TEXT NOT NULL CHECK (trust IN ('untrusted'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_observations_published ON trader_observations (published_at);
+    CREATE INDEX IF NOT EXISTS idx_trader_observations_url ON trader_observations (url);
+    ${appendOnly("trader_observations")}
+
+    CREATE TABLE IF NOT EXISTS trader_reader_calls (
+      id TEXT PRIMARY KEY,
+      reader_id TEXT NOT NULL,
+      at TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      ok INTEGER NOT NULL CHECK (ok IN (0, 1)),
+      ms INTEGER NOT NULL,
+      status INTEGER,
+      error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_reader_calls_at ON trader_reader_calls (reader_id, at);
+    ${appendOnly("trader_reader_calls")}
+
+    CREATE TABLE IF NOT EXISTS trader_sources (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      url TEXT NOT NULL,
+      metrics TEXT NOT NULL,
+      every_minutes INTEGER NOT NULL,
+      key_env TEXT,
+      origin TEXT NOT NULL CHECK (origin IN ('catalog', 'model')),
+      status TEXT NOT NULL CHECK (status IN ('enabled', 'disabled', 'proposed', 'rejected')),
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_fetch_at TEXT,
+      last_error TEXT,
+      failures INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS trader_source_log (
+      id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('propose', 'enable', 'disable', 'approve', 'reject')),
+      by TEXT NOT NULL CHECK (by IN ('code', 'model', 'owner')),
+      reason TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_source_log")}
+
+    CREATE TABLE IF NOT EXISTS trader_metrics (
+      source_id TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      ts TEXT NOT NULL,
+      value REAL NOT NULL,
+      PRIMARY KEY (source_id, metric, ts)
+    );
+
+    CREATE TABLE IF NOT EXISTS trader_page_reads (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      at TEXT NOT NULL,
+      ok INTEGER NOT NULL CHECK (ok IN (0, 1)),
+      outcome TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_page_reads_at ON trader_page_reads (at);
+    ${appendOnly("trader_page_reads")}
+
+    CREATE TABLE IF NOT EXISTS trader_universe (
+      id TEXT PRIMARY KEY,
+      asset TEXT NOT NULL,
+      kraken_pair TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('follow', 'unfollow')),
+      reason TEXT NOT NULL,
+      recorded_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_universe")}
+  `);
 }
 
 /** True once ensureTraderSchema has run on this database. */

@@ -55,6 +55,14 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /idee <texte> — ajouter une intuition à tester
 /intuitions — liste des intuitions
 /agenda — événements à venir (Fed, inflation, emploi)
+/bilan — calibration et scores calculés par le code
+/identite [texte] — l'identité que Sonni s'est écrite ; avec un texte, ta version
+/journal [n] — ses dernières réflexions
+/lecons — ses leçons ; /veto <id> [raison] pour en retirer une
+/reveils — ses réveils et déclencheurs
+/lecteurs — IA lectrices gratuites
+/sources — sources de données ; /source ok|non <id> pour décider d'une proposition
+/actifs — actifs suivis et changements décidés par Sonni
 /sante — rapport de santé
 /pause [raison] — mettre Sonni en pause
 /reprendre — relancer Sonni
@@ -63,6 +71,14 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /non <id> [raison] — demande refusée
 /aide — cette liste
 Tout autre message est transmis à Sonni.`;
+
+/** Telegram command to Sonni CLI subcommand (src/trader/cli.ts). */
+const SONNI_SUBCOMMANDS: Record<string, string> = {
+  "/idee": "idee", "/idée": "idee", "/intuitions": "intuitions", "/agenda": "agenda", "/bilan": "bilan",
+  "/identite": "identite", "/identité": "identite", "/journal": "journal", "/lecons": "lecons", "/leçons": "lecons",
+  "/veto": "veto", "/reveils": "reveils", "/réveils": "reveils", "/lecteurs": "lecteurs", "/sources": "sources",
+  "/source": "source", "/actifs": "actifs",
+};
 
 type FetchFn = typeof fetch;
 
@@ -164,11 +180,26 @@ export class TelegramChannel {
       case "/idee":
       case "/idée":
       case "/intuitions":
-      case "/agenda": {
+      case "/agenda":
+      case "/bilan":
+      case "/identite":
+      case "/identité":
+      case "/journal":
+      case "/lecons":
+      case "/leçons":
+      case "/veto":
+      case "/reveils":
+      case "/réveils":
+      case "/lecteurs":
+      case "/sources":
+      case "/source":
+      case "/actifs": {
         if (!this.config.trader) return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
         ensureTraderSchema(this.raw);
-        const sub = command === "/intuitions" ? "intuitions" : command === "/agenda" ? "agenda" : "idee";
-        runSonniCommand([sub, ...(sub === "idee" ? args : [])], this.raw, this.config.trader, (t) => out.push(t));
+        const sub = SONNI_SUBCOMMANDS[command];
+        runSonniCommand([sub, ...args], this.raw, this.config.trader, (t) => out.push(t), {
+          dailyCapCents: this.config.moneyLab?.inference.dailyCents ?? null,
+        });
         return out.join("\n");
       }
       case "/sante":

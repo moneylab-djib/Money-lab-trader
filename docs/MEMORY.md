@@ -3,12 +3,15 @@
 Memory is the core of the project. The agent is a language model whose weights never change: it
 learns only through what it writes down, what code measures, and what it reads back before acting.
 This document defines what is remembered, who may write it, how it is consolidated and how it is
-retrieved. Status (2026-10-06): implemented so far are prices, daily history, the event calendar, headlines,
+retrieved. Status (2026-10-07): implemented so far are prices, daily history, the event calendar, headlines,
 reactions to past events computed on the fly from daily candles, hypotheses (owner,
 prior and observation origins) with optional test rules evaluated by code on history, predictions
 limited to "price above/below a threshold at a horizon", forward evidence, computed confidence, the
-intake of Claude's prior knowledge and a memory pack (src/trader/). Everything else here is still the
-proposed design.
+intake of Claude's prior knowledge, a memory pack, and, since step 3 ("Sonni alive"), the model's own
+identity (versioned), journal (append-only reflections), lessons with evidence and owner veto, the
+self-report computed by code, watches and self-wakes, observations extracted by free reader models,
+numbers polled from data sources, and the asset universe log (src/trader/). Virtual orders, traps,
+patterns and dossiers are still the proposed design.
 
 ## 1. Goals
 
@@ -24,10 +27,10 @@ proposed design.
 | Writer | May write | May not write |
 | --- | --- | --- |
 | Code (collectors, resolver, statistics) | Prices, event outcomes, measured reactions, prediction and trade resolutions, hypothesis confidence | Free-text judgement |
-| Digest model (Haiku 4.5) | Observations extracted from news, scheduled events | Hypotheses, rules, anything about its own sources' reliability |
-| Decision model (Sonnet 5.5) | Predictions, virtual orders, theses, links to hypotheses and traps | Resolutions, confidence values, retired rules |
+| Reader models (free, OpenAI-compatible: Gemini, Groq...; implemented) | Observations extracted from headlines and pages, validated field by field by code | Hypotheses, lessons, anything about its own reliability; they never decide |
+| Decision model (Sonnet 5.5) | Predictions, virtual orders, theses, links to hypotheses and traps; its identity (new versions), journal entries, lessons with evidence, watches, asset and source choices with reasons | Resolutions, confidence values, scores, the self-report, retired rules of the owner |
 | Consolidation and review (Sonnet 5.5 daily, Opus 5.5 weekly) | Post-mortems, hypotheses, traps, patterns, lessons, dossier notes, status proposals | Past predictions, past trades, measured numbers |
-| Owner (Telegram) | Notes, ideas, corrections, rule vetoes | Nothing is off-limits to the owner |
+| Owner (Telegram) | Notes, ideas, corrections, lesson vetoes (/veto), source approvals (/source ok|non), identity corrections | Nothing is off-limits to the owner |
 
 Web pages and news are untrusted data: they can only produce observations. A hypothesis or rule never
 comes directly from a page; it must be supported by measured evidence.
@@ -46,8 +49,14 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `reactions` | event_id, asset, window, return_pct, volume_ratio, computed_at | Computed by code only, at fixed windows (−24 h, +1 h, +24 h, +7 d). |
 | `trader_candles` (implemented) | asset, day, open, high, low, close, volume | Kraken daily candles, about two years; the unfinished day is skipped. |
 | `trader_events` (implemented) | type (fomc, cpi, jobs), day, source | Fed decisions from the public FOMC calendar; CPI and jobs dates from FRED with the owner's free key. Code only. |
-| `trader_headlines` (implemented) | url, title, domain, published_at | GDELT headlines about crypto and the Fed, hourly, kept 30 days. Untrusted data; the first observations, before a Haiku digest exists. |
+| `trader_headlines` (implemented) | url, title, domain, published_at, digested_at | GDELT headlines about crypto and the Fed, hourly, kept 30 days. Untrusted data. `digested_at` is set by code only once a reader has answered for the batch, so a failed or capped reader leaves the headline for the next digest. |
 | `trader_historical_tests` (implemented) | hypothesis_id, tested_at, data_from, data_to, cases, hits, rate, base_rate, z, verdict | Append-only; written by code only (section 4). |
+| `trader_observations` (implemented) | observed_at, published_at, source (reader:<id> or page), url, assets, kind, sentiment, summary, event_date, trust | Extracted by a free reader model from headlines (hourly digest) or from a page the model asked to read; every field validated and clipped by code, prompt-boundary patterns rejected; always `untrusted`; append-only. |
+| `trader_reflections` (implemented) | kind (postmortem, session, daily, weekly), subject_id, content, recorded_at | The model's journal, in French, append-only. A post-mortem needs a scored prediction and exists once per prediction. |
+| `trader_wakes` (implemented) | source, key, reason, at, delivered | Code-only log of curiosity triggers (section 5), delivered as a wake or only noted; append-only. |
+| `trader_metrics` (implemented) | source_id, metric, ts, value | Numbers polled by code from the enabled data sources (90-day retention). |
+| `trader_reader_calls` (implemented) | reader_id, at, purpose, ok, ms, status, error | Every reader call, for the daily caps and /lecteurs; keys never appear; error texts are written by code (never a provider's body); append-only. |
+| `trader_page_reads` (implemented) | url, at, ok, outcome | Every `read_page` attempt, refused or failed ones included, so the daily cap (`readPagesPerDay`, 20) counts attempts, not only pages that produced an observation; append-only. |
 | `predictions` | made_at, asset, statement, condition, horizon_until, probability, hypothesis_ids, rationale | Append-only. Resolved by code: resolved_at, outcome, Brier score. |
 | `trades` | opened_at, asset, qty, fill_price, fees, thesis, conviction, probability, invalidation, horizon, hypothesis_ids | Append-only entry; exit, P&L and post-mortem are appended as separate rows. |
 
@@ -61,7 +70,10 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `trap_occurrences` | trap_id, trade_id or prediction_id, note | Written at post-mortem time. |
 | `patterns` (cycles) | name, event_type, sequence, stats, n, last_seen | Recurring event → reaction sequences; `stats` and `n` are computed by code from `reactions`. |
 | `dossiers` | asset, notes, catalysts, calendar | One per followed asset. |
-| `universe` | asset, action (add / remove), reason, data_source, recorded_at | The watch list the agent chooses (decision 0003); every change has a reason, so its choices can be reviewed. |
+| `trader_universe` (implemented) | asset, kraken_pair, action (follow / unfollow), reason, recorded_at | The watch list the agent chooses (decision 0003): a Kraken EUR pair checked against the public pair list, every change with a reason, append-only; the followed set is the config plus this log replayed. The owner's configuration keeps authority: at startup code compares the configured assets with the previous start (KV `sonni.config_assets`) and logs a follow for an added asset, a follow with the new pair when the owner corrects the pair of an asset an older follow entry carries, and an unfollow for a removed one; a removed asset with open predictions stays followed until they resolve (retried at the next start), and the last followed asset is never dropped. |
+| `trader_identity` (implemented) | version, content, reason, source (seed / model / owner), recorded_at | The model's self-description, in French, seeded by code; a new version per revision (at most one model revision per day, anchor words kept), never edited. |
+| `trader_sources` + `trader_source_log` (implemented) | id, label, url, metrics (JSON paths), every_minutes, key_env, origin (catalog / model), status (enabled / disabled / proposed / rejected), reason, failures | Data sources polled by code (src/trader/catalog.ts). The model enables, disables or proposes one with a reason; the owner approves or rejects proposals (the proposal shows the exact URL); every action is logged append-only. At startup a catalog row whose label, URL, metrics, cadence or key changed in the code is updated in place, keeping its status and reason and resetting its failure count. Requests use HTTPS, refuse redirects and keep only the declared numeric paths; 20 failures in a row disable a source and the owner is told. |
+| `trader_watches` (implemented) | kind (price / move / time), asset, direction, value, window_hours, due_at, note, expires_at, fired_at, cancelled_at | Conditions the model asks code to watch; fire once; the condition cannot be edited. |
 
 Semantic and procedural records are bi-temporal, an idea taken from Graphiti (docs/RESEARCH.md):
 `valid_from` / `valid_to` say when the belief held in the market, `recorded_at` when the agent wrote it.
@@ -71,7 +83,7 @@ A superseded belief is closed with `valid_to`, never deleted, so the agent can s
 
 | Store | Key fields | Notes |
 | --- | --- | --- |
-| `lessons` (rules) | text, scope, provenance refs, status, valid_from, valid_to, recorded_at, retired_at, reason | Active rules are read before every decision. Each rule cites the evidence that justifies it. The owner can veto a rule. |
+| `trader_lessons` (implemented) | text, evidence (prediction and hypothesis ids), status (active / retired), recorded_at, retired_at, retired_by (model / owner), retire_reason | Active lessons are in the cached part of every system prompt. A lesson needs at least one existing piece of evidence, at most 3 per day and 40 active; retired once, never deleted; the owner vetoes with /veto. |
 
 ## 4. Turning Claude's knowledge into tested hypotheses
 
@@ -107,15 +119,28 @@ Implemented in step 1 ("Sonni already knows things", src/trader/intake.ts, rules
 
 | Step | Cadence | Who | Reads | Writes |
 | --- | --- | --- | --- | --- |
-| Ingest | Hourly | Haiku 4.5 | News, filings, calendars | observations, events |
+| Ingest | Hourly | Code (calendars, headlines) and free reader models (digest) | Calendars, GDELT headlines, pages the model asks to read | events, headlines, observations |
 | Measure | Every few minutes | Code | Prices, events | reactions, pattern stats |
 | Decide | ~3 sessions/day + triggers | Sonnet 5.5 | Memory pack (section 6) | predictions, virtual orders, theses |
 | Resolve | Continuous | Code | Prices, horizons | outcomes, Brier scores, P&L, hypothesis evidence |
 | Consolidate | Daily | Sonnet 5.5 | The day's resolutions and observations | post-mortems, trap occurrences, new hypotheses, dossier notes |
 | Review | Weekly | Opus 5.5 | The week, hypothesis table, traps, rules | merged and retired hypotheses, lessons, new patterns to test, the owner's report |
 
-Triggers for an extra decision session: a followed asset moves more than a set threshold, or a
-scheduled event resolves.
+Triggers for an extra decision session (implemented in step 3, src/trader/curiosity.ts, evaluated by
+code every minute): a followed asset moves `moveAlertPct` (3 %) or more within an hour; an event day
+(from 07:00 UTC) and the morning after it (from 06:00 UTC); predictions resolved since the last such
+wake (at most every 6 h); a watch the model set (a price level, a move over a window, a date to
+revisit a question). Every trigger is logged; a wake is delivered only while the agent sleeps,
+unpaused and not on a budget cap, at most `maxSelfWakesPerDay` (6) per UTC day and
+`minMinutesBetweenWakes` (30) apart. The reflection step runs on the first wake after a prediction is
+scored (post-mortem per prediction, lessons, optional identity revision), the self-report being
+computed by code first; the weekly review on Opus adds a weekly reflection and the owner's report.
+"Scored since the last reflection" is measured against KV `sonni.reflection_upto`, the latest
+resolution time covered by the last completed reflection turn (set after the paid turn, never by the
+model), so a prediction scored during a reflection turn is not skipped.
+Readers (free models) digest the hour's headlines into observations right after they are fetched
+(up to 3 batches of 40 per hour, newest first), even when that hour's GDELT fetch failed;
+sources are polled on their own cadence; none of this uses paid inference.
 
 Two optional steps for high-conviction calls, enabled when the budget allows (docs/RESEARCH.md):
 several independent forecasts whose median probability is recorded, and a short adversarial pass that
@@ -143,6 +168,22 @@ The model can then search further with full-text recall (Money Lab's `recall` to
 memory tables). No embeddings and no vector database: structured keys plus FTS5 are enough at this
 scale and cost nothing per query.
 
+Implemented pack (step 3, src/trader/pack.ts), within 9,000 characters, in order: what happened
+since the previous session (triggers, resolutions, new headlines and observations, computed by code);
+prices and changes; open predictions (15); recent resolutions (6), with the ids still waiting for a
+post-mortem; open watches; the self-report (calibration, Brier by asset, horizon and direction,
+counts, spend); upcoming events (14 days); ranked hypotheses (12, statements shortened); indicators
+from the enabled sources with 24 h and 7 d references; past reactions to events; observations of the
+last 24 h per asset with code-averaged sentiment, dated items and the pages the model read; the last
+two reflections (shortened); raw headlines (12). Code fills sections in that order and, when the
+budget runs out, cuts the section with a note naming how many lines were not shown, or lists the
+omitted sections; nothing is silently dropped. The model reads any group in full with
+`sonni_memory {"section": ...}` (hypotheses, predictions, observations, headlines, reflections,
+watches, sources, events); a detail view does not move the "since the previous session" reference.
+The identity text and the active lessons are not in the pack: they sit in the cached part of the
+system prompt. `recall` searches the identity versions, reflections, lessons and hypotheses by terms
+(no FTS5 index yet).
+
 ## 7. Integrity
 
 - Predictions and trades are append-only; the agent's tools can insert but not update or delete them.
@@ -160,7 +201,9 @@ scale and cost nothing per query.
   with a reason, never deleted.
 - Owner commands (French): `/note <texte>` stores an observation with source `owner`; `/idee <texte>`
   creates a hypothesis with origin `owner`; `/memoire <sujet>` shows what it knows on a topic;
-  `/veto <règle>` retires a lesson.
+  `/veto <règle>` retires a lesson. Implemented in step 3: `/identite` (and `/identite <texte>`, the
+  owner's own version, recorded with source `owner`), `/journal`, `/lecons`, `/veto <id>`, `/bilan`,
+  `/reveils`, `/lecteurs`, `/sources`, `/source ok|non <id>`, `/actifs`.
 
 ## 9. Open questions
 

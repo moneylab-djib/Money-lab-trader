@@ -35,7 +35,7 @@ Checks (configured in likma.project.json, run through the Likma checkout):
   - sonni: pnpm exec vitest run src/__tests__/trader
   - money-lab: pnpm exec vitest run src/__tests__/money-lab (imported runtime regression suite)
   - build: pnpm run build
-  - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram, ~2 min)
+  - sonni-e2e: node sonni/e2e.mjs (needs the build; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~4 min)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/ (keep them in sync
 with config keys and commands).
@@ -43,15 +43,67 @@ src/__tests__/context-hardening.test.ts hangs on unmodified upstream: plain `pnp
 No start command is configured: starting runs a paid agent and requires owner approval.
 
 ## Code layout
-Sonni lives in src/trader/ with small hooks in src/index.ts, src/agent/loop.ts,
-src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts
-and src/conway/inference.ts. The rest is the Money Lab runtime imported at a pinned commit
-(docs/upstream/): prefer changes under src/trader/ over edits to imported modules.
+Sonni lives in src/trader/ (config, schema, prices, candles, rules, historical, hypotheses,
+predictions, intake, events, news, readers, pages, sources + catalog, universe, soul, curiosity, pack,
+prompt, tools, status, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
+src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts,
+src/money-lab/recall.ts and src/conway/inference.ts. The rest is the Money Lab runtime imported at a
+pinned commit (docs/upstream/): prefer changes under src/trader/ over edits to imported modules.
+Sonni's prompt: automaton survival/orchestration layers are skipped; the stable part (mission, identity,
+lessons, tools) is cached and the "--- SONNI RULES" block is last (volatile). Reader models (free,
+OpenAI-compatible) only read; their keys and the data-source keys are sealed secrets.
 
 ## Likma tracking
 Track features in .likma/features.json and docs/FEATURES.md; keep docs/CODEMAP.md current via
-likma.project.json. Use Likma project doctor/check through the system checkout recorded in
-docs/LIKMA.md. For substantial tasks use project runtime begin/context/guard/record/end, record failed
+likma.project.json. For substantial tasks use project runtime begin/context/guard/record/end, record failed
 hypotheses and known costs, and do not invent usage or renew runs to evade budgets.
 Update docs/STATUS.md with real checks and blockers; never report planned work as complete.
-After substantial changes, explain outcome, reason, affected paths and how the owner can test it.
+After substantial changes, explain to the owner (in French) outcome, reason, affected paths and how to test it.
+
+<!-- likma:begin -->
+## Likma routine
+Managed by Likma `project upgrade`; edit project rules outside the likma markers.
+Likma Dev System supplies shared methods; this project's documents govern its identity, stack and scope.
+Locate the system checkout with $LIKMA_HOME, else ../likma-dev-system, and run its CLI as
+`python "$LIKMA_HOME/scripts/likma.py" project <action> --path .` (use py -3 on Windows if needed).
+
+- Start: run `project brief` (status, features, audit findings, last handoff); read docs/STATUS.md.
+- Plan: record features with numbered acceptance criteria and scope paths (`project feature add`).
+  Verify the first usable slice (docs/FIRST-SLICE.md) before expanding.
+- Work: use `project setup|start|check` with the configured commands; never guess commands.
+  On failure read `project diagnostics` before rerunning; record hypotheses with `project attempt`.
+  Search `project knowledge find` before repeating research; record sourced, version-bound facts.
+- Verify: `project feature verify ID --criterion-check N:CHECK`; inspect rendered UI for visual changes.
+- Finish: run `project audit`, update docs/STATUS.md, end an active run with `project runtime end --summary`.
+  Report outcome, evidence, affected paths and how to test; never report unrun checks or mocks as done.
+- Unknown cost is never free; never renew sessions or runs to evade limits.
+- Load only skills relevant to the task: read `$LIKMA_HOME/skills/<area>/<name>/SKILL.md` from the index
+  below (installed copies are prefixed `likma-`; the Claude Code plugin namespaces them as `likma:<name>`).
+
+### Skill index (profile ai-product, Likma 0.7.0)
+- agents/autonomous-agents: building, auditing or running an unattended LLM agent with tools, shell, spend or an owner channel; produces…
+- agents/llm-evaluation: measuring an LLM feature, RAG or agent (eval sets, graders, judges, baselines, CI gates, drift); produces a v…
+- agents/mcp-servers: designing, building or reviewing a Model Context Protocol server or its tools (naming, schemas, pagination, e…
+- delivery/production-readiness: Use before a launch or high-risk release to decide go/no-go by risk tier (restore-tested backups, alerts, rat…
+- delivery/project-bootstrap: starting a project with Likma or adopting it in a repo (bootstrap or init, profile, real commands in likma.pr…
+- efficiency/context-selection: a large repo, monorepo or long session needs the right skills, files, callers and passages without reading th…
+- efficiency/execution-efficiency: a failing check is rerun unchanged, tool calls repeat, polling spans turns or output floods (diagnostics, ret…
+- efficiency/knowledge-reuse: a task depends on prior research, setup facts, versions, decisions or failed hypotheses (project knowledge wi…
+- efficiency/research-efficiency: a decision needs external facts (library or API behaviour, vendor limits, standards) or searches keep repeati…
+- engineering/data-pipelines: imports, exports and batch ETL needing idempotent reruns, schema evolution, late/duplicate data, backfills, q…
+- engineering/distributed-jobs: adding queues, workers, schedulers, webhook consumers or async integrations needing retries, idempotency keys…
+- engineering/software-architecture: system-level design (service or module decomposition, quality attributes, build-vs-buy, ADRs, evolution); pro…
+- product/feature-design: specifying what to build for an agreed goal; produces a spec with prioritized user stories, ID-tagged EARS ac…
+- product/pricing-model: choosing a value metric, tiers, free plan limits or price points before billing exists; produces a pricing hy…
+- product/product-analytics: defining or fixing product events, tracking plans, funnels, activation or retention cohorts, identity stitchi…
+- product/product-thinking: a new product or tool idea is vague or solution-first (no validated user, problem or success measure); produc…
+- quality/code-review: reviewing a diff or pull request before merge for correctness, edge cases, test gaps and maintainability; pro…
+- quality/debugging: a bug, failing test, crash or regression has no established cause; produces a reproduction, isolated root cau…
+- quality/privacy-review: code collects, logs or sends personal data to analytics, error tracking or LLM providers; produces a data inv…
+- quality/regulatory-compliance: an EU-facing product needs GDPR, cookie consent, accessibility act, consumer law, AI Act or app store duties…
+- quality/security-review: reviewing a diff or code you own for vulnerabilities (authz, injection, SSRF, uploads, secrets, dependencies)…
+- quality/skill-evaluation: creating or revising agent skills or their descriptions; produces trigger evals with near-miss negatives, wit…
+- quality/testing-strategy: planning or auditing tests for a feature, bug fix or codebase; produces a risk-to-test matrix mapping each ac…
+- quality/threat-modeling: Use before or while designing a feature handling identity, money, sensitive data, untrusted input or agent to…
+- specialists/ai-integration: an AI/LLM feature where model output, prompt injection, tool authority, cost and reliability need boundaries;…
+<!-- likma:end -->

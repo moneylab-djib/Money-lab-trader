@@ -21,8 +21,19 @@
         "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       },
       "verification": {
-        "at": "2026-10-06T23:30:45.588228+00:00",
-        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "at": "2026-10-07T04:44:57.515748+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni-e2e",
           "2": "sonni",
@@ -33,9 +44,38 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/fcd819cffb38439089e836b6e3622927.json",
-        "contract": "54abeb8eebed31610b84714fc2893cbeccfe339b6eee53c789556ee2c9442a30"
-      }
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/502b09d9cc004d0fb35963ff36d50e32.json",
+        "contract": "30356d0bf5c772617ad3fd14836400d34f98e3a2c87003b8f74cd699753d2e2e",
+        "results": [
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 263.663,
+            "output_bytes": 2181,
+            "output_sha256": "1322e567ef310be157c7f593b7f4b3ed960caf5ba7a9350f972ecaf8c2d7395c"
+          },
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.962,
+            "output_bytes": 9105,
+            "output_sha256": "a5165c2d0e92e71f181fce0c883f893db5036b43ffac0a8059ccca77256c43d7"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "knowledge-intake",
@@ -56,8 +96,19 @@
         "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
       },
       "verification": {
-        "at": "2026-10-06T23:28:25.839602+00:00",
-        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "at": "2026-10-07T04:48:27.319888+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -68,9 +119,38 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/b571aa7bb3484942aea5e86278c22491.json",
-        "contract": "8cf39faf47876773d6b22da40e3250de1e7982491a381296bfce4013bf60527b"
-      }
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/1e0d99b3d27341ca8ba0960b58593b36.json",
+        "contract": "c00d4893d9fceb7a9e81afd76af1c3793972e63f55572c7a6e7fd84bde64e049",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.402,
+            "output_bytes": 9103,
+            "output_sha256": "8c4f9e4a5a396f93ecb88e5cc242157897eb0143668683569527f36cf033143c"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 203.195,
+            "output_bytes": 2181,
+            "output_sha256": "1955706497c77a35a91423fa0327d98cac1dca500a278d71058aa4d1ce1d22b1"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     },
     {
       "id": "sees-the-world",
@@ -89,8 +169,19 @@
         "note": "src/trader/events.ts, news.ts; event condition in rules.ts; calendar and news ticks; pack, status, /agenda; guide FRED step"
       },
       "verification": {
-        "at": "2026-10-06T23:26:06.041938+00:00",
-        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "at": "2026-10-07T04:48:34.281557+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -99,9 +190,298 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "report": ".likma/checks/bdffe1945d194ed18aca4006421b52a9.json",
-        "contract": "127a4a9aa0f5aea74b707ef0b99970f1fcd7ae6040e1a453a4459cb124f20f85"
-      }
+        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
+        "report": ".likma/checks/853c952f75624993aae3762abb4e806e.json",
+        "contract": "c0241dd01c73ff18afe45c90979622afa9bc5982e86238deb9289abdc09504b8",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.721,
+            "output_bytes": 9103,
+            "output_sha256": "124a2c16bfe660e06d6e62de0ae7907f84b16f070cd7c2b25c87caa1ccd1acc2"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
+    },
+    {
+      "id": "identity-journal",
+      "title": "Sonni knows itself: versioned identity, append-only journal, lessons with evidence, self-report computed by code",
+      "criteria": [
+        "The identity starts from a code-written seed; the model may revise it at most once per UTC day, keeping the anchor words; every version is kept and the owner can read them",
+        "A post-mortem can only be written for a scored prediction, once; reflections are append-only and capped per day",
+        "A lesson needs at least one existing prediction or hypothesis as evidence, is capped per day and in number, and is retired (never deleted) by the model or by the owner's /veto",
+        "The self-report (calibration buckets, Brier by asset, horizon and direction, counts, spend) is computed by code and shown in the memory pack and /bilan",
+        "After a prediction resolves, the next wake carries the reflection instructions and code marks the reflection done once a paid turn ran",
+        "Identity and active lessons sit in the cached part of the system prompt; the rules block with the day's counters is the last, volatile part",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.416055+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T04:53:05.298072+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni-e2e",
+          "7": "sonni"
+        },
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/cb23d625840543b18c82f2fbd8dbe075.json",
+        "contract": "228797aaac3d5223783bc0f72fa42f7fe7afbbc004d4bab499e0f7ea1652166f",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.418,
+            "output_bytes": 9104,
+            "output_sha256": "6d2c0384824b82171136277efa90b8b186e885ec56aaf4a9b4cd2f7a1d2adae3"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 264.357,
+            "output_bytes": 2181,
+            "output_sha256": "66d7bbb2d3d23da25629fa3f21968d051f68fe454facb65219df3a3b179e70cf"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
+    },
+    {
+      "id": "curiosity-wakes",
+      "title": "Sonni is curious: code-evaluated triggers and model-set watches wake it from sleep within owner caps",
+      "criteria": [
+        "A move of moveAlertPct within an hour, an event day morning, the morning after an event, resolved predictions, or a fired watch produce a trigger; triggers are logged delivered or not",
+        "At most one wake per tick, at most maxSelfWakesPerDay delivered per UTC day, spaced by minMinutesBetweenWakes, and only while sleeping, unpaused and not on a budget cap",
+        "The model's watches (price level, move over a window, date) are validated, fire once, cannot fire at once, and their conditions cannot be edited",
+        "Sonni's own wake events end a Money Lab sleep (fixing the ignored intake wake) and the wake reason reaches the model",
+        "The memory pack lists what happened since the last session and /reveils shows the wakes in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.514420+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T04:57:35.555170+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni-e2e",
+          "5": "sonni",
+          "6": "sonni"
+        },
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/e0d457ce5cfa45a1a19f30eebf05fe09.json",
+        "contract": "e20d18e52860bc6f204fbb4b41357757e952c3192fca266b639f74a57072ccca",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.418,
+            "output_bytes": 9103,
+            "output_sha256": "46984d1f867042bd2a77db0b0d90c3b210f101f3882022c514b0f1c6df315cb7"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 263.621,
+            "output_bytes": 2181,
+            "output_sha256": "f79d98cc532e953fe116152dbab11b4aa47ce7f4109b73469ed60a1792276959"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
+    },
+    {
+      "id": "free-readers",
+      "title": "Sonni uses free reader models for reading, never for deciding: headlines and pages become validated observations",
+      "criteria": [
+        "Readers are OpenAI-compatible endpoints configured with a key environment variable sealed at startup; a reader without a key is skipped and the key never appears in errors or logs",
+        "Calls are counted per reader and per UTC day against the configured cap; a failing reader rests and the next one is tried",
+        "Every digest item is validated (index, assets, kind, sentiment range, summary length, prompt-boundary patterns) and stored as an untrusted observation; headlines are marked digested only when a reader answered",
+        "read_page accepts only https public hosts (private and link-local addresses, redirects into them and the runtime's own hosts refused), caps bytes and characters, is limited per day, and returns untrusted data",
+        "The memory pack shows observations per asset with code-averaged sentiment; /lecteurs shows reader status in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.609771+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T04:57:42.339002+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni"
+        },
+        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
+        "report": ".likma/checks/c0ee2d90a9af407c9d2b3be371efe9b8.json",
+        "contract": "f9faf929b0cf850d436575bce8aa944974d0eb64db8a9ae0cb277a32e6a8f1ea",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.566,
+            "output_bytes": 9104,
+            "output_sha256": "8a89c8e5fcf08b61e94a5cf7bb31a20cfbfaaf60f1fe0f3fdd0f156b4ec36c19"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
+    },
+    {
+      "id": "own-sources",
+      "title": "Sonni finds its own tools: a catalog of free data sources it enables, sources it proposes to the owner, and the assets it chooses",
+      "criteria": [
+        "The catalog is loaded once with safe defaults enabled; the model enables or disables a source with a logged reason and may propose a keyless public endpoint that waits for the owner's /source ok or non",
+        "Sources are polled by code on their own cadence; metrics are extracted by JSON path, keys are substituted without leaking, failures are counted and a source is disabled after MAX_FAILURES with the owner told",
+        "A followed asset must be a Kraken EUR pair checked against the public pair list; changes are logged with reasons, at least one asset stays, an asset with open predictions cannot be dropped, and every tick, tool, status and pack uses the live universe",
+        "The memory pack shows the latest source values with 24 h and 7 d references; /sources and /actifs answer in French",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "implementation": {
+        "at": "2026-10-07T00:28:41.709300+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
+      },
+      "verification": {
+        "at": "2026-10-07T04:57:48.864287+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni"
+        },
+        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
+        "report": ".likma/checks/e53991c17e9442fb95782c1b9e805f4b.json",
+        "contract": "755da3cea08314c09ebc7e946175cf6e3cac8f5f4cdc3dbf279d77d1177b7db9",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.3,
+            "output_bytes": 9103,
+            "output_sha256": "dca336ec5bc889e6685111ab5f6d85098955f559cfb6dc235fa9e76bb0189c3d"
+          }
+        ]
+      },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
     }
   ]
 }

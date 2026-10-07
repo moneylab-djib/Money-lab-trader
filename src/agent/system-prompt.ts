@@ -23,7 +23,7 @@ import type {
 } from "../types.js";
 import { getActiveSkillInstructions } from "../skills/loader.js";
 import { MONEY_LAB_GENESIS_PROMPT, buildMoneyLabPromptBlock } from "../money-lab/prompt.js";
-import { SONNI_MISSION, buildSonniPromptBlock } from "../trader/prompt.js";
+import { SONNI_CORE, SONNI_MISSION, buildSonniIdentityBlock, buildSonniPromptBlock } from "../trader/prompt.js";
 import { getLineageSummary } from "../replication/lineage.js";
 import { sanitizeInput } from "./injection-defense.js";
 import { loadCurrentSoul } from "../soul/model.js";
@@ -579,13 +579,22 @@ export function buildSystemPrompt(params: {
 
   const chainType = config.chainType || identity.chainType || "evm";
   const addressLabel = chainType === "solana" ? "Solana" : "Ethereum";
+  // Sonni (decision 0002): no wallet, no survival mechanic, no children. The
+  // automaton layers that say otherwise are replaced, the orchestration context
+  // and status are left out, and the volatile rules block goes last so that
+  // everything before it (mission, identity, lessons, tools) is cached.
+  const sonni = !!(config.moneyLab?.enabled && config.trader);
 
-  // Layer 1: Core Rules (immutable, chain-aware)
-  sections.push(getCoreRules(chainType));
+  if (sonni) {
+    sections.push(SONNI_CORE);
+  } else {
+    // Layer 1: Core Rules (immutable, chain-aware)
+    sections.push(getCoreRules(chainType));
 
-  // Layer 2: Core Identity (immutable, chain-aware)
-  sections.push(getCoreIdentity(chainType));
-  sections.push(AGENTIC_SOCIOLOGY);
+    // Layer 2: Core Identity (immutable, chain-aware)
+    sections.push(getCoreIdentity(chainType));
+    sections.push(AGENTIC_SOCIOLOGY);
+  }
   sections.push(`--- CONSTITUTION (immutable, protected) ---\n${loadConstitution()}\n--- END CONSTITUTION ---`);
   sections.push(
     `Your name is ${config.name}.
@@ -595,8 +604,8 @@ Your sandbox ID is ${identity.sandboxId}.
 Your chain type is ${chainType}.`,
   );
 
-  // Layer 3: SOUL.md -- structured soul model injection (Phase 2.1)
-  const soul = loadCurrentSoul(db.raw);
+  // Layer 3: SOUL.md -- structured soul model injection (Phase 2.1); Sonni keeps its own identity store.
+  const soul = sonni ? null : loadCurrentSoul(db.raw);
   if (soul) {
     // Track content hash for unauthorized change detection
     const lastHash = db.getKV("soul_content_hash");
@@ -655,11 +664,11 @@ Your chain type is ${chainType}.`,
   }
 
   // Layer 4b: Money Lab mission and enforced envelope (code-owned, not agent-evolved)
-  if (config.moneyLab?.enabled && config.trader) {
-    // Sonni replaces Money Lab's web-business mission (decision 0002).
-    sections.push(
-      `## Sonni Mission\n${SONNI_MISSION}\n## End Sonni Mission\n\n${buildSonniPromptBlock(db.raw, config.moneyLab, config.trader)}`,
-    );
+  if (sonni) {
+    // Sonni replaces Money Lab's web-business mission (decision 0002). The identity
+    // and lessons the model wrote change rarely: they stay in the cached part; the
+    // rules block (dates, counters) is pushed last, after the tool list.
+    sections.push(`## Sonni Mission\n${SONNI_MISSION}\n\n${buildSonniIdentityBlock(db.raw)}\n## End Sonni Mission`);
   } else if (config.moneyLab?.enabled) {
     sections.push(
       `## Money Lab Mission\n${MONEY_LAB_GENESIS_PROMPT}\n## End Money Lab Mission\n\n${buildMoneyLabPromptBlock(db.raw, config.moneyLab)}`,
@@ -676,8 +685,8 @@ Your chain type is ${chainType}.`,
     }
   }
 
-  // Layer 6: Operational Context
-  sections.push(OPERATIONAL_CONTEXT);
+  // Layer 6: Operational Context (Conway orchestration, children, upstream: not Sonni's world)
+  if (!sonni) sections.push(OPERATIONAL_CONTEXT);
 
   // Layer 7: Dynamic Context
   const turnCount = db.getTurnCount();
@@ -728,8 +737,9 @@ Your chain type is ${chainType}.`,
     : financial.creditsCents > 0 ? "critical"
     : "dead";
 
-  // Status block: wallet address and sandbox ID intentionally excluded (sensitive)
-  sections.push(
+  // Status block: wallet address and sandbox ID intentionally excluded (sensitive).
+  // Sonni's status (budget, counters, time) is in its rules block instead.
+  if (!sonni) sections.push(
     `--- CURRENT STATUS ---
 State: ${state}
 Credits: $${(financial.creditsCents / 100).toFixed(2)}
@@ -743,7 +753,7 @@ Lineage: ${lineageSummary}${upstreamLine}
 --- END STATUS ---`,
   );
 
-  const orchestratorStatus = getOrchestratorStatus(db.raw);
+  const orchestratorStatus = sonni ? null : getOrchestratorStatus(db.raw);
   if (orchestratorStatus) {
     sections.push(
       `--- ORCHESTRATOR STATUS ---
@@ -760,6 +770,9 @@ ${orchestratorStatus}
     )
     .join("\n");
   sections.push(`--- AVAILABLE TOOLS ---\n${toolDescriptions}\n--- END TOOLS ---`);
+
+  // Sonni: the volatile rules block comes last (prompt caching, src/conway/inference.ts).
+  if (sonni) sections.push(buildSonniPromptBlock(db.raw, config.moneyLab!, config.trader!));
 
   // Layer 9: Creator's Initial Message (first run only)
   if (isFirstRun && config.creatorMessage) {

@@ -87,9 +87,9 @@ cd /opt/sonni
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
 ```
-> Tant que les pull requests #1 et #2 ne sont pas fusionnées dans `main`, remplace la ligne
+> Tant que les pull requests #1 à #5 ne sont pas fusionnées dans `main`, remplace la ligne
 > `git clone` par :
-> `git clone -b claude/sonni-first-slice https://github.com/moneylab-djib/Money-lab-trader /opt/sonni`
+> `git clone -b claude/sonni-alive https://github.com/moneylab-djib/Money-lab-trader /opt/sonni`
 
 Aucun port n'est ouvert à part SSH : Sonni n'a besoin de rien recevoir d'internet.
 
@@ -158,14 +158,56 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/idee <texte>` | lui donner une intuition à tester |
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
 | `/agenda` | les événements des 30 prochains jours (Fed, et inflation et emploi avec la clé FRED) |
+| `/bilan` | sa calibration et ses scores, calculés par le code |
+| `/identite [texte]` | l'identité qu'il s'est écrite, et ses versions précédentes ; avec un texte, ta version (il doit y garder « Je suis Sonni ») |
+| `/journal [n]` | ses n dernières réflexions (post-mortems, notes de séance, revue) |
+| `/lecons` / `/veto <id> [raison]` | ses leçons ; en retirer une |
+| `/reveils` | ses réveils spontanés et les déclencheurs notés |
+| `/lecteurs` | l'état des IA lectrices gratuites (voir plus bas) |
+| `/sources` / `/source ok\|non <id>` | ses sources de données ; accepter ou refuser une source qu'il propose |
+| `/actifs` | les actifs qu'il suit et ses changements motivés |
 | `/sante` | rapport de santé (envoyé aussi chaque matin) |
 | `/fonds 58` | ajouter le budget du mois suivant, en dollars |
 | `/pause [raison]` / `/reprendre` | arrêter / relancer ses dépenses |
 | tout autre message | transmis à Sonni comme une conversation |
 
-Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), fait quelques séances de
-décision par jour, note ses prédictions, et le code les juge à l'échéance. Chaque dimanche, il fait sa
+Ce qu'il fait seul : il relève les prix toutes les 5 minutes (gratuit), interroge ses sources de
+données, fait quelques séances de décision par jour, note ses prédictions, et le code les juge à
+l'échéance. Le code le réveille quand un actif bouge de 3 % en une heure, les jours d'événement,
+quand des prédictions sont résolues ou quand une de ses veilles se déclenche (6 réveils par jour au
+plus). Après chaque résultat, il écrit un post-mortem dans son journal. Chaque dimanche, il fait sa
 revue et t'envoie un rapport en français.
+
+## Facultatif — Des IA gratuites pour lire l'actualité
+
+Sonni peut confier la lecture (jamais les décisions) à un modèle gratuit : chaque heure, il
+transforme les titres en observations datées, et résume les pages que Sonni demande à lire. Deux
+services ont une offre gratuite sans carte bancaire ; une clé suffit, deux donnent une roue de
+secours. **N'active aucune facturation** sur ces comptes : Sonni est plafonné en appels par jour, mais
+ta vraie protection est l'absence de moyen de paiement.
+
+1. Google AI Studio (Gemini) : https://aistudio.google.com/apikey avec ton compte Google, accepte
+   les conditions, puis *Create API key* (les clés créées depuis mai 2026 sont des « auth keys »,
+   limitées à l'API Gemini : c'est ce qu'il faut). Copie la clé. Google ne publie plus les limites
+   gratuites : regarde-les sur https://aistudio.google.com/rate-limit pour le modèle
+   `gemini-3.5-flash-lite` (Sonni s'arrête à 200 appels par jour ; baisse ce nombre dans
+   `sonni/automaton.sonni.example.json` si ta page affiche moins). **Ne relie jamais de compte de
+   facturation** à ce projet. Pour un compte en Europe, Google n'utilise pas tes requêtes pour
+   entraîner ses modèles, même en gratuit (conditions Gemini, lues le 7 octobre 2026).
+2. Groq : https://console.groq.com → *API Keys* → *Create API Key* (nom : `sonni-reader`). Copie la
+   clé tout de suite (elle ne se réaffiche pas). Dans *Settings → Data Controls*, active *Zero Data
+   Retention*. Reste sur le plan *Free* (modèle `openai/gpt-oss-20b` : 1 000 requêtes et
+   200 000 jetons par jour publiés ; Sonni s'arrête à 80 appels par jour pour tenir dans les jetons).
+3. Sur le serveur : `nano /etc/sonni.env`, mets les clés après `GEMINI_API_KEY=` et `GROQ_API_KEY=`
+   (laisse vide celle que tu n'as pas), enregistre (Ctrl+O, Entrée, Ctrl+X), puis
+   `systemctl restart sonni`.
+4. Vérifie sur Telegram avec `/lecteurs` : chaque lecteur doit être « disponible ». Une heure plus
+   tard, `/statut` compte les observations extraites. Sonni ne peut pas lire ces clés.
+
+Les limites gratuites changent souvent (vérifiées le 7 octobre 2026). Si un lecteur répond « quota »
+ou « clé refusée », Sonni le met au repos et passe au suivant ; `/lecteurs` le dit. D'autres offres
+gratuites existent (Cloudflare Workers AI, Mistral « Free », OpenRouter) : on les ajoutera si les
+deux premières ne suffisent pas.
 
 ## Facultatif — Les dates d'inflation et d'emploi américains
 
@@ -185,12 +227,24 @@ la Réserve fédérale de Saint-Louis (FRED) :
 
 ```sh
 cd /opt/sonni
+sudo -u sonni -H git fetch origin
+sudo -u sonni -H git checkout claude/sonni-alive
 sudo -u sonni -H git pull
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
+sudo -u sonni -H node sonni/vps/configure.mjs --chat-id <ton identifiant> --monthly-budget-eur 50 --eur-usd 1.17
 systemctl restart sonni
 ```
-Ses prix, prédictions et intuitions sont conservés. La pause (`/pause`) aussi : relance avec
+Tant que les pull requests ne sont pas fusionnées dans `main`, chaque étape vit sur sa propre
+branche : la ligne `git checkout` passe à la dernière (`claude/sonni-alive`, l'étape 3 ; sans effet si
+tu y es déjà). `git status` doit ensuite afficher `On branch claude/sonni-alive`.
+La ligne `configure.mjs` réécrit la configuration avec les nouveaux réglages (sources, lecteurs,
+réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Lance-la bien avec
+`sudo -u sonni -H` (en root seul, elle écrit un fichier que Sonni ne lit pas, et le dit). Elle doit
+afficher la ligne « IA lectrices (gratuites, facultatives) : gemini …, groq … » et « Mise à jour » ;
+**ne rajoute pas de budget** à ce moment-là, celui du mois est déjà enregistré. Sans elle, `/lecteurs`
+répond « Aucune IA lectrice configurée ». Ses prix, prédictions,
+intuitions, journal et identité sont conservés. La pause (`/pause`) aussi : relance avec
 `/reprendre`.
 
 ## Arrêter Sonni

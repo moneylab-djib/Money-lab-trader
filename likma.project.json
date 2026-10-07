@@ -3,6 +3,7 @@
   "name": "money-lab-trader",
   "commands": {
     "start": [],
+    "start_disabled": "Starting runs Sonni, a paid autonomous agent: only the owner starts it, on its own VPS (AGENTS.md, decision 0004).",
     "check": {
       "types": [
         "pnpm",
@@ -123,13 +124,13 @@
     {
       "area": "Sonni agent tools",
       "path": "src/trader/tools.ts",
-      "purpose": "sonni_memory and record_prediction",
+      "purpose": "sonni_memory, record_prediction, propose_hypothesis, write_reflection, add_lesson, retire_lesson, revise_identity, set_watch, read_page, manage_source, follow_asset",
       "edit_when": "The model's tools change"
     },
     {
       "area": "Sonni prompt",
       "path": "src/trader/prompt.ts",
-      "purpose": "Sonni mission and rules block (replaces Money Lab's mission)",
+      "purpose": "Sonni core and mission, identity block (cached), rules block (volatile, last), reflection and review instructions",
       "edit_when": "The mission or stated rules change"
     },
     {
@@ -141,19 +142,19 @@
     {
       "area": "Sonni background work",
       "path": "src/trader/runtime.ts",
-      "purpose": "Collection and resolution ticks scheduled by src/index.ts",
+      "purpose": "Collection, resolution, history, calendar, news and digest ticks scheduled by src/index.ts (curiosity and sources ticks are called directly)",
       "edit_when": "Scheduling or failure reporting changes"
     },
     {
       "area": "Runtime integration",
       "path": "src/index.ts",
-      "purpose": "Profile validation, timers, --sonni CLI; loop.ts, system-prompt.ts, guard.ts, telegram.ts and conway/inference.ts carry small Sonni hooks",
+      "purpose": "Profile validation, secret sealing, timers (prices, history, resolution, curiosity, calendar, news + digest, sources), Sonni wake gate, --sonni CLI; loop.ts, system-prompt.ts, guard.ts, telegram.ts, journal.ts, recall.ts and conway/inference.ts carry small Sonni hooks",
       "edit_when": "How Sonni plugs into the Money Lab runtime changes"
     },
     {
       "area": "Sonni tests",
       "path": "src/__tests__/trader/",
-      "purpose": "sonni.test.ts (first slice) and knowledge.test.ts (step 1), network and inference mocked",
+      "purpose": "sonni (first slice), knowledge (step 1), world (step 2), soul, curiosity, readers, sources, alive (step 3); network and inference mocked",
       "edit_when": "Any Sonni behaviour changes"
     },
     {
@@ -179,6 +180,42 @@
       "path": "src/money-lab/",
       "purpose": "Imported runtime (budgets, Telegram, guards, journal); see docs/upstream/MONEY-LAB-README.md",
       "edit_when": "A runtime behaviour Sonni relies on changes"
+    },
+    {
+      "area": "Sonni identity and journal",
+      "path": "src/trader/soul.ts",
+      "purpose": "Versioned identity, append-only reflections, lessons with evidence and owner veto, self-report computed by code, reflection clock",
+      "edit_when": "Identity, journal, lesson or self-report rules change (keep docs/MEMORY.md in sync)"
+    },
+    {
+      "area": "Sonni curiosity",
+      "path": "src/trader/curiosity.ts",
+      "purpose": "Code-evaluated self-wake triggers, model watches, wake log and caps",
+      "edit_when": "Trigger kinds, caps or watch rules change"
+    },
+    {
+      "area": "Sonni readers",
+      "path": "src/trader/readers.ts",
+      "purpose": "Free OpenAI-compatible reader models: calls, caps, resting, headline digest into validated observations",
+      "edit_when": "A reader provider, the digest schema or observation validation changes"
+    },
+    {
+      "area": "Sonni page reading",
+      "path": "src/trader/pages.ts",
+      "purpose": "read_page: public-host checks, capped fetch, reader summary, observation",
+      "edit_when": "URL rules, caps or page summary schema change"
+    },
+    {
+      "area": "Sonni data sources",
+      "path": "src/trader/sources.ts",
+      "purpose": "Catalog loading, polling by JSON path, model enable/disable/propose, owner decisions, metrics for the pack; catalog in src/trader/catalog.ts",
+      "edit_when": "A source, its cadence, failure rule or proposal rule changes"
+    },
+    {
+      "area": "Sonni universe",
+      "path": "src/trader/universe.ts",
+      "purpose": "Followed assets: config plus the model's logged follow/unfollow choices checked against Kraken EUR pairs; activeConfig",
+      "edit_when": "Asset rules or pair validation change"
     }
   ]
 }

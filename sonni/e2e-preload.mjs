@@ -4,6 +4,9 @@ const realFetch = globalThis.fetch;
 const MAP = {
   "api.anthropic.com": "anthropic", "api.telegram.org": "telegram", "api.kraken.com": "kraken",
   "www.federalreserve.gov": "fed", "api.gdeltproject.org": "gdelt",
+  // Step 3: a free reader model and the data sources enabled by default.
+  "generativelanguage.googleapis.com": "gemini", "api.groq.com": "groq",
+  "api.alternative.me": "fng", "api.coingecko.com": "coingecko", "mempool.space": "mempool",
 };
 globalThis.fetch = async (input, init) => {
   const req = input instanceof Request ? input : null;

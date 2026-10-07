@@ -70,8 +70,10 @@ import { automaticTopupsAllowed, hasInferenceLimits, moneyLabDeniedTools } from 
 import { seedAnthropicModels, survivalBalance } from "../money-lab/selfhosted.js";
 import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
-import { createTraderTools } from "../trader/tools.js";
-import { SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
+import { SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { markReflectionDone, reflectionDue, startReflection } from "../trader/soul.js";
+import { activeConfig } from "../trader/universe.js";
 import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
 import { ensureTraderSchema } from "../trader/schema.js";
 import { paidCallBlockReason } from "../money-lab/guard.js";
@@ -443,6 +445,7 @@ export async function runAgentLoop(
   let reviewPending = false;
   let reviewModelTurns = 0;
   let intakePending = false;
+  let reflectionPending = false;
   if (moneyLab) {
     const reason = db.getKV(MONEY_LAB_WAKE_REASON_KEY);
     if (reason) {
@@ -451,17 +454,24 @@ export async function runAgentLoop(
     }
     ensureReviewClock(db.raw);
     // Sonni: the one-time intake of prior knowledge comes before anything else.
-    if (trader && intakeDue(db.raw, trader)) {
+    if (trader && intakeDue(db.raw, activeConfig(db.raw, trader))) {
       startIntake(db.raw);
       intakePending = true;
       reviewModelTurns = INTAKE_MODEL_TURNS;
       wakeupInput += `\n\n${SONNI_INTAKE_INSTRUCTIONS}`;
     } else if (trader) {
       closeIntakeWake(db.raw);
+      // Sonni: predictions resolved since the last reflection get their post-mortems first.
+      if (reflectionDue(db.raw)) {
+        startReflection(db.raw);
+        reflectionPending = true;
+        wakeupInput += `\n\n${SONNI_REFLECTION_INSTRUCTIONS}`;
+      }
     }
     if (isReviewDue(db.raw)) {
       reviewPending = true;
-      reviewModelTurns = REVIEW_MODEL_TURNS;
+      // A review due on an intake wake does not cut the intake's longer run on the stronger model.
+      reviewModelTurns = Math.max(reviewModelTurns, REVIEW_MODEL_TURNS);
       wakeupInput += `\n\n${trader ? SONNI_REVIEW_INSTRUCTIONS : REVIEW_INSTRUCTIONS}`;
     }
   }
@@ -633,17 +643,21 @@ export async function runAgentLoop(
       });
 
       // Phase 2.2: Pre-turn memory retrieval
+      // Sonni: its memory lives in its own stores (docs/MEMORY.md), read through
+      // sonni_memory; Automaton's generic extraction would split it and add noise.
       let memoryBlock: string | undefined;
-      try {
-        const sessionId = db.getKV("session_id") || "default";
-        const retriever = new MemoryRetriever(db.raw, DEFAULT_MEMORY_BUDGET);
-        const memories = retriever.retrieve(sessionId, pendingInput?.content);
-        if (memories.totalTokens > 0) {
-          memoryBlock = formatMemoryBlock(memories);
+      if (!trader) {
+        try {
+          const sessionId = db.getKV("session_id") || "default";
+          const retriever = new MemoryRetriever(db.raw, DEFAULT_MEMORY_BUDGET);
+          const memories = retriever.retrieve(sessionId, pendingInput?.content);
+          if (memories.totalTokens > 0) {
+            memoryBlock = formatMemoryBlock(memories);
+          }
+        } catch (error) {
+          logger.error("Memory retrieval failed", error instanceof Error ? error : undefined);
+          // Memory failure must not block the agent loop
         }
-      } catch (error) {
-        logger.error("Memory retrieval failed", error instanceof Error ? error : undefined);
-        // Memory failure must not block the agent loop
       }
 
       let messages = buildContextMessages(
@@ -822,6 +836,11 @@ export async function runAgentLoop(
         recordIntakeAttempt(db.raw);
         intakePending = false;
       }
+      // Sonni: the reflection counts as done once a paid turn ran with its instructions.
+      if (reflectionPending && routerResult.finishReason !== "budget_exceeded") {
+        markReflectionDone(db.raw);
+        reflectionPending = false;
+      }
 
       // Build a compatible response for the rest of the loop
       const response = {
@@ -916,14 +935,16 @@ export async function runAgentLoop(
       });
       onTurnComplete?.(turn);
 
-      // Phase 2.2: Post-turn memory ingestion (non-blocking)
-      try {
-        const sessionId = db.getKV("session_id") || "default";
-        const ingestion = new MemoryIngestionPipeline(db.raw);
-        ingestion.ingest(sessionId, turn, turn.toolCalls);
-      } catch (error) {
-        logger.error("Memory ingestion failed", error instanceof Error ? error : undefined);
-        // Memory failure must not block the agent loop
+      // Phase 2.2: Post-turn memory ingestion (non-blocking); not for Sonni (see retrieval above).
+      if (!trader) {
+        try {
+          const sessionId = db.getKV("session_id") || "default";
+          const ingestion = new MemoryIngestionPipeline(db.raw);
+          ingestion.ingest(sessionId, turn, turn.toolCalls);
+        } catch (error) {
+          logger.error("Memory ingestion failed", error instanceof Error ? error : undefined);
+          // Memory failure must not block the agent loop
+        }
       }
 
       // ── create_goal BLOCKED fast-break ──
@@ -1066,13 +1087,15 @@ export async function runAgentLoop(
         "save_procedure", "note_about_agent", "forget",
         "enter_low_compute", "switch_model", "review_upstream_changes",
       ]);
-      const didMutate = turn.toolCalls.some((tc) => MUTATING_TOOLS.has(tc.name));
+      // Sonni: its own memory writes are work, not idle turns.
+      const didMutate = turn.toolCalls.some((tc) => MUTATING_TOOLS.has(tc.name) || (!!trader && SONNI_WORK_TOOLS.has(tc.name)));
 
       if (!currentInput && !didMutate) {
         idleTurnCount++;
         if (idleTurnCount >= MAX_IDLE_TURNS) {
           log(config, `[IDLE] ${idleTurnCount} consecutive idle turns with no work. Entering sleep.`);
-          db.setKV("sleep_until", new Date(Date.now() + 60_000).toISOString());
+          // Sonni: a forced end of cycle is a real pause (each restart is a paid cycle).
+          db.setKV("sleep_until", new Date(Date.now() + (trader ? MONEY_LAB_IDLE_SLEEP_MS : 60_000)).toISOString());
           db.setAgentState("sleeping");
           onStateChange?.("sleeping");
           running = false;
@@ -1088,7 +1111,7 @@ export async function runAgentLoop(
       cycleTurnCount++;
       if (running && cycleTurnCount >= maxCycleTurns) {
         log(config, `[CYCLE LIMIT] ${cycleTurnCount} turns reached (max: ${maxCycleTurns}). Forcing sleep.`);
-        db.setKV("sleep_until", new Date(Date.now() + 120_000).toISOString());
+        db.setKV("sleep_until", new Date(Date.now() + (trader ? MONEY_LAB_IDLE_SLEEP_MS : 120_000)).toISOString());
         db.setAgentState("sleeping");
         onStateChange?.("sleeping");
         running = false;
