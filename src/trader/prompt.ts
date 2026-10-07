@@ -129,7 +129,8 @@ export const SONNI_EVENING_INSTRUCTIONS = `SONNI EVENING (required in this wake 
 2. Write the post-mortems still due (write_reflection kind postmortem for scored predictions, kind trade for
    closed trades), in French; note a trap hit (note_trap hit) when a named trap applies, name a new trap
    only for a mistake you now see repeating.
-3. Rewrite the dossier of an asset whose picture changed today (update_dossier), not the others.
+3. Write the first dossier of every asset that has none yet (update_dossier: thesis, catalysts, levels,
+   what you know so far), and rewrite the dossier of an asset whose picture changed today, not the others.
 4. Leave one reflection kind daily, in French, three to six sentences: what the day taught, what you
    watch tomorrow. The owner reads it in their 20:00 summary.
 5. Then sleep. No new prediction or order tonight unless something real happened today.`;

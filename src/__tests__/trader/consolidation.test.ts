@@ -93,6 +93,7 @@ describe("The evening turn", () => {
     const first = JSON.stringify(inference.calls[0].messages);
     expect(first).toContain("SONNI EVENING (required in this wake cycle");
     expect(first).toContain("write_reflection kind postmortem");
+    expect(first).toContain("Write the first dossier of every asset that has none yet");
     expect(consolidationDoneToday(db.raw, TRADER, now)).toBe(true);
     expect(db.raw.prepare("SELECT kind FROM trader_reflections").all()).toEqual([{ kind: "daily" }]);
     const summary = buildSonniEveningSummary(db.raw, TRADER, null, now);

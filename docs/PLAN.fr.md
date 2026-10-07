@@ -132,7 +132,8 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
      lis avec `/cycles` et dans `cycles.md` ; il les voit dans son pack avant chaque événement.
    - *C3 — Autopsie du soir* ✅ construit le 7 octobre : chaque soir à 19 h 30 (heure de Paris,
      réglable dans `trader.consolidation`), le code réveille Sonni pour une courte séance : les
-     post-mortems encore dus, les pièges touchés, les dossiers qui ont changé, et une note du jour en
+     post-mortems encore dus, les pièges touchés, le premier dossier de chaque actif qui n'en a pas
+     encore puis les dossiers qui ont changé, et une note du jour en
      trois à six phrases que tu lis dans ton résumé de 20 h. Un tour payé par jour, compté dans ses
      plafonds ; sautée s'il est en pause ou sous plafond (ton résumé le dit).
 5. **Ce que Claude sait déjà** : séance d'intuitions initiales + statistiques sur l'historique.
