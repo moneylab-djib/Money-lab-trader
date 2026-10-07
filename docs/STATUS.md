@@ -1,6 +1,22 @@
 # Working status
 - Updated: 2026-10-07
 - Branch / commit: claude/sonni-evening (step C3, stacked on claude/sonni-cycles = PR #14, #13, #12; main after PRs #1 to #11)
+- Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
+  profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
+  `build`; setup `install`; budget 240 min; `bot_guards` maps the 8 Likma guard classes to guards.test, the
+  Money Lab suites and sonni/e2e.mjs (docs/GUARDS.md stays the detailed map); merge driver (.gitattributes),
+  Likma audit workflow (.github/workflows/likma-audit.yml, secret LIKMA_REPO_TOKEN) and Claude Code hooks
+  (.claude/settings.json, need the `likma` command on PATH).
+  - Test fixes found by the re-verification (no runtime change): sonni/e2e.mjs read the first matching Telegram
+    message, so after 20:00 Paris the automatic evening summary was taken for the /journee reply; it now reads
+    only replies after each command. A run started within 12 min of Paris midnight scheduled the evening
+    consolidation at 00:0x, already due before midnight; the e2e now waits for the new day. dossiers.test.ts
+    expected the literal date "mer. 7 oct." for a dossier and a note written at the real current time.
+  - `likma project feature reverify` (report .likma/checks/2682ffc4870049c186866b1fc52a60c6.json): build pass;
+    sonni-e2e PASS (68 checks, 564 s); sonni 122/122; money-lab 110/110; all 13 features verified with
+    fingerprint v3 evidence. `likma project check --only types`: pass. `likma project audit`: 0 failures.
+  - Feature scopes are still broad (src, sonni): any source change makes every feature stale; reverify keeps
+    that cheap, narrowing scopes per feature is a follow-up.
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").

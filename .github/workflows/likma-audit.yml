@@ -1,0 +1,43 @@
+# Managed by Likma (`project ci install`). Edit freely; reinstalling overwrites only files with this header.
+name: Likma audit
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: likma-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Fine-grained read-only token for the private Likma repository (Contents: read).
+      LIKMA_TOKEN: ${{ secrets.LIKMA_REPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: project
+          persist-credentials: false
+      - name: Read the Likma revision recorded by the project
+        id: likma
+        run: |
+          ref="$(sed -n 's/^Revision: \([0-9a-f]\{40\}\)$/\1/p' project/docs/LIKMA.md 2>/dev/null | head -1)"
+          echo "ref=${ref:-main}" >> "$GITHUB_OUTPUT"
+      - name: Explain a missing token
+        if: env.LIKMA_TOKEN == ''
+        run: echo "::warning::Add a LIKMA_REPO_TOKEN secret (read access to Cloied/likma-dev-system) to run the Likma audit."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.LIKMA_TOKEN != ''
+        with:
+          repository: Cloied/likma-dev-system
+          ref: ${{ steps.likma.outputs.ref }}
+          token: ${{ env.LIKMA_TOKEN }}
+          path: likma
+          persist-credentials: false
+      - name: Audit generated documents, evidence and upgrades
+        if: env.LIKMA_TOKEN != ''
+        run: python3 likma/scripts/likma.py project audit --path project

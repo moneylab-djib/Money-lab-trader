@@ -135,11 +135,12 @@ describe("Memory pack and recall", () => {
     expect(JSON.stringify(r)).toContain("Dossier BTC version 1 recorded.");
     const channel = new TelegramChannel("token", 42, db, { ...sonniConfig(), name: "sonni" }, vi.fn() as any);
     const shown = channel.handleOwnerText("/dossier btc", 1)!;
-    expect(shown).toMatch(/^📁 Dossier BTC — version 1, écrite par Sonni le mer\. 7 oct\. \d\d:\d\d\nThèse : le BTC tient/);
+    // Written at the real current time: any French day and month, not the day the test was written.
+    expect(shown).toMatch(/^📁 Dossier BTC — version 1, écrite par Sonni le \S+ \d{1,2} \S+ \d\d:\d\d\nThèse : le BTC tient/);
     expect(channel.handleOwnerText("/dossier ETH", 2)).toContain("📁 ETH : pas encore de dossier.");
     expect(channel.handleOwnerText("/dossier", 3)).toContain("Dossiers : BTC (v1). Détail : /dossier <actif>.");
     expect(channel.handleOwnerText("/note Le BTC me semble fragile cette semaine", 4)).toContain("Note enregistrée (BTC) : Sonni la verra à sa prochaine séance, comme une information de ta part, pas comme un ordre.");
-    expect(channel.handleOwnerText("/note", 5)).toContain("Tes dernières notes :\n- mer. 7 oct.");
+    expect(channel.handleOwnerText("/note", 5)).toMatch(/Tes dernières notes :\n- \S+ \d{1,2} \S+ \d\d:\d\d \[BTC\] : Le BTC me semble fragile/);
     expect(channel.handleOwnerText("/aide", 6)).toContain("/memoire <sujet>");
     db.close();
   });

@@ -18,6 +18,7 @@ dist
 **/.likma/*.sqlite
 **/.likma/knowledge.json
 **/.likma/knowledge-history/
+**/.likma/.lock
 
 # Likma private agent history
 **/.likma/agent-runtime.json

@@ -20,10 +20,20 @@
         "at": "2026-10-06T20:59:46.977677+00:00",
         "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:44:57.515748+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -44,38 +54,28 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
-        "report": ".likma/checks/502b09d9cc004d0fb35963ff36d50e32.json",
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "30356d0bf5c772617ad3fd14836400d34f98e3a2c87003b8f74cd699753d2e2e",
         "results": [
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 263.663,
-            "output_bytes": 2181,
-            "output_sha256": "1322e567ef310be157c7f593b7f4b3ed960caf5ba7a9350f972ecaf8c2d7395c"
+            "seconds": 564.067,
+            "output_bytes": 4185,
+            "output_sha256": "eb9a737057fd8bbfbe6b2037fee5882754b48696fa18a28492151eee91ef4453"
           },
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.962,
-            "output_bytes": 9105,
-            "output_sha256": "a5165c2d0e92e71f181fce0c883f893db5036b43ffac0a8059ccca77256c43d7"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "knowledge-intake",
@@ -95,10 +95,20 @@
         "at": "2026-10-06T23:02:47.021473+00:00",
         "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:48:27.319888+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -119,38 +129,28 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
-        "report": ".likma/checks/1e0d99b3d27341ca8ba0960b58593b36.json",
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "c00d4893d9fceb7a9e81afd76af1c3793972e63f55572c7a6e7fd84bde64e049",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.402,
-            "output_bytes": 9103,
-            "output_sha256": "8c4f9e4a5a396f93ecb88e5cc242157897eb0143668683569527f36cf033143c"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 203.195,
-            "output_bytes": 2181,
-            "output_sha256": "1955706497c77a35a91423fa0327d98cac1dca500a278d71058aa4d1ce1d22b1"
+            "seconds": 564.067,
+            "output_bytes": 4185,
+            "output_sha256": "eb9a737057fd8bbfbe6b2037fee5882754b48696fa18a28492151eee91ef4453"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "sees-the-world",
@@ -168,10 +168,20 @@
         "at": "2026-10-06T23:21:32.647703+00:00",
         "note": "src/trader/events.ts, news.ts; event condition in rules.ts; calendar and news ticks; pack, status, /agenda; guide FRED step"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:48:34.281557+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -190,30 +200,20 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
-        "report": ".likma/checks/853c952f75624993aae3762abb4e806e.json",
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "c0241dd01c73ff18afe45c90979622afa9bc5982e86238deb9289abdc09504b8",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.721,
-            "output_bytes": 9103,
-            "output_sha256": "124a2c16bfe660e06d6e62de0ae7907f84b16f070cd7c2b25c87caa1ccd1acc2"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "identity-journal",
@@ -232,10 +232,20 @@
         "at": "2026-10-07T00:28:41.416055+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:53:05.298072+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -255,38 +265,28 @@
           "6": "sonni-e2e",
           "7": "sonni"
         },
-        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
-        "report": ".likma/checks/cb23d625840543b18c82f2fbd8dbe075.json",
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "228797aaac3d5223783bc0f72fa42f7fe7afbbc004d4bab499e0f7ea1652166f",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.418,
-            "output_bytes": 9104,
-            "output_sha256": "6d2c0384824b82171136277efa90b8b186e885ec56aaf4a9b4cd2f7a1d2adae3"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 264.357,
-            "output_bytes": 2181,
-            "output_sha256": "66d7bbb2d3d23da25629fa3f21968d051f68fe454facb65219df3a3b179e70cf"
+            "seconds": 564.067,
+            "output_bytes": 4185,
+            "output_sha256": "eb9a737057fd8bbfbe6b2037fee5882754b48696fa18a28492151eee91ef4453"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "curiosity-wakes",
@@ -304,10 +304,20 @@
         "at": "2026-10-07T00:28:41.514420+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:57:35.555170+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -326,38 +336,28 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
-        "report": ".likma/checks/e0d457ce5cfa45a1a19f30eebf05fe09.json",
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "e20d18e52860bc6f204fbb4b41357757e952c3192fca266b639f74a57072ccca",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.418,
-            "output_bytes": 9103,
-            "output_sha256": "46984d1f867042bd2a77db0b0d90c3b210f101f3882022c514b0f1c6df315cb7"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 263.621,
-            "output_bytes": 2181,
-            "output_sha256": "f79d98cc532e953fe116152dbab11b4aa47ce7f4109b73469ed60a1792276959"
+            "seconds": 564.067,
+            "output_bytes": 4185,
+            "output_sha256": "eb9a737057fd8bbfbe6b2037fee5882754b48696fa18a28492151eee91ef4453"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "free-readers",
@@ -375,10 +375,20 @@
         "at": "2026-10-07T00:28:41.609771+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:57:42.339002+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -397,30 +407,20 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
-        "report": ".likma/checks/c0ee2d90a9af407c9d2b3be371efe9b8.json",
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "f9faf929b0cf850d436575bce8aa944974d0eb64db8a9ae0cb277a32e6a8f1ea",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.566,
-            "output_bytes": 9104,
-            "output_sha256": "8a89c8e5fcf08b61e94a5cf7bb31a20cfbfaaf60f1fe0f3fdd0f156b4ec36c19"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "own-sources",
@@ -437,10 +437,20 @@
         "at": "2026-10-07T00:28:41.709300+00:00",
         "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       },
+      "paths": [
+        "src",
+        "sonni",
+        "constitution.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
       "verification": {
-        "at": "2026-10-07T04:57:48.864287+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "6bbe2d54ca3647851f998eab04bcefb73997848aa2ac8d8c4fc8fbf396638666",
         "scope": [
           "src",
           "sonni",
@@ -458,30 +468,20 @@
           "4": "sonni",
           "5": "sonni"
         },
-        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
-        "report": ".likma/checks/e53991c17e9442fb95782c1b9e805f4b.json",
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "755da3cea08314c09ebc7e946175cf6e3cac8f5f4cdc3dbf279d77d1177b7db9",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.3,
-            "output_bytes": 9103,
-            "output_sha256": "dca336ec5bc889e6685111ab5f6d85098955f559cfb6dc235fa9e76bb0189c3d"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
-      },
-      "paths": [
-        "src",
-        "sonni",
-        "constitution.md",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "tsconfig.json",
-        "vitest.config.ts"
-      ]
+      }
     },
     {
       "id": "owner-clarity",
@@ -507,9 +507,9 @@
         "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
       },
       "verification": {
-        "at": "2026-10-07T09:21:04.563502+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "84131428986af6150a4e782532cb95a353f9f1e7af8abba0f79c7b32da68dba0",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "cbd2893c778450605f5a11da33b930162d4c1deb428580dcb8e223f491249988",
         "scope": [
           "src",
           "sonni",
@@ -525,15 +525,17 @@
           "4": "sonni",
           "5": "sonni"
         },
-        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
-        "report": ".likma/checks/87a1ad9473f04bec8ffadeb38670fa02.json",
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "d3c89b62c235fcecefcf94e6267e123c3fc6d7fc3cef9d2c6a8f6991a21a7122",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 7.866
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
       }
@@ -558,9 +560,9 @@
         "note": "src/trader/portfolio.ts, schema, tools, pack, prompt, curiosity, soul, status, report, cli, telegram, index; tests src/__tests__/trader/portfolio.test.ts (5) and the e2e order scenario"
       },
       "verification": {
-        "at": "2026-10-07T10:09:25.393851+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "4746378c4ddcfaf4fdf81f1c1c6ca507b8cfbdf8131c6eef68af3d55c63fbf38",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "ea845f2b1c7a44dc92d3bbe213a82b313f7077d91dc38fa4a49d5bdb541ed1f1",
         "scope": [
           "src",
           "sonni"
@@ -572,25 +574,25 @@
           "4": "sonni",
           "5": "sonni-e2e"
         },
-        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
-        "report": ".likma/checks/aeff9af961e94d17a6381aeba3c7431c.json",
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "25135845d18109a61417b6ea86906d1768e8a0966453d960eddcfe3d4c198d45",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 9.998,
-            "output_bytes": 9221,
-            "output_sha256": "465d10575b00ae63bdf0b963946f1b759e3d27d6ad8ad763d98f84b2795ecf25"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 366.692,
-            "output_bytes": 3127,
-            "output_sha256": "bcecd92b4e0e410eadd1bdc0a7095b46406019b5b6b053862240f283b08be09b"
+            "seconds": 564.067,
+            "output_bytes": 4185,
+            "output_sha256": "eb9a737057fd8bbfbe6b2037fee5882754b48696fa18a28492151eee91ef4453"
           }
         ]
       }
@@ -618,9 +620,9 @@
         "note": "src/trader/incidents.ts, config.ts (SONNI_DENIED_TOOLS, maxOrdersPerDay), portfolio.ts, loop.ts, backup.ts, index.ts, journal.ts, telegram.ts, report.ts, sources.ts, readers.ts; tests src/__tests__/trader/guards.test.ts (8); docs/GUARDS.md"
       },
       "verification": {
-        "at": "2026-10-07T10:40:16.200554+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "21a8db9b8bfcbeb641836325a372c525515ae7cc882d428ae572b5dde05ca4b8",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "ea845f2b1c7a44dc92d3bbe213a82b313f7077d91dc38fa4a49d5bdb541ed1f1",
         "scope": [
           "src",
           "sonni"
@@ -635,25 +637,25 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "checks_hash": "210ba7f9855ac672f0063194667e9b122d16ca1dcc80f1203a0d6d6afffdfd1c",
-        "report": ".likma/checks/399c0e709e14475e98c66037b79b4413.json",
+        "checks_hash": "eed5bb1fb243ffadd03fc4e3d8d45359e7f8e8ea17dc9d31074c4b56c83293ef",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "f5d1247de86c14cae41710ca67b4795d3701599864fe09dfd0c48ecac10f7eb5",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 12.765,
-            "output_bytes": 11418,
-            "output_sha256": "93c40b03ec4031f935c6387668d1a914a0487c5dabd15df6fb8f34c8c48f38ce"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           },
           {
             "name": "money-lab",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 83.563,
-            "output_bytes": 40205,
-            "output_sha256": "2afbb7afc8db91ab3906d6645d8d816db53742af28d482640202bf64943ed7ba"
+            "seconds": 63.3,
+            "output_bytes": 40700,
+            "output_sha256": "27196097fc13067d3e8bf7bf235226e98715f6e8b68392436f5c8a22eecc5318"
           }
         ]
       }
@@ -679,9 +681,9 @@
         "note": "src/trader/dossiers.ts, notebooks.ts, schema, tools (update_dossier), pack, prompt, recall, cli, telegram, index; tests src/__tests__/trader/dossiers.test.ts (6); e2e commands and chaos scenario"
       },
       "verification": {
-        "at": "2026-10-07T11:15:09.536261+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "51e85bedf56071e1d47d141be43d56911cd6a5a4095cb1d588c6bd9be3e6c06b",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "ea845f2b1c7a44dc92d3bbe213a82b313f7077d91dc38fa4a49d5bdb541ed1f1",
         "scope": [
           "src",
           "sonni"
@@ -694,25 +696,25 @@
           "5": "sonni-e2e",
           "6": "sonni"
         },
-        "checks_hash": "fb886b17f4937132c93ded570fef9a2cef1d7ad28a0129742a5a81561e9b98d9",
-        "report": ".likma/checks/5f8f7d5f57474cc7959dc28ffa1feb8d.json",
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "639637716a663c81c92345e617c1e983827b4018b5a785308ee38bfd1e7cf6e2",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 13.412,
-            "output_bytes": 11477,
-            "output_sha256": "ebee20e93657bc1a17956f00995c09fb37ddbb51d9fc3967d1f0376b8f8f5d6e"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 505.647,
-            "output_bytes": 3799,
-            "output_sha256": "c4d291414b1cf4d8ecaa0639d9991b89a236a32ce75054d5fc6d9a0075177afd"
+            "seconds": 564.067,
+            "output_bytes": 4185,
+            "output_sha256": "eb9a737057fd8bbfbe6b2037fee5882754b48696fa18a28492151eee91ef4453"
           }
         ]
       }
@@ -736,9 +738,9 @@
         "note": "src/trader/cycles.ts, schema, runtime (history tick), index (calendar), tools (name_pattern), pack, cli, telegram, notebooks, prompt; tests src/__tests__/trader/cycles.test.ts (3); e2e past Fed day and /cycles"
       },
       "verification": {
-        "at": "2026-10-07T11:34:03.698439+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "12b2f48ec975c85b9ad355f99be736be696e1462a8acff8a230654d8b71dc039",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "ea845f2b1c7a44dc92d3bbe213a82b313f7077d91dc38fa4a49d5bdb541ed1f1",
         "scope": [
           "src",
           "sonni"
@@ -749,17 +751,17 @@
           "3": "sonni",
           "4": "sonni"
         },
-        "checks_hash": "ab9894fc0a2b326fd9cbdb573819ed6281b875178298c6733712cf287927f685",
-        "report": ".likma/checks/0e609baabeee4767be626fe37befe776.json",
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "6d40388d599271b46ef3207802494317f36ccf1baa3811f16a7d447ec18bda08",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 13.666,
-            "output_bytes": 11535,
-            "output_sha256": "210f0ebe811e7ecb10d12509329e645ec88cb064904ea458edfcfb820779c6f8"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
       }
@@ -783,9 +785,9 @@
         "note": "src/trader/consolidation.ts, config (trader.consolidation), prompt (SONNI_EVENING_INSTRUCTIONS), loop, index, report; tests src/__tests__/trader/consolidation.test.ts (2); e2e evening wake and /journee"
       },
       "verification": {
-        "at": "2026-10-07T11:49:20.305495+00:00",
-        "fingerprint_version": 2,
-        "fingerprint": "9b4c3ef175ff80a58409a9e09122e41d87b8a3ce2823f020093e5c0e09d53eca",
+        "at": "2026-10-07T22:29:47.148583+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "ea845f2b1c7a44dc92d3bbe213a82b313f7077d91dc38fa4a49d5bdb541ed1f1",
         "scope": [
           "src",
           "sonni"
@@ -796,17 +798,17 @@
           "3": "sonni",
           "4": "sonni"
         },
-        "checks_hash": "ab9894fc0a2b326fd9cbdb573819ed6281b875178298c6733712cf287927f685",
-        "report": ".likma/checks/863fe1257ab84ce18fafbc48d206496c.json",
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/2682ffc4870049c186866b1fc52a60c6.json",
         "contract": "bcc8488832f240d5d31663fe55486e44dcbc3581f58735a767cea7260083217b",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 15.365,
-            "output_bytes": 13970,
-            "output_sha256": "c7cef2cd756e6740d760d9965370e584fcf0fda02ec72e4e8bf365aa3e3b18d7"
+            "seconds": 12.55,
+            "output_bytes": 13975,
+            "output_sha256": "5d50b680b003aab88af80e237d0107d8c4b0f532d8dacfdebf1ee82972a6f021"
           }
         ]
       }

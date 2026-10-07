@@ -1,38 +1,76 @@
 {
   "schema": 1,
   "name": "money-lab-trader",
+  "profile": "bot",
   "commands": {
+    "setup": {
+      "install": {
+        "argv": [
+          "pnpm",
+          "install",
+          "--frozen-lockfile"
+        ],
+        "env": [],
+        "description": "Install dependencies (run `corepack enable pnpm` once first)"
+      }
+    },
     "start": [],
     "start_disabled": "Starting runs Sonni, a paid autonomous agent: only the owner starts it, on its own VPS (AGENTS.md, decision 0004).",
     "check": {
-      "types": [
-        "pnpm",
-        "run",
-        "typecheck"
-      ],
-      "sonni": [
-        "pnpm",
-        "exec",
-        "vitest",
-        "run",
-        "src/__tests__/trader"
-      ],
-      "money-lab": [
-        "pnpm",
-        "exec",
-        "vitest",
-        "run",
-        "src/__tests__/money-lab"
-      ],
-      "build": [
-        "pnpm",
-        "run",
-        "build"
-      ],
-      "sonni-e2e": [
-        "node",
-        "sonni/e2e.mjs"
-      ]
+      "types": {
+        "argv": [
+          "pnpm",
+          "run",
+          "typecheck"
+        ],
+        "env": [],
+        "description": "TypeScript typecheck"
+      },
+      "sonni": {
+        "argv": [
+          "pnpm",
+          "exec",
+          "vitest",
+          "run",
+          "src/__tests__/trader"
+        ],
+        "env": [],
+        "timeout_seconds": 600,
+        "description": "Sonni unit and guard tests"
+      },
+      "money-lab": {
+        "argv": [
+          "pnpm",
+          "exec",
+          "vitest",
+          "run",
+          "src/__tests__/money-lab"
+        ],
+        "env": [],
+        "timeout_seconds": 600,
+        "description": "Imported Money Lab runtime regression suite"
+      },
+      "build": {
+        "argv": [
+          "pnpm",
+          "run",
+          "build"
+        ],
+        "env": [],
+        "description": "Compile dist/"
+      },
+      "sonni-e2e": {
+        "argv": [
+          "node",
+          "sonni/e2e.mjs"
+        ],
+        "env": [],
+        "timeout_seconds": 900,
+        "description": "Real process against fake Kraken/Anthropic/Telegram/readers/sources, incl. outage scenario",
+        "requires": [
+          "build"
+        ]
+      }
     }
   },
   "required_env": [],
@@ -44,7 +82,7 @@
   "check_timeout_seconds": 900,
   "budget": {
     "max_failed_attempts": 3,
-    "max_minutes": 60,
+    "max_minutes": 240,
     "max_cost": null,
     "currency": "EUR"
   },
@@ -265,5 +303,40 @@
       "purpose": "When the daily evening turn is due, its wake and done markers, its status for the owner",
       "edit_when": "The evening schedule, its gate or what the turn asks for changes"
     }
-  ]
+  ],
+  "bot_guards": {
+    "spend_caps": [
+      "src/__tests__/money-lab/money-lab.test.ts",
+      "src/__tests__/money-lab/money-lab-vps.test.ts",
+      "src/__tests__/trader/guards.test.ts"
+    ],
+    "unknown_cost": "src/__tests__/money-lab/money-lab.test.ts",
+    "loop_guard": [
+      "src/__tests__/trader/guards.test.ts",
+      "src/__tests__/money-lab/money-lab-vps.test.ts",
+      "src/__tests__/money-lab/money-lab.test.ts"
+    ],
+    "pause_switch": [
+      "src/__tests__/money-lab/money-lab.test.ts",
+      "src/__tests__/trader/guards.test.ts"
+    ],
+    "owner_channel": [
+      "src/__tests__/trader/guards.test.ts",
+      "src/__tests__/money-lab/money-lab-vps.test.ts",
+      "sonni/e2e.mjs"
+    ],
+    "secret_scrub": [
+      "src/__tests__/trader/guards.test.ts",
+      "src/__tests__/money-lab/money-lab-vps.test.ts",
+      "sonni/e2e.mjs"
+    ],
+    "history_integrity": [
+      "src/__tests__/trader/guards.test.ts",
+      "src/__tests__/money-lab/money-lab-vps.test.ts",
+      "sonni/e2e.mjs"
+    ],
+    "stop_reasons": [
+      "src/__tests__/trader/guards.test.ts"
+    ]
+  }
 }
