@@ -110,6 +110,8 @@ function model(body) {
       const pack = results.find((r) => r.includes("MEMORY PACK")) ?? "";
       /news\.example: Spot ETF inflows reach a record/.test(pack) && /UNTRUSTED DATA/.test(pack)
         ? ok("memory pack shows the fetched headline as untrusted data") : fail("headline missing from the memory pack");
+      /press\.example: Fed signals patience on rate cuts/.test(pack)
+        ? ok("memory pack shows a headline read from an RSS feed") : fail("RSS headline missing from the memory pack");
       /Observations, last 24 h \(1,[^\n]*\n- BTC: 1 item\(s\), mean sentiment \+0\.60\n\s+[^\n]*\[etf\] Record inflows into spot bitcoin ETFs/.test(pack)
         ? ok("memory pack shows the observation the fake reader extracted") : fail("observation from the reader missing from the memory pack");
       /Indicators from your sources[^\n]*\n(- [^\n]*\n)*- Crypto Fear & Greed \(alternative\.me\) index: 27\.00/.test(pack)
@@ -157,6 +159,7 @@ const tgSend = (text) => tgQueue.push({
 const krakenCalls = [];
 const ohlcCalls = [];
 let gdeltCalls = 0;
+let feedCalls = 0;
 let readerCalls = 0;
 const sourceCalls = { fng: 0, coingecko: 0, mempool: 0, depth: 0 };
 let tick = 0;
@@ -184,6 +187,13 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { "content-type": "text/html" });
     return res.end(`<h4>${d.getUTCFullYear()} FOMC Meetings</h4><div class="fomc-meeting__month col-xs-5"><strong>${month}</strong></div>` +
       `<div class="fomc-meeting__date col-xs-4">${d.getUTCDate()}</div>`);
+  }
+  if (url.pathname.startsWith("/rss/")) {
+    // Fake RSS feed (same item for every feed; stored once by URL).
+    feedCalls++;
+    const pub = new Date(Date.now() - 2_700_000).toUTCString();
+    res.writeHead(200, { "content-type": "application/xml" });
+    return res.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>feed</title><item><title><![CDATA[Fed signals patience on rate cuts]]></title><link>https://press.example/fed-patience</link><pubDate>${pub}</pubDate></item></channel></rss>`);
   }
   if (url.pathname.startsWith("/gdelt/")) {
     gdeltCalls++;
@@ -355,6 +365,7 @@ tgSend("/agenda");
 await until(() => tgOutbox.some((m) => /décision de taux de la Fed/.test(m.text)), 30000)
   ? ok("/agenda lists the next Fed decision in French") : fail("/agenda without the Fed decision");
 gdeltCalls >= 1 ? ok("headlines fetched from GDELT") : fail("GDELT never called");
+feedCalls >= 4 ? ok(`RSS feeds fetched beside GDELT (${feedCalls} calls)`) : fail(`RSS feeds called ${feedCalls} times`);
 
 tgSend("/statut");
 await until(() => tgOutbox.some((m) => /SONNI/.test(m.text)), 30000) || fail("/statut got no Sonni answer");

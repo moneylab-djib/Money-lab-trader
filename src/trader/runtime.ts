@@ -63,23 +63,27 @@ export interface NewsOutcome {
   fetched: boolean;
   added: number;
   nextAt: string;
+  /** Sources that failed while at least one answered (logged, no backoff). */
+  errors: string[];
 }
 
 /**
- * Fetch headlines when due: an hour after a success, 5, 10, 20 then 30
- * minutes after a failure. The schedule lives in the database, so a restart
- * (which runs every tick at once) does not call GDELT again within minutes.
- * A failure is rethrown, with the next try, after it is scheduled.
+ * Fetch headlines (GDELT and the RSS feeds) when due: an hour after a
+ * success, 5, 10, 20 then 30 minutes after a failure of every source. The
+ * schedule lives in the database, so a restart (which runs every tick at
+ * once) does not call the sources again within minutes. A failure is
+ * rethrown, with the next try, after it is scheduled.
  */
 export async function newsTick(db: Database.Database, fetchFn: FetchFn = fetch, now: Date = new Date()): Promise<NewsOutcome> {
   const nextAt = getKV(db, KV_NEWS_NEXT) ?? "";
-  if (nextAt && now.toISOString() < nextAt) return { fetched: false, added: 0, nextAt };
+  if (nextAt && now.toISOString() < nextAt) return { fetched: false, added: 0, nextAt, errors: [] };
   try {
-    const added = await collectHeadlines(db, fetchFn, now);
+    const r = await collectHeadlines(db, fetchFn, now);
+    if (r.ok.length === 0) throw new Error(r.errors.join(" ; "));
     const next = new Date(now.getTime() + NEWS_INTERVAL_MS).toISOString();
     setKV(db, KV_NEWS_NEXT, next);
     setKV(db, KV_NEWS_FAILURES, "0");
-    return { fetched: true, added, nextAt: next };
+    return { fetched: true, added: r.added, nextAt: next, errors: r.errors };
   } catch (err: any) {
     const failures = Number(getKV(db, KV_NEWS_FAILURES) ?? "0") + 1;
     const minutes = NEWS_RETRY_MINUTES[Math.min(failures, NEWS_RETRY_MINUTES.length) - 1];

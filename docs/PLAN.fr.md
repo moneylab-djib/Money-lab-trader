@@ -70,7 +70,7 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    assez de cas. Exemple réel : « le BTC remonte le lendemain d'une baisse de 3 % » n'est arrivé que
    dans 40 % des 47 cas, contre 51 % des jours en général : contredite.
 1 ter. **Il voit le monde** ✅ construite le 6 octobre : chaque heure, les titres de l'actualité crypto
-   et Fed (GDELT, gratuit) ; chaque jour, le calendrier des décisions de la Fed (et, avec une clé FRED
+   et Fed (GDELT et cinq flux RSS gratuits : Cointelegraph, The Block, Decrypt, la Fed, Google Actualités) ; chaque jour, le calendrier des décisions de la Fed (et, avec une clé FRED
    gratuite à ton nom, l'inflation et l'emploi américains) ; le code mesure comment le BTC et l'ETH ont
    bougé ces jours-là, et Sonni peut tester des intuitions du type « le BTC bouge de plus de 3 % les
    jours de Fed ou d'inflation ». Nouvelle commande : `/agenda`. La lecture des articles par Haiku est
