@@ -96,8 +96,19 @@
         "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
       },
       "verification": {
-        "at": "2026-10-06T23:28:25.839602+00:00",
-        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "at": "2026-10-07T04:48:27.319888+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -108,8 +119,27 @@
           "7": "sonni",
           "8": "sonni"
         },
-        "report": ".likma/checks/b571aa7bb3484942aea5e86278c22491.json",
-        "contract": "8cf39faf47876773d6b22da40e3250de1e7982491a381296bfce4013bf60527b"
+        "checks_hash": "401bfa3b0ff140b19d897dadaedb7b38fcf06cbfd46405a156d8279a7060e38d",
+        "report": ".likma/checks/1e0d99b3d27341ca8ba0960b58593b36.json",
+        "contract": "c00d4893d9fceb7a9e81afd76af1c3793972e63f55572c7a6e7fd84bde64e049",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.402,
+            "output_bytes": 9103,
+            "output_sha256": "8c4f9e4a5a396f93ecb88e5cc242157897eb0143668683569527f36cf033143c"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 203.195,
+            "output_bytes": 2181,
+            "output_sha256": "1955706497c77a35a91423fa0327d98cac1dca500a278d71058aa4d1ce1d22b1"
+          }
+        ]
       },
       "paths": [
         "src",
@@ -139,8 +169,19 @@
         "note": "src/trader/events.ts, news.ts; event condition in rules.ts; calendar and news ticks; pack, status, /agenda; guide FRED step"
       },
       "verification": {
-        "at": "2026-10-06T23:26:06.041938+00:00",
-        "fingerprint": "52d0256bad2114de86ce5032e690e0d67c6bc38952e128dfa15c6aabfff6c664",
+        "at": "2026-10-07T04:48:34.281557+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "41a693402953bf98061b9f16aae4385c91ca2738f0956229c6d356b4136299fd",
+        "scope": [
+          "src",
+          "sonni",
+          "constitution.md",
+          "package.json",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
         "criterion_checks": {
           "1": "sonni",
           "2": "sonni",
@@ -149,8 +190,19 @@
           "5": "sonni",
           "6": "sonni"
         },
-        "report": ".likma/checks/bdffe1945d194ed18aca4006421b52a9.json",
-        "contract": "127a4a9aa0f5aea74b707ef0b99970f1fcd7ae6040e1a453a4459cb124f20f85"
+        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
+        "report": ".likma/checks/853c952f75624993aae3762abb4e806e.json",
+        "contract": "c0241dd01c73ff18afe45c90979622afa9bc5982e86238deb9289abdc09504b8",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.721,
+            "output_bytes": 9103,
+            "output_sha256": "124a2c16bfe660e06d6e62de0ae7907f84b16f070cd7c2b25c87caa1ccd1acc2"
+          }
+        ]
       },
       "paths": [
         "src",
