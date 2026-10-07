@@ -3,7 +3,10 @@
 Memory is the core of the project. The agent is a language model whose weights never change: it
 learns only through what it writes down, what code measures, and what it reads back before acting.
 This document defines what is remembered, who may write it, how it is consolidated and how it is
-retrieved. Status: proposed specification (2026-10-06), not implemented.
+retrieved. Status (2026-10-06): the first slice implements prices, hypotheses (owner origin),
+predictions limited to "price above/below a threshold at a horizon", forward evidence, computed
+confidence and a memory pack of indicators, hypotheses and predictions (src/trader/). Everything else
+here is still the proposed design.
 
 ## 1. Goals
 

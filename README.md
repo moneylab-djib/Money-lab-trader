@@ -5,7 +5,9 @@ stocks, ETFs). It reads market news, places fictitious trades, and learns from t
 a long-term memory of traps, intuitions and event cycles. Real money is out of scope until the owner
 decides otherwise.
 
-> **Status:** specification only (2026-10-06). No code, no exchange account, no money involved.
+> **Status:** first slice built and verified against fake APIs (2026-10-06): live Kraken prices, owner
+> hypotheses, predictions resolved and scored by code, French status on Telegram. Not launched yet.
+> No exchange account, no money involved.
 
 ## Read first
 
@@ -15,9 +17,11 @@ decides otherwise.
 - [docs/FIRST-SLICE.md](docs/FIRST-SLICE.md): first deliverable and its acceptance criteria
 - [docs/RESEARCH.md](docs/RESEARCH.md): reusable projects, data sources, realism rules
 - [docs/PLAN.fr.md](docs/PLAN.fr.md): owner summary in French, with open questions
+- [sonni/GUIDE-VPS.fr.md](sonni/GUIDE-VPS.fr.md): installing Sonni on its own VPS (French)
 - [docs/decisions/](docs/decisions/): accepted and proposed decisions
 - [AGENTS.md](AGENTS.md): rules for coding agents
 
 Project methods follow [Likma Dev System](https://github.com/Cloied/likma-dev-system)
 (profile `ai-product`). The runtime is planned to start from
-[Money Lab](https://github.com/Cloied/Money-lab) (decision 0002).
+[Money Lab](https://github.com/Cloied/Money-lab) (decision 0002), imported at a pinned commit; Sonni's
+code is in `src/trader/`. Checks and commands are listed in [AGENTS.md](AGENTS.md).

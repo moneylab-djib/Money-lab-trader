@@ -3,16 +3,146 @@
   "name": "money-lab-trader",
   "commands": {
     "start": [],
-    "check": {}
+    "check": {
+      "types": [
+        "pnpm",
+        "run",
+        "typecheck"
+      ],
+      "sonni": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/__tests__/trader"
+      ],
+      "money-lab": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/__tests__/money-lab"
+      ],
+      "build": [
+        "pnpm",
+        "run",
+        "build"
+      ],
+      "sonni-e2e": [
+        "node",
+        "sonni/e2e.mjs"
+      ]
+    }
   },
   "required_env": [],
-  "required_paths": [],
-  "check_timeout_seconds": 120,
+  "required_paths": [
+    "package.json",
+    "pnpm-lock.yaml",
+    "node_modules"
+  ],
+  "check_timeout_seconds": 400,
   "budget": {
     "max_failed_attempts": 3,
     "max_minutes": 60,
     "max_cost": null,
     "currency": "EUR"
   },
-  "code_map": []
+  "code_map": [
+    {
+      "area": "Sonni configuration",
+      "path": "src/trader/config.ts",
+      "purpose": "Strict trader block validation, followed assets, tools denied to Sonni",
+      "edit_when": "Config keys, assets or Sonni's tool set change"
+    },
+    {
+      "area": "Sonni storage",
+      "path": "src/trader/schema.ts",
+      "purpose": "Memory tables in state.db and append-only triggers",
+      "edit_when": "A memory store is added or its integrity rules change (keep docs/MEMORY.md in sync)"
+    },
+    {
+      "area": "Sonni prices",
+      "path": "src/trader/prices.ts",
+      "purpose": "Kraken public price collection and price lookups",
+      "edit_when": "A data source, timestamp format or lookup changes"
+    },
+    {
+      "area": "Sonni hypotheses",
+      "path": "src/trader/hypotheses.ts",
+      "purpose": "Hypotheses and confidence computed from evidence",
+      "edit_when": "Confidence rule, thresholds or origins change"
+    },
+    {
+      "area": "Sonni predictions",
+      "path": "src/trader/predictions.ts",
+      "purpose": "Prediction validation, recording and resolution by code (Brier, evidence)",
+      "edit_when": "Prediction fields, staleness or resolution rules change"
+    },
+    {
+      "area": "Sonni memory pack",
+      "path": "src/trader/pack.ts",
+      "purpose": "Deterministic memory pack read before decisions",
+      "edit_when": "Retrieval order, indicators or bounds change"
+    },
+    {
+      "area": "Sonni agent tools",
+      "path": "src/trader/tools.ts",
+      "purpose": "sonni_memory and record_prediction",
+      "edit_when": "The model's tools change"
+    },
+    {
+      "area": "Sonni prompt",
+      "path": "src/trader/prompt.ts",
+      "purpose": "Sonni mission and rules block (replaces Money Lab's mission)",
+      "edit_when": "The mission or stated rules change"
+    },
+    {
+      "area": "Sonni operator",
+      "path": "src/trader/status.ts",
+      "purpose": "French status and hypothesis list; CLI and Telegram commands in src/trader/cli.ts",
+      "edit_when": "Owner-facing output or commands change"
+    },
+    {
+      "area": "Sonni background work",
+      "path": "src/trader/runtime.ts",
+      "purpose": "Collection and resolution ticks scheduled by src/index.ts",
+      "edit_when": "Scheduling or failure reporting changes"
+    },
+    {
+      "area": "Runtime integration",
+      "path": "src/index.ts",
+      "purpose": "Profile validation, timers, --sonni CLI; loop.ts, system-prompt.ts, guard.ts, telegram.ts and conway/inference.ts carry small Sonni hooks",
+      "edit_when": "How Sonni plugs into the Money Lab runtime changes"
+    },
+    {
+      "area": "Sonni tests",
+      "path": "src/__tests__/trader/sonni.test.ts",
+      "purpose": "First-slice criteria with network and inference mocked",
+      "edit_when": "Any Sonni behaviour changes"
+    },
+    {
+      "area": "Sonni end-to-end",
+      "path": "sonni/e2e.mjs",
+      "purpose": "Real built process against fake Kraken, Anthropic and Telegram",
+      "edit_when": "Startup, timers, prompt, tools or Telegram behaviour change"
+    },
+    {
+      "area": "Sonni example config",
+      "path": "sonni/automaton.sonni.example.json",
+      "purpose": "Money Lab block plus trader block for a separate VPS user",
+      "edit_when": "Config keys or recommended limits change"
+    },
+    {
+      "area": "Sonni VPS setup",
+      "path": "sonni/vps/configure.mjs",
+      "purpose": "Writes Sonni's config on its own VPS; with sonni.service, sonni.env.example and sonni/GUIDE-VPS.fr.md",
+      "edit_when": "Deployment layout, config keys, budget rule or owner steps change"
+    },
+    {
+      "area": "Money Lab runtime",
+      "path": "src/money-lab/",
+      "purpose": "Imported runtime (budgets, Telegram, guards, journal); see docs/upstream/MONEY-LAB-README.md",
+      "edit_when": "A runtime behaviour Sonni relies on changes"
+    }
+  ]
 }

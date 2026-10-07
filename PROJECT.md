@@ -6,7 +6,8 @@
 - One-sentence description: an autonomous Claude agent that trains as an apprentice broker on a
   virtual portfolio, with a long-term memory of traps, intuitions and event cycles at its core.
 - Product category: personal research project; supervised AI trading agent.
-- Current status: specification only (2026-10-06). No code, no exchange account, no money involved.
+- Current status: first slice built and verified against fake APIs (2026-10-06); not launched. No
+  exchange account, no money involved.
 
 ## Users and problem
 
@@ -63,7 +64,7 @@
 
 - Runtime/framework: TypeScript on Node.js, starting from the Money Lab codebase (decision 0002).
 - Data/backend: SQLite (`state.db`) as canonical store; Markdown notebooks exported for the owner.
-- Deployment: the owner's existing VPS, as a separate Linux user and systemd service from Money Lab.
+- Deployment: Sonni's own VPS, separate from Money Lab (decision 0004); guide in sonni/GUIDE-VPS.fr.md.
 - Supported devices: Telegram clients only.
 - Non-negotiable constraints:
   - Budget 50 EUR/month for inference and paid data (decisions 0001 and 0003), enforced in process and

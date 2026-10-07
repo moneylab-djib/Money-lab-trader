@@ -75,6 +75,9 @@ These shares are estimates to be replaced by measured spend after two weeks. Enf
   budget divided by the remaining days, so a busy day cannot spend the month.
 - A dedicated Anthropic API key in its own workspace, with a monthly spend limit set by the owner in
   the Anthropic Console as the hard backstop. Money Lab and the trader never share a key.
+- First slice (2026-10-06): pacing and per-purpose caps are not built yet. Money Lab's daily inference
+  cap and funding balance stand in for them (sonni/vps/configure.mjs: 1/30 of the monthly budget per day,
+  $1.93/day for 50 EUR at 1.16; $58 funded per month with /fonds).
 
 ## Decisions and trade-offs
 
@@ -83,7 +86,7 @@ These shares are estimates to be replaced by measured spend after two weeks. Enf
   tested (1,722 passing tests and an end-to-end harness run on 2026-10-06).
 - No trading engine (NautilusTrader, Freqtrade) in the virtual phase: a small paper broker in SQLite is
   enough and keeps one language. Revisit when real money is considered.
-- No Managed Agents: the self-hosted Money Lab runtime already exists and is proven on this VPS.
+- No Managed Agents: the self-hosted Money Lab runtime already exists and is proven on Money Lab's VPS.
 - No vector database: structured keys plus SQLite FTS5 (see docs/MEMORY.md section 6).
 - No backtesting of model decisions on past periods: the model remembers what happened. Code-only
   statistics on history are allowed.
@@ -98,6 +101,7 @@ These shares are estimates to be replaced by measured spend after two weeks. Enf
   repetition detection inherited from Money Lab, and the workspace spend limit.
 - In-process guards are bypassable through the shell tool (known Money Lab limitation): acceptable with
   no money at stake; must be redesigned before any real-money phase.
-- VPS capacity: two agents on the smallest VPS may run short of memory; to measure before launch.
+- Hosting: Sonni runs on its own VPS (decision 0004), so a Money Lab crash or install cannot stop price
+  collection, and no future trading key will sit next to another agent with shell access.
 - Paper results flatter reality: no market impact, optimistic fills. Fills at the next price, fees and
   slippage reduce but do not remove this bias.

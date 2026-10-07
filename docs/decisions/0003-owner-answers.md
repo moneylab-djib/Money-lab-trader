@@ -1,5 +1,6 @@
 # Architecture decision 0003: owner answers on capital, data, assets and readiness
-- Status: accepted (owner, 2026-10-06, in conversation), with item 4 thresholds still to set
+- Status: accepted (owner, 2026-10-06, in conversation); item 4 thresholds will be set after the
+  first months of results (owner, 2026-10-06)
 - Date: 2026-10-06
 - Context and constraints: open questions from docs/PLAN.fr.md after decisions 0001 and 0002.
 - Decision:

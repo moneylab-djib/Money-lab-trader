@@ -1,0 +1,54 @@
+{
+  "_comment": "Sonni on the Money Lab self-hosted runtime. On Sonni's own VPS, sonni/vps/configure.mjs writes this into ~/.automaton/automaton.json (see sonni/GUIDE-VPS.fr.md). Secrets are NOT stored here: ANTHROPIC_API_KEY (a dedicated key, in its own Anthropic workspace with a monthly spend limit) and TELEGRAM_BOT_TOKEN (a separate bot from Money Lab's) come from the environment file. Amounts are USD cents. funding.provisionedCents is the monthly inference envelope (about 50 EUR at the owner's rate); the owner adds the next month with /fonds. dailyCents paces it (1/30 of the month). The VPS is paid by the owner outside Sonni's budget, so its cost here is 0. Replace ownerChatId. Code denies Money Lab's web-business tools when the trader block is present.",
+  "maxChildren": 0,
+  "moneyLab": {
+    "enabled": true,
+    "profile": "first-run",
+    "runtime": "self-hosted",
+    "telegram": {
+      "botTokenEnv": "TELEGRAM_BOT_TOKEN",
+      "ownerChatId": 123456789
+    },
+    "stripe": null,
+    "inference": {
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "perCallCents": null,
+      "hourlyCents": 65,
+      "dailyCents": 193,
+      "maxOutputTokens": 16000
+    },
+    "payments": "disabled",
+    "paymentLimits": {
+      "perPaymentCents": null,
+      "dailyCents": null
+    },
+    "deniedTools": [],
+    "maxTurnsPerCycle": null,
+    "noProgressCycles": 5,
+    "noProgressSleepMinutes": 120,
+    "resources": [
+      {
+        "id": "vps",
+        "kind": "server",
+        "description": "Sonni's own VPS (paid by the owner, outside Sonni's budget)",
+        "expectedDailyCostCents": 0
+      }
+    ],
+    "funding": {
+      "currency": "USD",
+      "provisionedCents": 5800,
+      "heldBackCents": 0
+    }
+  },
+  "trader": {
+    "enabled": true,
+    "quoteCurrency": "EUR",
+    "assets": [
+      { "symbol": "BTC", "krakenPair": "XBTEUR" },
+      { "symbol": "ETH", "krakenPair": "ETHEUR" }
+    ],
+    "collectMinutes": 5,
+    "staleMinutes": 15
+  }
+}

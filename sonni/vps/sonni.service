@@ -1,0 +1,30 @@
+[Unit]
+Description=Sonni, apprentice broker (virtual portfolio)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Started as root only to switch at once to the sonni user (dist/launch.js,
+# before the runtime loads): a process that switches users is not dumpable,
+# so the bot's own shell (same user) cannot read the runtime's keys through
+# /proc/<pid>/environ. The launcher never runs the runtime as root.
+User=root
+Environment=MONEY_LAB_USER=sonni
+WorkingDirectory=/opt/sonni
+# Root-owned, mode 600: systemd reads it before starting the service, so the
+# bot's own shell cannot read this file. Keys: ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN.
+EnvironmentFile=/etc/sonni.env
+Environment=HOME=/home/sonni
+Environment=NPM_CONFIG_PREFIX=/home/sonni/.npm-global
+Environment=PATH=/home/sonni/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/node /opt/sonni/dist/launch.js --run
+Restart=always
+RestartSec=30
+# Basic hardening; the bot keeps write access to its home directory.
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
