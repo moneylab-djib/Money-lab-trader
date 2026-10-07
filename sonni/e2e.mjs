@@ -273,6 +273,11 @@ const reconfigured = run(["sonni/vps/configure.mjs", "--chat-id", String(OWNER),
 /Mise à jour/.test(reconfigured) && !/owner_funding/.test(reconfigured) && /gemini \(clé GEMINI_API_KEY\), groq \(clé GROQ_API_KEY\)/.test(reconfigured)
   ? ok("configure.mjs re-run for an update: readers listed, no second budget asked")
   : fail(`configure re-run output unexpected: ${reconfigured}`);
+// Without --chat-id, an update keeps the chat id already configured.
+const reconfiguredNoId = run(["sonni/vps/configure.mjs", "--monthly-budget-eur", "50", "--eur-usd", "1.16"]);
+new RegExp(`Telegram : chat ${OWNER}\\b`).test(reconfiguredNoId) && /Mise à jour/.test(reconfiguredNoId)
+  ? ok("configure.mjs re-run without --chat-id keeps the configured chat id")
+  : fail(`configure re-run without --chat-id: ${reconfiguredNoId}`);
 const configPath = path.join(HOME, ".automaton", "automaton.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 if (config.moneyLab.stripe !== null || config.moneyLab.resources[0].expectedDailyCostCents !== 0) fail("configure kept Stripe or a VPS cost");

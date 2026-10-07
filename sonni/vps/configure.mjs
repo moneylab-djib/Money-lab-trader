@@ -5,6 +5,7 @@
  * Usage (from the repository root, as the sonni user):
  *   node sonni/vps/configure.mjs --chat-id 123456789 \
  *     [--monthly-budget-eur 50] [--eur-usd 1.16] [--name sonni]
+ * On an update --chat-id may be omitted: the configured chat id is kept.
  *
  * The monthly budget (inference and paid data, decision 0003) becomes a
  * daily inference cap of one thirtieth of it, converted to USD at the
@@ -25,9 +26,19 @@ const opt = (name, fallback) => {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : fallback;
 };
 
-const chatId = Number(opt("chat-id"));
+const dir = path.join(process.env.HOME || os.homedir(), ".automaton");
+fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+const file = path.join(dir, "automaton.json");
+const firstRun = !fs.existsSync(file);
+const existing = firstRun ? {} : JSON.parse(fs.readFileSync(file, "utf-8"));
+
+// An update keeps the chat id already configured: --chat-id is only needed at the first install.
+const chatArg = opt("chat-id");
+const chatId = Number(chatArg !== undefined ? chatArg : existing?.moneyLab?.telegram?.ownerChatId);
 if (!Number.isInteger(chatId) || chatId === 0) {
-  console.error("Erreur : --chat-id <ton identifiant Telegram> est obligatoire (voir le guide, étape Telegram).");
+  console.error(chatArg === undefined && !firstRun
+    ? "Erreur : aucun identifiant Telegram dans la configuration existante ; donne --chat-id <ton identifiant> (voir le guide, étape Telegram)."
+    : "Erreur : --chat-id <ton identifiant Telegram> est obligatoire à la première installation (voir le guide, étape Telegram).");
   process.exit(2);
 }
 const name = opt("name", "sonni");
@@ -51,11 +62,6 @@ lab.inference.hourlyCents = Math.max(1, Math.ceil(dailyCents / 3));
 lab.funding.provisionedCents = monthlyCents;
 lab.resources = [{ id: "vps", kind: "server", description: "Sonni's own VPS (paid by the owner, outside Sonni's budget)", expectedDailyCostCents: 0 }];
 
-const dir = path.join(process.env.HOME || os.homedir(), ".automaton");
-fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-const file = path.join(dir, "automaton.json");
-const firstRun = !fs.existsSync(file);
-const existing = firstRun ? {} : JSON.parse(fs.readFileSync(file, "utf-8"));
 // The runtime derives model routing and budgets at every start; copies saved
 // by older versions would cap a budget the owner raises here.
 delete existing.modelStrategy;
