@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-07
-- Branch / commit: claude/sonni-portfolio (step 4 B, based on claude/sonni-clarity = PR #10, on main after PRs #1 to #9)
+- Branch / commit: claude/sonni-portfolio (step 4 B, on main after PRs #1 to #10; PR #10 = step 4 A, merged 2026-10-07 09:58 UTC)
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
@@ -126,7 +126,10 @@
     rest state is process memory (a restart retries); daily caps count UTC days.
   - Money Lab's experiment-oriented texts remain in some owner commands (/aides, /resume).
 - First live run (owner's VPS, 2026-10-06 22:12 UTC): two predictions due 2026-10-07 22:12 UTC.
-- Blockers: none for code. The owner must update the VPS after merging PRs #10 and the step 4 B PR.
+- Blockers: none for code. The owner must update the VPS after merging the step 4 B PR.
+- Full Likma check on 418535b's tree (2026-10-07 ~10:00 UTC): types, sonni (104), money-lab, build, sonni-e2e all PASS
+  (.likma/checks/60407717f1bf4f5c82661d0c5e687513.json) after three diagnosed failures recorded with `project attempt`
+  (reader-call ordering in a test, e2e fill timing, fill wakes blocking the move wake) and one deliberate new session.
 - PRs #1 to #5 were merged into main by the owner on 2026-10-07 (05:32 to 05:38 UTC, merge commits);
   main now carries the whole of Sonni and the guide points the VPS at main.
 - Step 4 A (clarity, owner's request of 2026-10-07 after reading /statut): `/statut` rewritten as four
@@ -150,7 +153,7 @@
   20:00 local (telegram.ts), `/bilan` with the three proofs of decision 0003, `brokerTick` after each
   collection (index.ts), configure.mjs writes `portfolio.eurUsd`. Tests: src/__tests__/trader/portfolio
   (5), e2e places and fills a 100 EUR BTC order and checks /statut, /portefeuille, /journee.
-- Next concrete action: owner merges PR #10 then the step 4 B PR, runs the update block of
+- Next concrete action: owner merges the step 4 B PR, runs the update block of
   sonni/GUIDE-VPS.fr.md (git pull, install, build, configure.mjs, restart); the portfolio opens at the
   first collected price; checks /statut, /portefeuille, and the evening summary at 20:00. Proposed next engineering task: a guard map for Sonni per the
   Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.
