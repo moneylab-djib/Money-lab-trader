@@ -21,6 +21,7 @@ import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import { containsInjectionPatterns } from "../soul/validator.js";
 import type { ReaderConfig, TraderConfig } from "./config.js";
+import { hypothesesToTranslate, setStatementFr } from "./hypotheses.js";
 import { type Headline } from "./news.js";
 
 type DB = Database.Database;
@@ -462,4 +463,60 @@ export function formatReadersFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEn
     .get(new Date(now.getTime() - 86_400_000).toISOString()) as { n: number }).n;
   lines.push(`Observations extraites ces 24 h : ${obs}.`);
   return lines.join("\n");
+}
+
+// ─── French wording of the hypotheses, for the owner ─────────────
+
+export const TRANSLATE_BATCH = 10;
+const TRANSLATE_SYSTEM = `You translate short statements about financial markets into natural French for a
+non-technical reader. Keep every number, percentage, asset symbol and time span exactly. If a statement
+is already in French, return it unchanged. Translate only: add nothing, drop nothing. Answer with JSON
+only: {"items":[{"i":<index>,"fr":"<French statement>"}]}.`;
+
+export interface TranslateOutcome {
+  sent: number;
+  stored: number;
+  readerId: string | null;
+  skipped: string | null;
+}
+
+/**
+ * Gives the hypotheses without a French wording one, through a free
+ * reader. The statement the model reasons on is never changed; the French
+ * text is shown to the owner only, after the same checks as any reader
+ * output (length, prompt-boundary patterns).
+ */
+export async function translateHypothesesTick(
+  db: DB,
+  cfg: TraderConfig,
+  env: NodeJS.ProcessEnv,
+  fetchFn: FetchFn = fetch,
+  now: Date = new Date(),
+): Promise<TranslateOutcome> {
+  const none = (skipped: string): TranslateOutcome => ({ sent: 0, stored: 0, readerId: null, skipped });
+  if (cfg.readers.length === 0) return none("no reader configured");
+  const pending = hypothesesToTranslate(db, TRANSLATE_BATCH);
+  if (pending.length === 0) return none("nothing to translate");
+  const user = pending.map((h, i: number) => `${i}. ${h.statement.replace(/\s+/g, " ")}`).join("\n");
+  const answer = await askReader(db, cfg, {
+    purpose: "translate",
+    system: TRANSLATE_SYSTEM,
+    user,
+    maxTokens: Math.min(READER_MAX_TOKENS * 2, 100 + pending.length * 120),
+  }, env, fetchFn, () => now);
+  if (!answer) return none("no reader available (missing key, daily cap or resting after an error)");
+  const items = Array.isArray((answer.json as any)?.items) ? ((answer.json as any).items as unknown[]) : [];
+  let stored = 0;
+  const seen = new Set<number>();
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object") continue;
+    const i = Number((raw as any).i);
+    if (!Number.isInteger(i) || i < 0 || i >= pending.length || seen.has(i)) continue;
+    const fr = cleanSummary((raw as any).fr, 1000);
+    if (!fr || fr.length < 10) continue;
+    seen.add(i);
+    setStatementFr(db, pending[i].id, fr);
+    stored++;
+  }
+  return { sent: pending.length, stored, readerId: answer.readerId, skipped: null };
 }

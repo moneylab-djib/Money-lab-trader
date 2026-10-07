@@ -23,6 +23,7 @@ import { evaluateRule, parseTestRule } from "../../trader/rules.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
 import { latestHistoricalTest, runHistoricalTest } from "../../trader/historical.js";
 import { calendarTick, newsTick } from "../../trader/runtime.js";
+import { fmtDay } from "../../trader/format.js";
 import { buildMemoryPack } from "../../trader/pack.js";
 import { createTestConfig } from "../mocks.js";
 
@@ -304,9 +305,10 @@ describe("What Sonni and the owner see", () => {
     add.run("fomc", inDays(5)); add.run("jobs", inDays(12));
     const channel = new TelegramChannel("token", 42, db, config(), fetchSpy as any);
     const agenda = channel.handleOwnerText("/agenda", 1)!;
-    expect(agenda).toContain(`- ${inDays(5)} : décision de taux de la Fed`);
-    expect(agenda).toContain(`- ${inDays(12)} : emploi américain`);
-    expect(channel.handleOwnerText("/statut", 2)).toContain(`Prochain événement : décision de taux de la Fed le ${inDays(5)}`);
+    const dayFr = (iso: string) => fmtDay(iso);
+    expect(agenda).toContain(`- ${dayFr(inDays(5))} : décision de taux de la Fed`);
+    expect(agenda).toContain(`- ${dayFr(inDays(12))} : emploi américain`);
+    expect(channel.handleOwnerText("/statut", 2)).toContain(`Prochain événement : décision de taux de la Fed le ${dayFr(inDays(5))}`);
     expect(channel.handleOwnerText("/aide", 3)).toContain("/agenda");
     expect(fetchSpy).not.toHaveBeenCalled();
     db.close();

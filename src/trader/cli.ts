@@ -11,7 +11,7 @@ import { addHypothesis } from "./hypotheses.js";
 import { formatReadersFr } from "./readers.js";
 import { decideSource, formatSourcesFr } from "./sources.js";
 import { formatSelfReportFr, IDENTITY_ANCHOR, retireLesson, reviseIdentity, selfReport } from "./soul.js";
-import { formatAgenda, formatHypotheses, formatIdentityFr, formatJournalFr, formatLessonsFr, formatSonniStatus } from "./status.js";
+import { type BudgetView, formatAgenda, formatHypotheses, formatIdentityFr, formatJournalFr, formatLessonsFr, formatSonniStatus } from "./status.js";
 import { activeConfig, formatUniverseFr } from "./universe.js";
 
 export const SONNI_USAGE = `Commandes Sonni :
@@ -48,6 +48,8 @@ function identityRefusalFr(error: string): string {
 export interface SonniCommandOptions {
   /** Owner's daily inference cap, for the self-report. */
   dailyCapCents?: number | null;
+  /** Spend and balance from the Money Lab ledger, for the status. */
+  budget?: BudgetView | null;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -63,7 +65,7 @@ export function runSonniCommand(
   switch (command) {
     case "statut":
     case "status":
-      print(formatSonniStatus(db, cfg));
+      print(formatSonniStatus(db, cfg, new Date(), options.budget ?? null));
       return 0;
     case "intuitions":
       print(formatHypotheses(db));
@@ -104,7 +106,7 @@ export function runSonniCommand(
     }
     case "journal": {
       const n = Number(rest[0] ?? "5");
-      print(formatJournalFr(db, Number.isInteger(n) && n > 0 ? Math.min(n, 30) : 5));
+      print(formatJournalFr(db, Number.isInteger(n) && n > 0 ? Math.min(n, 30) : 5, cfg.timeZone));
       return 0;
     }
     case "lecons":

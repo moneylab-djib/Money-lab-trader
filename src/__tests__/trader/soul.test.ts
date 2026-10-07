@@ -278,7 +278,7 @@ describe("Owner views", () => {
     const out: string[] = [];
     expect(runSonniCommand(["identite"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
     expect(out.join("\n")).toContain("version 2, écrite par Sonni");
-    expect(out.join("\n")).toContain("v1 (2026-10-07, code) : identité de départ écrite par le code");
+    expect(out.join("\n")).toContain("v1 (7 oct., code) : identité de départ écrite par le code");
     // The owner can write a version too (not counted against Sonni's daily revision).
     out.length = 0;
     expect(runSonniCommand(["identite", "Je", "suis", "Sonni.", "Tu", "travailles", "pour", "moi,", "prudemment,", "et", "tu", "notes", "chaque", "erreur", "de", "calibration", "dans", "ton", "journal."], db.raw, TRADER, (t) => out.push(t))).toBe(0);

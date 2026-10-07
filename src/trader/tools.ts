@@ -58,7 +58,7 @@ export function createTraderTools(): AutomatonTool[] {
       parameters: {
         type: "object",
         properties: {
-          statement: { type: "string", description: "The hypothesis in one or two sentences" },
+          statement: { type: "string", description: "The hypothesis in one or two sentences, in French (the owner reads it)" },
           test_rule: { type: "object", description: "Optional machine-checkable form (see the rule language)" },
         },
         required: ["statement"],

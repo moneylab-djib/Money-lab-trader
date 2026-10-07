@@ -348,9 +348,12 @@ describe("Criterion 7: owner status on Telegram", () => {
     expect(text).toContain("SONNI");
     expect(text).toMatch(/Prédictions ouvertes \(1\)/);
     expect(text).toMatch(/BTC au-dessus de 60\s?000,00 € : VRAI/);
-    expect(text).toMatch(/score de Brier moyen : 0\.160 sur 1/);
-    expect(text).toMatch(/\[en test\] BTC monte souvent/);
-    expect(text).toContain("BUDGET ET RUNTIME");
+    expect(text).toMatch(/Résolues : 1 notée\(s\), score moyen 0,160/);
+    expect(text).toContain("Intuitions : 1 (/intuitions)");
+    expect(text).toContain("💶 Budget");
+    expect(text).not.toMatch(/h_01|p_01/); // no identifiers in the owner's status
+    expect(channel.handleOwnerText("/intuitions", 4)).toMatch(/\[en test, toi\] BTC monte souvent/);
+    expect(channel.handleOwnerText("/technique", 5)).toContain("ÉTAT TECHNIQUE");
     expect(channel.handleOwnerText("/aide", 3)).toContain("/idee");
     expect(fetchSpy).not.toHaveBeenCalled();
     db.close();

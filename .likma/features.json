@@ -482,6 +482,61 @@
         "tsconfig.json",
         "vitest.config.ts"
       ]
+    },
+    {
+      "id": "owner-clarity",
+      "title": "The owner reads Sonni at a glance: four-block French status in their time zone, technical state apart, a morning report with real alerts only, intuitions in French",
+      "criteria": [
+        "/statut shows portfolio, market and predictions, learning and budget in French and in trader.timeZone (default Europe/Paris), with no identifiers; the budget comes from the Money Lab ledger",
+        "/technique gives the runtime's technical state (Money Lab status) and the help lists it",
+        "The daily Telegram message is Sonni's morning report (yesterday, today, alerts only when real: pause, no session in 26 h, cap exceeded, stuck owner message, a task failing 12 times in 24 h and still, no reader available with headlines waiting); /sante keeps the technical health report",
+        "The model writes hypothesis statements in French; the owner's hypotheses keep their text; a reader translates the others once for display, after the usual checks (length, prompt-boundary patterns), and the model's statement is never changed",
+        "Tests make no network or paid inference calls"
+      ],
+      "status": "verified",
+      "paths": [
+        "src",
+        "sonni",
+        "package.json",
+        "pnpm-lock.yaml",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
+      "implementation": {
+        "at": "2026-10-07T09:05:43.918785+00:00",
+        "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
+      },
+      "verification": {
+        "at": "2026-10-07T09:21:04.563502+00:00",
+        "fingerprint_version": 2,
+        "fingerprint": "84131428986af6150a4e782532cb95a353f9f1e7af8abba0f79c7b32da68dba0",
+        "scope": [
+          "src",
+          "sonni",
+          "package.json",
+          "pnpm-lock.yaml",
+          "tsconfig.json",
+          "vitest.config.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni"
+        },
+        "checks_hash": "cc2c9cbac020a307b2f4f2b491678f998aef33521b5c8b00e3a36560a4323b38",
+        "report": ".likma/checks/87a1ad9473f04bec8ffadeb38670fa02.json",
+        "contract": "d3c89b62c235fcecefcf94e6267e123c3fc6d7fc3cef9d2c6a8f6991a21a7122",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 7.866
+          }
+        ]
+      }
     }
   ]
 }

@@ -166,7 +166,13 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 
 - `/idee <texte>` : lui donner une intuition à tester (il ne peut pas prédire sans intuition).
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
-- `/statut` : prix, prédictions ouvertes et résolues avec leur score, puis le budget.
+- `/statut` : l'essentiel en quatre blocs, en français et à l'heure de Paris, sans identifiants :
+  portefeuille virtuel, marché et prédictions (ouvertes, résolues avec leur score), apprentissage
+  (intuitions, lectures, journal), budget du jour. `/technique` donne l'état technique du programme.
+- Chaque matin vers 9 h, Sonni t'envoie son rapport : ce qu'il a fait la veille, ce qui arrive
+  aujourd'hui, et seulement les vraies alertes. `/sante` reste le rapport technique du serveur.
+- Ses intuitions sont affichées en français : il écrit les nouvelles en français, et une IA lectrice
+  gratuite traduit les anciennes (le texte d'origine est gardé pour lui).
 - `/bilan`, `/identite`, `/journal`, `/lecons`, `/veto <id>` : ce qu'il mesure sur lui-même et ce
   qu'il écrit sur lui-même. `/identite <texte>` enregistre ta propre version de son identité (il la
   garde, et peut la réviser ensuite avec une raison).

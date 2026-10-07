@@ -1,24 +1,31 @@
 /**
- * Sonni operator status, in French (project rule). Local state only: no
- * network call, no inference.
+ * Sonni owner views, in French and in the owner's time zone (project
+ * rule). Local state only: no network call, no inference. The status is
+ * four short blocks (portfolio, market and predictions, learning, budget);
+ * the runtime's technical state lives behind /technique.
  */
 
 import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
-import { listHypotheses, type HypothesisStatus } from "./hypotheses.js";
+import type { MoneyLabConfig } from "../money-lab/profile.js";
+import { displayStatement, listHypotheses, type HypothesisStatus } from "./hypotheses.js";
 import { latestHistoricalTest, verdictCounts, type HistoricalTest } from "./historical.js";
 import { rankHypotheses } from "./pack.js";
 import { EVENT_LABEL_FR, upcomingEvents } from "./events.js";
-import { brierSummary, listOpenPredictions, listResolvedPredictions } from "./predictions.js";
+import { brierSummary, listOpenPredictions, listResolvedPredictions, type Prediction } from "./predictions.js";
 import { ageMinutes, latestPrice } from "./prices.js";
 import { wakesDeliveredToday } from "./curiosity.js";
 import { listSources } from "./sources.js";
 import { activeLessons, currentIdentity, identityHistory, listLessons, listReflections } from "./soul.js";
 import { activeConfig } from "./universe.js";
+import { getKV, getPauseState } from "../money-lab/journal.js";
+import { survivalBalance } from "../money-lab/selfhosted.js";
+import { inferenceGetDailyCost } from "../state/database.js";
+import { ago, fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, fmtWhen, plural } from "./format.js";
 
 type DB = Database.Database;
 
-const STATUS_FR: Record<HypothesisStatus, string> = {
+export const STATUS_FR: Record<HypothesisStatus, string> = {
   untested: "non testée",
   testing: "en test",
   supported: "confirmée",
@@ -33,6 +40,8 @@ const VERDICT_FR: Record<string, string> = {
   insufficient: "pas assez de cas dans l'historique",
 };
 
+const ORIGIN_FR: Record<string, string> = { prior: "savoir de Sonni", observation: "Sonni", owner: "toi", review: "revue" };
+
 function historyFr(t: HistoricalTest | undefined): string {
   if (!t) return "";
   if (t.cases === 0) return " — historique : aucun cas";
@@ -40,97 +49,145 @@ function historyFr(t: HistoricalTest | undefined): string {
   return ` — historique : ${Math.round((t.rate ?? 0) * 100)} % des ${t.cases} cas contre ${base}, ${VERDICT_FR[t.verdict]}`;
 }
 
-function eur(value: number): string {
-  return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-}
-
-function when(iso: string): string {
-  return iso.replace("T", " ").replace(/:\d\dZ$/, " UTC");
-}
-
 function sens(direction: string): string {
   return direction === "above" ? "au-dessus de" : "en dessous de";
 }
 
-export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new Date()): string {
-  const cfg = activeConfig(db, baseCfg);
-  const out: string[] = ["=== SONNI — portefeuille virtuel, phase d'entraînement ==="];
+export function describePredictionFr(p: Prediction, tz: string): string {
+  return `${p.asset} ${sens(p.direction)} ${fmtEur(p.threshold)} d'ici ${fmtWhen(p.horizonUntil, tz)} — ${Math.round(p.probability * 100)} %`;
+}
 
-  out.push("", "Prix (Kraken) :");
-  for (const asset of cfg.assets) {
+export function describeResolutionFr(p: Prediction): string {
+  if (p.voidReason) return `${p.asset} ${sens(p.direction)} ${fmtEur(p.threshold)} : annulée, pas de prix à l'échéance`;
+  return `${p.asset} ${sens(p.direction)} ${fmtEur(p.threshold)} : ${p.outcome === 1 ? "VRAI" : "FAUX"} ` +
+    `(prix ${fmtEur(p.resolutionPrice!)}), annoncé à ${Math.round(p.probability * 100)} %, score ${p.brier!.toFixed(3).replace(".", ",")}`;
+}
+
+// ─── Budget, from the Money Lab ledger ──────────────────────────
+
+export interface BudgetView {
+  spentTodayCents: number;
+  dailyCapCents: number | null;
+  balanceCents: number;
+  daysLeft: number | null;
+}
+
+export function budgetView(db: DB, lab: MoneyLabConfig, now: Date = new Date()): BudgetView {
+  const s = survivalBalance(db, lab, now);
+  return {
+    spentTodayCents: inferenceGetDailyCost(db, now.toISOString().slice(0, 10)),
+    dailyCapCents: lab.inference.dailyCents,
+    balanceCents: s.balanceCents,
+    daysLeft: s.daysLeft,
+  };
+}
+
+/** One line on what the agent is doing now, from the runtime's state. */
+export function agentStateFr(db: DB, tz: string, now: Date = new Date()): string {
+  const paused = getPauseState(db);
+  if (paused) return `en pause depuis ${fmtWhen(paused.at, tz)} (${paused.reason}) — /reprendre pour le relancer`;
+  const state = getKV(db, "agent_state");
+  const sleepUntil = getKV(db, "sleep_until");
+  if (state === "sleeping" && sleepUntil) {
+    const reason = (getKV(db, "sleep_reason") ?? "").replace(/\s+/g, " ").slice(0, 120);
+    const when = Date.parse(sleepUntil) > now.getTime() ? `jusqu'à ${fmtWhen(sleepUntil, tz)}` : "un instant encore";
+    return `dort ${when}${reason ? ` (${reason})` : ""} ; un mouvement de prix, un événement ou ton message le réveillent`;
+  }
+  if (state === "running") return "au travail en ce moment";
+  return state ? `état : ${state}` : "pas encore démarré";
+}
+
+// ─── /statut ────────────────────────────────────────────────────
+
+export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new Date(), budget: BudgetView | null = null): string {
+  const cfg = activeConfig(db, baseCfg);
+  const tz = cfg.timeZone;
+  const out: string[] = [`🧭 SONNI — ${fmtDayLong(now, tz)}, ${fmtTime(now.toISOString(), tz)}`];
+
+  out.push("", "💼 Portefeuille virtuel");
+  out.push("En construction (étape 4) : pour l'instant Sonni s'entraîne avec des prédictions, sans ordres.");
+
+  out.push("", "📈 Marché");
+  const prices = cfg.assets.map((asset) => {
     const last = latestPrice(db, asset.symbol);
-    if (!last) {
-      out.push(`- ${asset.symbol} : aucun prix encore`);
-      continue;
-    }
+    if (!last) return `${asset.symbol} : aucun prix encore`;
     const age = Math.round(ageMinutes(last, now));
-    const stale = age > cfg.staleMinutes ? " — PÉRIMÉ, pas de prédiction possible" : "";
-    out.push(`- ${asset.symbol} : ${eur(last.price)} (il y a ${age} min)${stale}`);
+    const stale = age > cfg.staleMinutes ? " — PÉRIMÉ" : "";
+    return `${asset.symbol} ${fmtEur(last.price)} (${ago(last.ts, now)})${stale}`;
+  });
+  out.push(prices.join(" · "));
+  const next = upcomingEvents(db, now, 30)[0];
+  out.push(next ? `Prochain événement : ${EVENT_LABEL_FR[next.type]} le ${fmtDay(next.day)} (/agenda)` : "Prochain événement : aucun connu (/agenda)");
+
+  const open = listOpenPredictions(db);
+  out.push("", `🎯 Prédictions ouvertes (${open.length})${open.length ? " :" : ""}`);
+  if (open.length === 0) out.push("Aucune pour l'instant.");
+  for (const p of open.slice(0, 8)) out.push(`- ${describePredictionFr(p, tz)}`);
+  if (open.length > 8) out.push(`(${open.length - 8} autres)`);
+  const summary = brierSummary(db);
+  const resolved = listResolvedPredictions(db, 3);
+  if (summary.scored === 0 && resolved.length === 0) {
+    out.push("Résolues : aucune encore. Le code note chaque prédiction à son échéance (0 = parfait, 0,25 = pile ou face).");
+  } else {
+    out.push(`Résolues : ${summary.scored} notée(s), score moyen ${summary.meanBrier === null ? "—" : summary.meanBrier.toFixed(3).replace(".", ",")} (0 = parfait, 0,25 = pile ou face). Dernières :`);
+    for (const p of resolved) out.push(`- ${describeResolutionFr(p)}`);
   }
 
-  const next = upcomingEvents(db, now, 30)[0];
-  out.push("", next ? `Prochain événement : ${EVENT_LABEL_FR[next.type]} le ${next.day} (/agenda pour la liste)` : "Prochain événement : aucun connu");
-
+  out.push("", "🧠 Apprentissage");
+  const hypotheses = listHypotheses(db);
+  const v = verdictCounts(db);
+  out.push(
+    `Intuitions : ${hypotheses.length}` +
+      (v.tested ? ` — historique : ${v.supported} confirmées, ${v.refuted} contredites, ${v.inconclusive + v.insufficient} sans verdict` : "") +
+      " (/intuitions)",
+  );
   const observations = (db.prepare("SELECT COUNT(*) AS n FROM trader_observations WHERE published_at >= ?")
     .get(new Date(now.getTime() - 86_400_000).toISOString()) as { n: number }).n;
   const sources = listSources(db, "enabled").length;
   const proposed = listSources(db, "proposed").length;
   out.push(
-    `Vie de Sonni : ${wakesDeliveredToday(db, now)} réveil(s) sur ${cfg.curiosity.maxSelfWakesPerDay} aujourd'hui (/reveils), ` +
-      `${observations} observation(s) sur 24 h (/lecteurs), ${sources} source(s) active(s)${proposed ? `, ${proposed} proposée(s) à décider` : ""} (/sources), ` +
-      `identité v${currentIdentity(db, now).version}, ${activeLessons(db).length} leçon(s) (/identite, /journal, /lecons).`,
+    `Lu : ${plural(observations, "observation")} sur 24 h (/lecteurs) · ${plural(sources, "source active", "sources actives")}` +
+      `${proposed ? `, ${proposed} à décider` : ""} (/sources) · ${plural(wakesDeliveredToday(db, now), "réveil")} sur ${cfg.curiosity.maxSelfWakesPerDay} aujourd'hui (/reveils)`,
   );
-
-  const open = listOpenPredictions(db);
-  out.push("", `Prédictions ouvertes (${open.length}) :`);
-  if (open.length === 0) out.push("- aucune");
-  for (const p of open.slice(0, 10)) {
-    out.push(`- ${p.asset} ${sens(p.direction)} ${eur(p.threshold)} le ${when(p.horizonUntil)}, probabilité ${Math.round(p.probability * 100)} % (${p.id})`);
-  }
-  if (open.length > 10) out.push(`(${open.length - 10} autres non affichées)`);
-
-  const resolved = listResolvedPredictions(db, 10);
-  const summary = brierSummary(db);
+  const reflections = listReflections(db, 1000).length;
   out.push(
-    "",
-    `Prédictions résolues — score de Brier moyen : ${summary.meanBrier === null ? "pas encore" : summary.meanBrier.toFixed(3)} ` +
-      `sur ${summary.scored} (0 = parfait, 0,25 = toujours 50 %) :`,
+    `Écrit : identité v${currentIdentity(db, now).version}, ${plural(reflections, "note de journal", "notes de journal")}, ` +
+      `${plural(activeLessons(db).length, "leçon")} (/identite /journal /lecons)`,
   );
-  if (resolved.length === 0) out.push("- aucune");
-  for (const p of resolved) {
-    out.push(
-      p.voidReason
-        ? `- ${p.asset} ${sens(p.direction)} ${eur(p.threshold)} : annulée, pas de prix à l'échéance (${p.id})`
-        : `- ${p.asset} ${sens(p.direction)} ${eur(p.threshold)} : ${p.outcome === 1 ? "VRAI" : "FAUX"} ` +
-          `(prix ${eur(p.resolutionPrice!)}), probabilité ${Math.round(p.probability * 100)} %, Brier ${p.brier!.toFixed(3)} (${p.id})`,
-    );
-  }
 
-  const hypotheses = listHypotheses(db);
-  const tests = new Map(hypotheses.map((h) => [h.id, latestHistoricalTest(db, h.id)]));
-  const v = verdictCounts(db);
-  out.push("", `Intuitions (${hypotheses.length}${v.tested ? ` ; historique : ${v.supported} confirmées, ${v.refuted} contredites, ${v.inconclusive + v.insufficient} sans verdict` : ""}) :`);
-  if (hypotheses.length === 0) out.push("- aucune : ajoute-en avec /idee <texte>");
-  for (const h of rankHypotheses(hypotheses, tests).slice(0, 10)) {
+  out.push("", "💶 Budget");
+  if (budget) {
     out.push(
-      `- [${STATUS_FR[h.status]}] ${h.statement.slice(0, 160)} — ${h.supports} pour, ${h.contradicts} contre, ` +
-        `confiance ${Math.round(h.confidence * 100)} %${historyFr(tests.get(h.id))} (${h.id})`,
+      `IA aujourd'hui : ${fmtUsdCents(budget.spentTodayCents)}${budget.dailyCapCents !== null ? ` sur ${fmtUsdCents(budget.dailyCapCents)}` : ""}` +
+        ` · solde ${fmtUsdCents(budget.balanceCents)}${budget.daysLeft !== null ? ` (≈ ${Math.floor(budget.daysLeft)} jours au rythme actuel)` : ""}`,
     );
+  } else {
+    out.push("Budget : voir /technique");
   }
-  if (hypotheses.length > 10) out.push(`(${hypotheses.length - 10} autres : /intuitions pour la liste)`);
+  out.push(`Sonni ${agentStateFr(db, tz, now)}.`);
+  out.push("", "Détails : /bilan (calibration) · /technique (état du programme)");
   return out.join("\n");
 }
+
+// ─── /intuitions ────────────────────────────────────────────────
 
 export function formatHypotheses(db: DB, limit = 40): string {
   const hypotheses = listHypotheses(db);
   if (hypotheses.length === 0) return "Aucune intuition. Ajoute-en avec /idee <texte>.";
   const tests = new Map(hypotheses.map((h) => [h.id, latestHistoricalTest(db, h.id)]));
-  const ORIGIN_FR: Record<string, string> = { prior: "savoir de Sonni", observation: "Sonni", owner: "toi", review: "revue" };
-  const lines = rankHypotheses(hypotheses, tests).slice(0, limit).map((h) =>
-    `- ${h.id} [${STATUS_FR[h.status]}, ${ORIGIN_FR[h.origin] ?? h.origin}] ${h.statement} — ${h.supports} pour, ` +
-      `${h.contradicts} contre, confiance ${Math.round(h.confidence * 100)} %${historyFr(tests.get(h.id))}`,
-  );
+  const v = verdictCounts(db);
+  const untranslated = hypotheses.filter((h) => !h.statementFr).length;
+  const lines = [
+    `Intuitions de Sonni (${hypotheses.length}${v.tested ? ` ; historique : ${v.supported} confirmées, ${v.refuted} contredites, ${v.inconclusive + v.insufficient} sans verdict` : ""}), les plus étayées d'abord :`,
+  ];
+  for (const h of rankHypotheses(hypotheses, tests).slice(0, limit)) {
+    lines.push(
+      `- [${STATUS_FR[h.status]}, ${ORIGIN_FR[h.origin] ?? h.origin}] ${displayStatement(h)} — ${h.supports} pour, ` +
+        `${h.contradicts} contre, confiance ${Math.round(h.confidence * 100)} %${historyFr(tests.get(h.id))}`,
+    );
+  }
   if (hypotheses.length > limit) lines.push(`(${hypotheses.length - limit} autres, les moins étayées)`);
+  if (untranslated) lines.push(`(${untranslated} encore en anglais : une IA lectrice les traduit dès qu'elle est disponible)`);
   return lines.join("\n");
 }
 
@@ -140,28 +197,28 @@ export function formatAgenda(db: DB, now: Date = new Date()): string {
     return "Aucun événement connu pour les 30 prochains jours. Les dates de la Fed se mettent à jour chaque jour ; " +
       "pour l'inflation et l'emploi américains, ajoute une clé FRED (voir le guide).";
   }
-  return ["Événements des 30 prochains jours :", ...events.map((e) => `- ${e.day} : ${EVENT_LABEL_FR[e.type]}`)].join("\n");
+  return ["Événements des 30 prochains jours :", ...events.map((e) => `- ${fmtDay(e.day)} : ${EVENT_LABEL_FR[e.type]}`)].join("\n");
 }
 
-const KIND_FR: Record<string, string> = { postmortem: "post-mortem", session: "séance", daily: "quotidienne", weekly: "hebdomadaire" };
+const KIND_FR: Record<string, string> = { postmortem: "post-mortem", session: "séance", daily: "quotidienne", weekly: "hebdomadaire", trade: "opération" };
 
 export function formatIdentityFr(db: DB): string {
   const current = currentIdentity(db);
   const history = identityHistory(db, 6).slice(1);
   const who = current.source === "seed" ? "le code (version de départ)" : current.source === "model" ? "Sonni" : "toi";
-  const lines = [`Identité de Sonni — version ${current.version}, écrite par ${who} le ${current.recordedAt.slice(0, 10)} :`, "", current.content];
+  const lines = [`Identité de Sonni — version ${current.version}, écrite par ${who} le ${fmtDay(current.recordedAt.slice(0, 10))} :`, "", current.content];
   if (history.length) {
     lines.push("", "Versions précédentes :");
-    for (const v of history) lines.push(`- v${v.version} (${v.recordedAt.slice(0, 10)}, ${v.source === "model" ? "Sonni" : v.source === "owner" ? "toi" : "code"}) : ${v.reason}`);
+    for (const v of history) lines.push(`- v${v.version} (${fmtDay(v.recordedAt.slice(0, 10))}, ${v.source === "model" ? "Sonni" : v.source === "owner" ? "toi" : "code"}) : ${v.reason}`);
   }
   return lines.join("\n");
 }
 
-export function formatJournalFr(db: DB, limit = 5): string {
+export function formatJournalFr(db: DB, limit = 5, tz = "Europe/Paris"): string {
   const reflections = listReflections(db, limit);
   if (reflections.length === 0) return "Journal vide : Sonni écrit un post-mortem après chaque prédiction résolue et une note après ses séances.";
   return [`Journal de Sonni (${reflections.length} dernière(s) réflexion(s)) :`, ...reflections.map((r) =>
-    `\n— ${r.recordedAt.slice(0, 16).replace("T", " ")} UTC, ${KIND_FR[r.kind] ?? r.kind}${r.subjectId ? ` (${r.subjectId})` : ""} —\n${r.content}`)].join("\n");
+    `\n— ${fmtWhen(r.recordedAt, tz)}, ${KIND_FR[r.kind] ?? r.kind} —\n${r.content}`)].join("\n");
 }
 
 export function formatLessonsFr(db: DB): string {
@@ -171,10 +228,10 @@ export function formatLessonsFr(db: DB): string {
   if (lessons.length === 0) return "Aucune leçon encore. Sonni en ajoute quand plusieurs post-mortems et son bilan vont dans le même sens.";
   const lines = [`Leçons actives (${active.length}) — /veto <id> [raison] pour en retirer une :`];
   if (active.length === 0) lines.push("- aucune");
-  for (const l of active) lines.push(`- ${l.id} (${l.recordedAt.slice(0, 10)}) : ${l.text} [preuves : ${l.evidenceIds.join(", ")}]`);
+  for (const l of active) lines.push(`- ${l.id} (${fmtDay(l.recordedAt.slice(0, 10))}) : ${l.text}`);
   if (retired.length) {
     lines.push("", `Retirées (${retired.length}) :`);
-    for (const l of retired.slice(-5)) lines.push(`- ${l.id} : ${l.text} — retirée par ${l.retiredBy === "owner" ? "toi" : "Sonni"} : ${l.retireReason}`);
+    for (const l of retired.slice(-5)) lines.push(`- ${l.text} — retirée par ${l.retiredBy === "owner" ? "toi" : "Sonni"} : ${l.retireReason}`);
   }
   return lines.join("\n");
 }

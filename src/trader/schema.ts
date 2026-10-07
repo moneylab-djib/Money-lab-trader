@@ -160,6 +160,8 @@ function ensureKnowledgeSchema(db: DB): void {
   `);
   const columns = (db.prepare("PRAGMA table_info(trader_hypotheses)").all() as { name: string }[]).map((c) => c.name);
   if (!columns.includes("test_rule")) db.exec("ALTER TABLE trader_hypotheses ADD COLUMN test_rule TEXT");
+  // French wording for the owner (the statement the model reasons on stays in `statement`).
+  if (!columns.includes("statement_fr")) db.exec("ALTER TABLE trader_hypotheses ADD COLUMN statement_fr TEXT");
   // Step 3: a headline is marked once a reader digested it (or skipped it), so no batch is lost.
   const headlineColumns = (db.prepare("PRAGMA table_info(trader_headlines)").all() as { name: string }[]).map((c) => c.name);
   if (!headlineColumns.includes("digested_at")) db.exec("ALTER TABLE trader_headlines ADD COLUMN digested_at TEXT");
