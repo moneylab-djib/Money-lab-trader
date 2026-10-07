@@ -662,7 +662,9 @@ async function run(): Promise<void> {
       // (nothing to do when no headline waits), so a failed fetch never blocks it.
       let newsError: unknown = null;
       try {
-        await newsTick(db.raw);
+        const news = await newsTick(db.raw);
+        // A source down while the others answer is worth a line, not a health event.
+        for (const e of news.errors) logger.warn(`[SONNI] Actualité : ${e}`);
       } catch (err) {
         newsError = err;
       }

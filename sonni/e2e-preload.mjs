@@ -7,6 +7,8 @@ const MAP = {
   // Step 3: a free reader model and the data sources enabled by default.
   "generativelanguage.googleapis.com": "gemini", "api.groq.com": "groq",
   "api.alternative.me": "fng", "api.coingecko.com": "coingecko", "mempool.space": "mempool",
+  // Keyless RSS feeds read beside GDELT (the Fed's feed goes to the "fed" prefix above).
+  "cointelegraph.com": "rss", "www.theblock.co": "rss", "decrypt.co": "rss", "news.google.com": "rss",
 };
 globalThis.fetch = async (input, init) => {
   const req = input instanceof Request ? input : null;
