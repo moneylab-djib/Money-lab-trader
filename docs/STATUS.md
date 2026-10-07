@@ -92,7 +92,8 @@
     counted the owner's writes; failed page reads escaped the daily cap; catalog changes never reached
     existing rows; a prediction scored during a reflection turn was skipped by the next reflection
     (marker `sonni.reflection_upto`); removing an asset from the config had no effect once Sonni had
-    followed assets (the config now keeps authority, open predictions are respected); the owner could
+    followed assets (the config now keeps authority, open predictions are respected, a pair corrected in
+    the config replaces the one an older follow entry carries); the owner could
     not write the identity (`/identite <texte>`, refusals in French); the e2e never exercised the
     history wake (the fake Kraken now holds the history until the startup cycle sleeps, and the test
     requires a `sonni_history` wake for the intake); MEMORY.md still described a Haiku ingest.

@@ -171,7 +171,9 @@ const KV_CONFIG_ASSETS = "sonni.config_assets";
  * the replay). The first start only records the config. An asset removed
  * while it has open predictions keeps being followed (a log entry says
  * why) until they resolve, so they are not voided for lack of prices; the
- * removal is retried at each start. Returns French lines for the log.
+ * removal is retried at each start. A pair the owner corrected in the
+ * config replaces the one in an older follow entry. Returns French lines
+ * for the log.
  */
 export function syncConfigAssets(db: DB, cfg: TraderConfig, now: Date = new Date()): string[] {
   const raw = getKV(db, KV_CONFIG_ASSETS);
@@ -192,7 +194,18 @@ export function syncConfigAssets(db: DB, cfg: TraderConfig, now: Date = new Date
     "INSERT INTO trader_universe (id, asset, kraken_pair, action, reason, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
   );
   for (const asset of cfg.assets) {
-    if (recorded.has(asset.symbol)) continue;
+    const known = recorded.get(asset.symbol);
+    if (known && known.krakenPair === asset.krakenPair) continue;
+    if (known) {
+      // The owner corrected the pair: a follow entry with the old pair would otherwise override it.
+      const current = activeAssets(db, cfg).find((a) => a.symbol === asset.symbol);
+      if (current && current.krakenPair !== asset.krakenPair) {
+        insert.run(`u_${ulid()}`, asset.symbol, asset.krakenPair, "follow", "paire corrigée par le propriétaire dans la configuration", now.toISOString());
+        notes.push(`${asset.symbol} : paire ${asset.krakenPair} (corrigée dans la configuration)`);
+      }
+      recorded.set(asset.symbol, asset);
+      continue;
+    }
     insert.run(`u_${ulid()}`, asset.symbol, asset.krakenPair, "follow", "ajouté par le propriétaire dans la configuration", now.toISOString());
     recorded.set(asset.symbol, asset);
     notes.push(`${asset.symbol} suivi (ajouté dans la configuration)`);

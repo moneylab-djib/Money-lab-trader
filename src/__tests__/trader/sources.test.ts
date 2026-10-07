@@ -276,6 +276,18 @@ describe("Asset universe", () => {
     expect(syncConfigAssets(db.raw, withSol, hours(2))).toEqual(["SOL suivi (ajouté dans la configuration)"]);
     expect(activeAssets(db.raw, withSol).map((a) => a.symbol)).toEqual(["BTC", "ETH", "SOL"]);
     expect(syncConfigAssets(db.raw, withSol, hours(3))).toEqual([]);
+    // A pair the owner corrects in the config wins over the older follow entry, once.
+    const fixedSol: TraderConfig = { ...TRADER, assets: [...TRADER.assets, { symbol: "SOL", krakenPair: "SOLEUR2" }] };
+    expect(syncConfigAssets(db.raw, fixedSol, hours(3.1))).toEqual(["SOL : paire SOLEUR2 (corrigée dans la configuration)"]);
+    expect(activeAssets(db.raw, fixedSol).find((a) => a.symbol === "SOL")?.krakenPair).toBe("SOLEUR2");
+    expect(syncConfigAssets(db.raw, fixedSol, hours(3.2))).toEqual([]);
+    expect(syncConfigAssets(db.raw, withSol, hours(3.3))).toEqual(["SOL : paire SOLEUR (corrigée dans la configuration)"]);
+    expect(activeAssets(db.raw, withSol).find((a) => a.symbol === "SOL")?.krakenPair).toBe("SOLEUR");
+    // A config-only asset needs no entry: the config already carries the new pair.
+    const btcPair: TraderConfig = { ...withSol, assets: withSol.assets.map((a) => a.symbol === "BTC" ? { ...a, krakenPair: "XXBTZEUR" } : a) };
+    expect(syncConfigAssets(db.raw, btcPair, hours(3.4))).toEqual([]);
+    expect(activeAssets(db.raw, btcPair).find((a) => a.symbol === "BTC")?.krakenPair).toBe("XXBTZEUR");
+    expect(syncConfigAssets(db.raw, withSol, hours(3.5))).toEqual([]);
     // The owner removes ETH: it waits while a prediction is open, then goes at the next start.
     const h = addHypothesis(db.raw, { statement: "ETH follows BTC with a lag", origin: "owner" }, T0);
     db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('ETH', ?, 2400, 'test')").run(isoSeconds(hours(3)));
