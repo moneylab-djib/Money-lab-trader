@@ -52,8 +52,13 @@
   - Checks (run 2026-10-07, this sandbox): typecheck PASS; sonni suite 82/82 (sonni 20, knowledge 13,
     world 9, soul 9, curiosity 8, readers 9, sources 8, alive 6); money-lab suite 110/110; build PASS;
     sonni-e2e PASS (35 checks, about 4 min: fake Kraken, Anthropic, Telegram, reader and sources;
-    self-wake after a 4 % move observed end to end). Likma `project check` and the four feature
-    verifications: after the adversarial review (see below).
+    self-wake after a 4 % move observed end to end). The Likma runtime run opened for the build and the
+    recorded check session opened for steps 1-2 (all attempts passed) both reached their 60-minute
+    limit before the final `project check`; the run was ended with its summary and a new run and a new
+    check session were begun deliberately for the verification phase (no failure budget was evaded;
+    the previous session is archived under .likma/sessions/). Likma `project check` (types, sonni,
+    money-lab, build, sonni-e2e 263 s): PASS, 2026-10-07 00:50 UTC, report
+    .likma/checks/5df38e141a1a4b4cb3b4eed392df5069.json. Feature verifications: see docs/FEATURES.md.
   - Research by web agents (2026-10-07, reports kept in the session scratchpad, conclusions applied):
     free LLM APIs: Gemini free tier is the primary reader (`gemini-3.5-flash-lite`; limits no longer
     published, EEA users get the no-training terms; auth keys since May 2026), Groq free plan the
