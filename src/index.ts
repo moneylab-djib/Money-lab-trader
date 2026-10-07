@@ -657,8 +657,9 @@ async function run(): Promise<void> {
       const n = await calendarTick(db.raw, fredKey);
       if (n > 0) logger.info(`[SONNI] ${n} événement(s) ajouté(s) au calendrier.`);
     });
-    every(60 * 60_000, "Sonni actualité", async () => {
-      // A GDELT failure must not skip the digest of the headlines already stored.
+    every(5 * 60_000, "Sonni actualité", async () => {
+      // newsTick fetches hourly, sooner after a GDELT failure; the digest runs on every pass
+      // (nothing to do when no headline waits), so a failed fetch never blocks it.
       let newsError: unknown = null;
       try {
         await newsTick(db.raw);
