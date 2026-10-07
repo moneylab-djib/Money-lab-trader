@@ -71,7 +71,7 @@ Web searches are billed on top of tokens and count against the same budget.
 
 | Purpose | Model | Share | About |
 | --- | --- | --- | --- |
-| News and data digest | Haiku 4.5 (Batch API where latency allows); deferred: headlines go to the memory pack as titles for now | 30 % | 15 EUR |
+| News and data digest | Free reader models since step 3 (Gemini, Groq; no Anthropic spend); Haiku 4.5 (Batch API) only if the owner chooses it later | 30 % planned, nothing spent now | 15 EUR |
 | Decision sessions | Sonnet 5.5 | 40 % | 20 EUR |
 | Consolidation and weekly review | Sonnet 5.5 daily, Opus 5.5 weekly | 20 % | 10 EUR |
 | Reserve for market events | any | 10 % | 5 EUR |

@@ -35,7 +35,7 @@ savoir vérifié, sans tricher avec sa mémoire du passé.
 
 | Quand | Quoi | Modèle |
 | --- | --- | --- |
-| Toutes les heures | Lit l'actualité et note ce qui compte | Haiku 4.5 |
+| Toutes les heures | Lit l'actualité et note ce qui compte | IA lectrices gratuites (Gemini, Groq) ; sans clé, il lit les titres lui-même |
 | Toutes les 5 minutes | Relève les prix, mesure les réactions | aucun (code) |
 | ~3 fois par jour + mouvements forts | Prend ses décisions virtuelles | Sonnet 5.5 |
 | Chaque soir | Autopsie de la journée | Sonnet 5.5 |
@@ -168,7 +168,8 @@ On les fixera ensemble après ses premiers mois de résultats (ta décision du 6
 - `/intuitions` : voir ses intuitions, leurs preuves pour et contre, et sa confiance calculée.
 - `/statut` : prix, prédictions ouvertes et résolues avec leur score, puis le budget.
 - `/bilan`, `/identite`, `/journal`, `/lecons`, `/veto <id>` : ce qu'il mesure sur lui-même et ce
-  qu'il écrit sur lui-même.
+  qu'il écrit sur lui-même. `/identite <texte>` enregistre ta propre version de son identité (il la
+  garde, et peut la réviser ensuite avec une raison).
 - `/reveils`, `/lecteurs`, `/sources`, `/source ok|non <id>`, `/actifs` : sa curiosité et ses outils.
 - `/pause`, `/reprendre`, `/sante` : comme pour Money Lab.
 

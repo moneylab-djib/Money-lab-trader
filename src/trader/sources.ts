@@ -79,20 +79,35 @@ function logAction(db: DB, sourceId: string, action: "propose" | "enable" | "dis
     .run(`s_${ulid()}`, sourceId, action, by, reason, now.toISOString());
 }
 
-/** Insert catalog entries that the database does not know yet (defaults enabled, the rest disabled). */
+/**
+ * Insert catalog entries that the database does not know yet (defaults
+ * enabled, the rest disabled), and bring known catalog rows up to date
+ * with the code: a fixed URL or JSON path reaches the owner's database on
+ * the next start. Status, reason and the model's choices are kept; the
+ * catalog's own history is the code's (git).
+ */
 export function ensureCatalog(db: DB, now: Date = new Date()): number {
   const insert = db.prepare(
     `INSERT OR IGNORE INTO trader_sources (id, label, url, metrics, every_minutes, key_env, origin, status, reason, created_at, updated_at, failures)
      VALUES (?, ?, ?, ?, ?, ?, 'catalog', ?, ?, ?, ?, 0)`,
   );
+  const update = db.prepare(
+    `UPDATE trader_sources SET label = ?, url = ?, metrics = ?, every_minutes = ?, key_env = ?, updated_at = ?, failures = 0, last_error = NULL
+     WHERE id = ? AND origin = 'catalog'
+       AND (label IS NOT ? OR url IS NOT ? OR metrics IS NOT ? OR every_minutes IS NOT ? OR key_env IS NOT ?)`,
+  );
   let added = 0;
   db.transaction(() => {
     for (const s of SOURCE_CATALOG) {
       const status: SourceStatus = DEFAULT_ENABLED_SOURCES.includes(s.id) ? "enabled" : "disabled";
-      const n = insert.run(s.id, s.label, s.url, JSON.stringify(s.metrics), s.everyMinutes, s.keyEnv ?? null, status, "catalogue", now.toISOString(), now.toISOString()).changes;
+      const metrics = JSON.stringify(s.metrics);
+      const keyEnv = s.keyEnv ?? null;
+      const n = insert.run(s.id, s.label, s.url, metrics, s.everyMinutes, keyEnv, status, "catalogue", now.toISOString(), now.toISOString()).changes;
       if (n > 0) {
         added++;
         logAction(db, s.id, status === "enabled" ? "enable" : "disable", "code", "catalogue", now);
+      } else {
+        update.run(s.label, s.url, metrics, s.everyMinutes, keyEnv, now.toISOString(), s.id, s.label, s.url, metrics, s.everyMinutes, keyEnv);
       }
     }
   })();

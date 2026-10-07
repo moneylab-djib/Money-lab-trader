@@ -162,6 +162,67 @@ export function unfollowAsset(
   return { ok: true, value: rowToEntry(db.prepare("SELECT * FROM trader_universe WHERE id = ?").get(id)) };
 }
 
+const KV_CONFIG_ASSETS = "sonni.config_assets";
+
+/**
+ * The owner's config stays authoritative: at startup, an asset the owner
+ * added to the config since the last start is followed, and one the owner
+ * removed is unfollowed, each as a new log entry (the newest event wins in
+ * the replay). The first start only records the config. An asset removed
+ * while it has open predictions keeps being followed (a log entry says
+ * why) until they resolve, so they are not voided for lack of prices; the
+ * removal is retried at each start. Returns French lines for the log.
+ */
+export function syncConfigAssets(db: DB, cfg: TraderConfig, now: Date = new Date()): string[] {
+  const raw = getKV(db, KV_CONFIG_ASSETS);
+  if (raw === undefined) {
+    setKV(db, KV_CONFIG_ASSETS, JSON.stringify(cfg.assets));
+    return [];
+  }
+  let previous: TraderAsset[] = [];
+  try {
+    const parsed = JSON.parse(raw);
+    previous = Array.isArray(parsed) ? parsed.filter((a) => a && typeof a.symbol === "string" && typeof a.krakenPair === "string") : [];
+  } catch {
+    previous = [];
+  }
+  const notes: string[] = [];
+  const recorded = new Map(previous.map((a) => [a.symbol, a]));
+  const insert = db.prepare(
+    "INSERT INTO trader_universe (id, asset, kraken_pair, action, reason, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
+  );
+  for (const asset of cfg.assets) {
+    if (recorded.has(asset.symbol)) continue;
+    insert.run(`u_${ulid()}`, asset.symbol, asset.krakenPair, "follow", "ajouté par le propriétaire dans la configuration", now.toISOString());
+    recorded.set(asset.symbol, asset);
+    notes.push(`${asset.symbol} suivi (ajouté dans la configuration)`);
+  }
+  for (const prev of previous) {
+    if (cfg.assets.some((a) => a.symbol === prev.symbol)) continue;
+    const active = activeAssets(db, cfg);
+    const isActive = active.some((a) => a.symbol === prev.symbol);
+    const open = (db.prepare("SELECT COUNT(*) AS n FROM trader_predictions WHERE asset = ? AND resolved_at IS NULL").get(prev.symbol) as { n: number }).n;
+    if (open > 0) {
+      if (!isActive) {
+        insert.run(`u_${ulid()}`, prev.symbol, prev.krakenPair, "follow", "retiré de la configuration ; suivi jusqu'à la résolution de ses prédictions ouvertes", now.toISOString());
+      }
+      notes.push(`${prev.symbol} retiré de la configuration mais encore suivi (${open} prédiction(s) ouverte(s)) ; nouvel essai au prochain démarrage`);
+      continue;
+    }
+    if (isActive) {
+      if (active.length <= 1) {
+        notes.push(`${prev.symbol} retiré de la configuration mais encore suivi (dernier actif) ; nouvel essai au prochain démarrage`);
+        continue;
+      }
+      insert.run(`u_${ulid()}`, prev.symbol, prev.krakenPair, "unfollow", "retiré par le propriétaire de la configuration", now.toISOString());
+    }
+    recorded.delete(prev.symbol);
+    notes.push(`${prev.symbol} n'est plus suivi (retiré de la configuration)`);
+  }
+  setKV(db, KV_CONFIG_ASSETS, JSON.stringify([...recorded.values()]));
+  return notes;
+}
+
 /** For the owner (/actifs), in French. */
 export function formatUniverseFr(db: DB, cfg: TraderConfig): string {
   const assets = activeAssets(db, cfg);

@@ -19,9 +19,9 @@ import {
   decideSource, ensureCatalog, extractPath, fetchSourceMetrics, getSource, latestMetrics, listSources, MAX_FAILURES, metricsForPack,
   parseMetrics, proposeSource, setSourceEnabled, sourcesTick, toNumber,
 } from "../../trader/sources.js";
-import { activeAssets, activeConfig, followAsset, krakenEurPairs, unfollowAsset, universeLog } from "../../trader/universe.js";
+import { activeAssets, activeConfig, followAsset, krakenEurPairs, syncConfigAssets, unfollowAsset, universeLog } from "../../trader/universe.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
-import { recordPrediction } from "../../trader/predictions.js";
+import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
 import { isoSeconds } from "../../trader/prices.js";
 import { runSonniCommand } from "../../trader/cli.js";
 import { formatSonniStatus } from "../../trader/status.js";
@@ -65,6 +65,14 @@ describe("Catalog and JSON paths", () => {
     expect(ensureCatalog(db.raw, T0)).toBe(SOURCE_CATALOG.length);
     expect(ensureCatalog(db.raw, T0)).toBe(0);
     expect(listSources(db.raw, "enabled").map((s) => s.id).sort()).toEqual([...DEFAULT_ENABLED_SOURCES].sort());
+    // A catalog row edited in an older version (e.g. a path the provider later renamed) follows the code on the next
+    // start, keeping the model's status and reason.
+    setSourceEnabled(db.raw, "fear_greed", false, "trop lent pour mes horizons", T0);
+    db.raw.prepare("UPDATE trader_sources SET metrics = '[{\"name\":\"index\",\"path\":\"old.path\"}]', failures = 7 WHERE id = 'fear_greed'").run();
+    ensureCatalog(db.raw, hours(1));
+    expect(getSource(db.raw, "fear_greed")).toMatchObject({
+      metrics: SOURCE_CATALOG.find((s) => s.id === "fear_greed")!.metrics, failures: 0, status: "disabled", reason: "trop lent pour mes horizons",
+    });
     expect(getSource(db.raw, "fred_fedfunds")).toMatchObject({ status: "disabled", keyEnv: "FRED_API_KEY", origin: "catalog" });
     expect(extractPath({ data: [{ value: "42" }] }, "data.0.value")).toBe("42");
     expect(extractPath({ data: [{ value: "42" }] }, "data[0].value")).toBe("42");
@@ -252,6 +260,34 @@ describe("Asset universe", () => {
     expect(runSonniCommand(["actifs"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
     expect(out.join("\n")).toContain("Actifs suivis (1, au plus 30) : ETH (ETHEUR)");
     expect(out.join("\n")).toContain("retrait BTC : je ne garde que l'ether pour voir");
+  });
+
+  it("keeps the owner's config authoritative over Sonni's choices", async () => {
+    const db = openDb();
+    const fetchFn = fakeFetch({ "api.kraken.com": () => json(PAIRS) });
+    const sol = { symbol: "SOL", krakenPair: "SOLEUR" };
+    // First start: the config is only recorded.
+    expect(syncConfigAssets(db.raw, TRADER, T0)).toEqual([]);
+    // Sonni follows SOL, then drops it.
+    expect((await followAsset(db.raw, TRADER, { symbol: "SOL", krakenPair: "SOLEUR", reason: "troisième capitalisation, disponible en EUR" }, fetchFn, T0)).ok).toBe(true);
+    expect(unfollowAsset(db.raw, TRADER, { symbol: "SOL", reason: "finalement trop volatil pour mes horizons" }, hours(1)).ok).toBe(true);
+    // The owner adds SOL to the config: it is followed again despite Sonni's older unfollow.
+    const withSol: TraderConfig = { ...TRADER, assets: [...TRADER.assets, sol] };
+    expect(syncConfigAssets(db.raw, withSol, hours(2))).toEqual(["SOL suivi (ajouté dans la configuration)"]);
+    expect(activeAssets(db.raw, withSol).map((a) => a.symbol)).toEqual(["BTC", "ETH", "SOL"]);
+    expect(syncConfigAssets(db.raw, withSol, hours(3))).toEqual([]);
+    // The owner removes ETH: it waits while a prediction is open, then goes at the next start.
+    const h = addHypothesis(db.raw, { statement: "ETH follows BTC with a lag", origin: "owner" }, T0);
+    db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('ETH', ?, 2400, 'test')").run(isoSeconds(hours(3)));
+    const p = recordPrediction(db.raw, TRADER, { asset: "ETH", direction: "above", threshold: 2000, horizonHours: 1, probability: 0.8, hypothesisId: h.id, statement: "s", rationale: "r" }, hours(3));
+    expect(p.ok).toBe(true);
+    const noEth: TraderConfig = { ...TRADER, assets: [TRADER.assets[0], sol] };
+    expect(syncConfigAssets(db.raw, noEth, hours(3))[0]).toContain("ETH retiré de la configuration mais encore suivi (1 prédiction(s) ouverte(s))");
+    expect(activeAssets(db.raw, noEth).map((a) => a.symbol)).toContain("ETH");
+    db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('ETH', ?, 2410, 'test')").run(isoSeconds(hours(4)));
+    resolveDuePredictions(db.raw, TRADER, hours(4));
+    expect(syncConfigAssets(db.raw, noEth, hours(5))).toEqual(["ETH n'est plus suivi (retiré de la configuration)"]);
+    expect(activeAssets(db.raw, noEth).map((a) => a.symbol)).toEqual(["BTC", "SOL"]);
   });
 
   it("reports a Kraken outage instead of guessing", async () => {

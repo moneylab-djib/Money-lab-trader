@@ -87,9 +87,9 @@ cd /opt/sonni
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
 ```
-> Tant que les pull requests #1 et #2 ne sont pas fusionnées dans `main`, remplace la ligne
+> Tant que les pull requests #1 à #5 ne sont pas fusionnées dans `main`, remplace la ligne
 > `git clone` par :
-> `git clone -b claude/sonni-first-slice https://github.com/moneylab-djib/Money-lab-trader /opt/sonni`
+> `git clone -b claude/sonni-alive https://github.com/moneylab-djib/Money-lab-trader /opt/sonni`
 
 Aucun port n'est ouvert à part SSH : Sonni n'a besoin de rien recevoir d'internet.
 
@@ -159,7 +159,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/intuitions` | ses intuitions, avec les preuves pour et contre, sa confiance calculée et le verdict de l'historique |
 | `/agenda` | les événements des 30 prochains jours (Fed, et inflation et emploi avec la clé FRED) |
 | `/bilan` | sa calibration et ses scores, calculés par le code |
-| `/identite` | l'identité qu'il s'est écrite, et ses versions précédentes |
+| `/identite [texte]` | l'identité qu'il s'est écrite, et ses versions précédentes ; avec un texte, ta version (il doit y garder « Je suis Sonni ») |
 | `/journal [n]` | ses n dernières réflexions (post-mortems, notes de séance, revue) |
 | `/lecons` / `/veto <id> [raison]` | ses leçons ; en retirer une |
 | `/reveils` | ses réveils spontanés et les déclencheurs notés |
@@ -227,12 +227,17 @@ la Réserve fédérale de Saint-Louis (FRED) :
 
 ```sh
 cd /opt/sonni
+sudo -u sonni -H git fetch origin
+sudo -u sonni -H git checkout claude/sonni-alive
 sudo -u sonni -H git pull
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
 sudo -u sonni -H node sonni/vps/configure.mjs --chat-id <ton identifiant> --monthly-budget-eur 50 --eur-usd 1.17
 systemctl restart sonni
 ```
+Tant que les pull requests ne sont pas fusionnées dans `main`, chaque étape vit sur sa propre
+branche : la ligne `git checkout` passe à la dernière (`claude/sonni-alive`, l'étape 3 ; sans effet si
+tu y es déjà). `git status` doit ensuite afficher `On branch claude/sonni-alive`.
 La ligne `configure.mjs` réécrit la configuration avec les nouveaux réglages (sources, lecteurs,
 réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Ses prix, prédictions,
 intuitions, journal et identité sont conservés. La pause (`/pause`) aussi : relance avec

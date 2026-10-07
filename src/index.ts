@@ -42,6 +42,7 @@ import { ensureTraderSchema } from "./trader/schema.js";
 import { isSonniWake } from "./trader/curiosity.js";
 import { SOURCE_CATALOG } from "./trader/catalog.js";
 import { ensureCatalog } from "./trader/sources.js";
+import { syncConfigAssets } from "./trader/universe.js";
 import { installMoneyLabPaymentGuard } from "./money-lab/guard.js";
 import { ensureMoneyLabSchema, getKV, getPauseState, journalFingerprint, queueOwnerNotification, setKV } from "./money-lab/journal.js";
 import { afterWakeCycle, inferenceCallCount, isOperatorWake } from "./money-lab/cycle.js";
@@ -332,6 +333,8 @@ async function run(): Promise<void> {
   if (config.trader) {
     ensureTraderSchema(db.raw);
     ensureCatalog(db.raw);
+    // The owner's config stays authoritative over the assets Sonni chose (src/trader/universe.ts).
+    for (const note of syncConfigAssets(db.raw, config.trader)) logger.info(`[SONNI] Actifs : ${note}`);
   }
   // Messages claimed by a turn that a restart or crash interrupted.
   const recovered = recoverInboxClaims(db.raw);

@@ -56,7 +56,7 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /intuitions — liste des intuitions
 /agenda — événements à venir (Fed, inflation, emploi)
 /bilan — calibration et scores calculés par le code
-/identite — l'identité que Sonni s'est écrite
+/identite [texte] — l'identité que Sonni s'est écrite ; avec un texte, ta version
 /journal [n] — ses dernières réflexions
 /lecons — ses leçons ; /veto <id> [raison] pour en retirer une
 /reveils — ses réveils et déclencheurs

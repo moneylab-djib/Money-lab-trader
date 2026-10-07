@@ -68,12 +68,20 @@ function intakeModel(body, results) {
 }
 
 let wokenByMove = false;
+let booted = false;
+/** The fake Kraken holds daily history until the startup cycle has slept, so the history wake is exercised. */
+let ohlcReleased = false;
 function model(body) {
   const results = toolResults(body);
   const lastUser = [...body.messages].reverse().find((m) => m.role === "user");
   const lastUserText = JSON.stringify(lastUser ?? "");
   const inIntake = lastUserText.includes("SONNI INTAKE") || (intake.proposed && !intake.done);
   if (inIntake) return intakeModel(body, results);
+  // Startup cycle, before any history: nothing to do yet, sleep (the history then wakes it).
+  if (!booted) {
+    booted = true;
+    return reply([use("sleep", { duration_seconds: 3600, reason: "waiting for history" })]);
+  }
   // The self-wake after the price jump: the runtime says why it woke the model.
   if (/Wake-up reason: BTC \+\d/.test(lastUserText) && !wokenByMove) {
     wokenByMove = true;
@@ -209,6 +217,9 @@ const server = http.createServer(async (req, res) => {
     return send(200, { error: [], result: { XXBTZEUR: { asks: [["60010.0", "1.000", 1]], bids: [["59990.0", "1.000", 1]] } } });
   }
   if (url.pathname.startsWith("/kraken/0/public/OHLC")) {
+    // Held (under the runtime's 20-s fetch timeout) until the startup cycle sleeps.
+    const heldUntil = Date.now() + 15000;
+    while (!ohlcReleased && Date.now() < heldUntil) await new Promise((r) => setTimeout(r, 200));
     // 400 committed days in a 5-day cycle (+1, -1, +1, -4, +5 %), then the unfinished day.
     const pair = url.searchParams.get("pair");
     ohlcCalls.push(pair);
@@ -288,6 +299,8 @@ const pricesStored = () => {
 
 start();
 const started = Date.now();
+// Release the daily history once the startup cycle has gone to sleep.
+void until(() => /Sleeping for \d+s/.test(out), 14000).then(() => { ohlcReleased = true; });
 await until(() => krakenCalls.length >= 2, 20000)
   ? ok("prices collected at startup (BTC and ETH)")
   : fail("no price collection at startup");
@@ -297,8 +310,11 @@ await until(() => krakenCalls.filter((c) => c.pair === "XBTEUR").length >= 2, 80
   ? ok(`second BTC collection after ${Math.round((krakenCalls.filter((c) => c.pair === "XBTEUR")[1].at - started) / 1000)} s`)
   : fail("no second collection within the interval");
 
-// History arrives at startup; the sleeping agent is woken for its intake.
-await until(() => intake.done, 60000) || fail("no intake wake after the history arrived");
+// History arrives after the startup cycle slept; code wakes the sleeping agent for its intake.
+await until(() => intake.done, 90000) || fail("no intake wake after the history arrived");
+/Woken by sonni_history: Historique disponible/.test(out)
+  ? ok("the history woke the sleeping agent for its intake (sonni_history wake honoured)")
+  : fail("the intake did not come from a sonni_history wake");
 ohlcCalls.includes("XBTEUR") && ohlcCalls.includes("ETHEUR") ? ok("daily history fetched for BTC and ETH") : fail("daily history not fetched");
 intake.model === "claude-opus-5-5" ? ok("intake runs on the stronger model") : fail(`intake model: ${intake.model}`);
 /79\/79 = 100 % vs 60 % on all days.*SUPPORTED/.test(intake.verdict ?? "")
@@ -310,13 +326,14 @@ sourceCalls.fng >= 1 && sourceCalls.coingecko >= 1 && sourceCalls.mempool >= 1 &
   ? ok("default data sources polled at startup") : fail(`sources not polled: ${JSON.stringify(sourceCalls)}`);
 
 // The owner's message wakes Sonni for a normal decision session.
+const loopEnds = () => (out.match(/Agent loop finished\. State: sleeping/g) ?? []).length;
+const endsBeforeDecision = loopEnds();
 tgSend("Bonjour Sonni, regarde le marché.");
 await until(() => step >= 4, 60000) || fail(`decision session stopped at step ${step}`);
 
 // A 4 % jump in the next collections: code wakes the sleeping agent (at most one wake per 30 min).
-// Wait for the decision cycle itself to end (the intake cycle ended earlier): two loop ends.
-const loopEnds = () => (out.match(/Agent loop finished\. State: sleeping/g) ?? []).length;
-await until(() => loopEnds() >= 2, 20000) || fail("decision cycle did not end in a sleep");
+// Wait for the decision cycle itself to end before the jump.
+await until(() => loopEnds() > endsBeforeDecision, 20000) || fail("decision cycle did not end in a sleep");
 jump = true;
 const jumpedAt = Date.now();
 await until(() => wokenByMove, 150000)

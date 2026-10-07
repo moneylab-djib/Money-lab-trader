@@ -82,6 +82,20 @@
     the loop). Not fixed, documented: the agent's shell runs as the same OS user as the runtime, so it
     could edit state.db or the config (known limitation, AGENTS.md; a second OS user is deployment work
     for the real-money phase).
+  - Second round (the review's other candidates, checked by hand against the code because its verifier
+    agents stopped on a session limit), each with a test: the memory pack exceeded the runtime's
+    10,000-character tool-result cut, so open predictions, watches and reflections were never seen (now
+    9,000 characters, Sonni's own state first, cuts announced, `sonni_memory {"section"}` for detail);
+    pages read were invisible in the pack; void predictions could get a post-mortem; Sonni's own writes
+    did not count as work, so a forced end of cycle restarted a paid cycle within two minutes (now 15
+    minutes); self-wakes ignored the long sleep after cycles without progress; the progress fingerprint
+    counted the owner's writes; failed page reads escaped the daily cap; catalog changes never reached
+    existing rows; a prediction scored during a reflection turn was skipped by the next reflection
+    (marker `sonni.reflection_upto`); removing an asset from the config had no effect once Sonni had
+    followed assets (the config now keeps authority, open predictions are respected); the owner could
+    not write the identity (`/identite <texte>`, refusals in French); the e2e never exercised the
+    history wake (the fake Kraken now holds the history until the startup cycle sleeps, and the test
+    requires a `sonni_history` wake for the intake); MEMORY.md still described a Haiku ingest.
 - Known gaps (deliberate, later slices):
   - Monthly budget pacing is approximated by Money Lab's daily cap (1/30 of the month) and funding balance.
   - Only price-threshold predictions; no virtual orders, traps or cycles yet; readiness thresholds left

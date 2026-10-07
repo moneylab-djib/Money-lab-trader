@@ -10,7 +10,7 @@ import { formatWakesFr } from "./curiosity.js";
 import { addHypothesis } from "./hypotheses.js";
 import { formatReadersFr } from "./readers.js";
 import { decideSource, formatSourcesFr } from "./sources.js";
-import { formatSelfReportFr, retireLesson, selfReport } from "./soul.js";
+import { formatSelfReportFr, IDENTITY_ANCHOR, retireLesson, reviseIdentity, selfReport } from "./soul.js";
 import { formatAgenda, formatHypotheses, formatIdentityFr, formatJournalFr, formatLessonsFr, formatSonniStatus } from "./status.js";
 import { activeConfig, formatUniverseFr } from "./universe.js";
 
@@ -20,7 +20,8 @@ export const SONNI_USAGE = `Commandes Sonni :
   agenda                 événements des 30 prochains jours
   idee "<texte>"         ajouter une intuition à tester (origine : propriétaire)
   bilan                  calibration et scores calculés par le code
-  identite               l'identité que Sonni s'est écrite (et ses versions)
+  identite [texte]       l'identité que Sonni s'est écrite (et ses versions) ; avec un texte, ta version
+                         (elle doit garder « Je suis Sonni »)
   journal [n]            ses n dernières réflexions (défaut 5)
   lecons                 ses leçons actives
   veto <id> [raison]     retirer une leçon
@@ -29,6 +30,20 @@ export const SONNI_USAGE = `Commandes Sonni :
   sources                sources de données et dernières valeurs
   source ok|non <id> [note]  accepter ou refuser une source proposée par Sonni
   actifs                 actifs suivis et changements décidés par Sonni`;
+
+/** The owner reads French; the validation messages are written for the model, in English. */
+function identityRefusalFr(error: string): string {
+  if (error.includes(IDENTITY_ANCHOR)) return `le texte doit contenir « ${IDENTITY_ANCHOR} ».`;
+  if (error.includes("unchanged")) return "c'est déjà la version actuelle.";
+  const short = /at least (\d+)/.exec(error);
+  if (short) return `trop court (au moins ${short[1]} caractères).`;
+  const long = /at most (\d+) characters \(got (\d+)\)/.exec(error);
+  if (long) return `trop long (${long[2]} caractères, au plus ${long[1]}).`;
+  if (error.includes("prompt-boundary") || error.includes("section headers")) {
+    return "le texte contient des marqueurs réservés (titres #, ---, balises ou noms de sections du runtime) ; écris-le en prose.";
+  }
+  return error;
+}
 
 export interface SonniCommandOptions {
   /** Owner's daily inference cap, for the self-report. */
@@ -76,9 +91,17 @@ export function runSonniCommand(
       print(formatSelfReportFr(selfReport(db, live, options.dailyCapCents ?? null)));
       return 0;
     case "identite":
-    case "identité":
-      print(formatIdentityFr(db));
-      return 0;
+    case "identité": {
+      // With a text, the owner writes a new version (kept with the others; Sonni reads it at once).
+      const text = rest.join(" ").trim();
+      if (!text) {
+        print(formatIdentityFr(db));
+        return 0;
+      }
+      const r = reviseIdentity(db, { content: text, reason: "correction du propriétaire", source: "owner" });
+      print(r.ok ? `Identité version ${r.value.version} enregistrée (écrite par toi). Sonni la lira à son prochain tour.` : `Refusé : ${identityRefusalFr(r.error)}`);
+      return r.ok ? 0 : 1;
+    }
     case "journal": {
       const n = Number(rest[0] ?? "5");
       print(formatJournalFr(db, Number.isInteger(n) && n > 0 ? Math.min(n, 30) : 5));

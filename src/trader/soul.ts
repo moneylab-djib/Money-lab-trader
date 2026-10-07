@@ -310,6 +310,8 @@ export function retireLesson(
 
 const KV_REFLECTION_MARKER = "sonni.reflection_marker";
 const KV_REFLECTION_OPEN = "sonni.reflection_open";
+/** The latest resolution the open reflection covers: a prediction resolved during the wake stays due. */
+const KV_REFLECTION_UPTO = "sonni.reflection_upto";
 
 /**
  * A reflection is due when a prediction was resolved after the last one.
@@ -323,6 +325,8 @@ export function reflectionDue(db: DB): boolean {
 }
 
 export function startReflection(db: DB): void {
+  const row = db.prepare("SELECT MAX(resolved_at) AS m FROM trader_predictions WHERE brier IS NOT NULL").get() as { m: string | null };
+  setKV(db, KV_REFLECTION_UPTO, row.m ?? "");
   setKV(db, KV_REFLECTION_OPEN, "1");
 }
 
@@ -330,8 +334,14 @@ export function reflectionOpen(db: DB): boolean {
   return getKV(db, KV_REFLECTION_OPEN) === "1";
 }
 
+/**
+ * Marks the reflection opened by startReflection as done: the marker moves
+ * to the latest resolution it covered, not to the current time, so a
+ * prediction resolved during the wake makes the next wake a reflection.
+ */
 export function markReflectionDone(db: DB, now: Date = new Date()): void {
-  setKV(db, KV_REFLECTION_MARKER, now.toISOString().slice(0, 19) + "Z");
+  const upto = getKV(db, KV_REFLECTION_UPTO);
+  setKV(db, KV_REFLECTION_MARKER, upto ? upto : now.toISOString().slice(0, 19) + "Z");
   setKV(db, KV_REFLECTION_OPEN, "0");
 }
 

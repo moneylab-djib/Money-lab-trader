@@ -154,8 +154,18 @@ describe("Reflections", () => {
     expect(reflectionDue(db.raw)).toBe(true);
     startReflection(db.raw);
     expect(reflectionOpen(db.raw)).toBe(true);
-    markReflectionDone(db.raw, hours(25));
+    // Another prediction resolves during the wake, before the paid turn marks the reflection done.
+    price(db, "BTC", hours(1), 60000);
+    const late = recordPrediction(db.raw, TRADER, { asset: "BTC", direction: "below", threshold: 61000, horizonHours: 24, probability: 0.7, hypothesisId: h.id, statement: "s", rationale: "r" }, hours(1));
+    if (!late.ok) throw new Error(late.error);
+    price(db, "BTC", hours(25), 60500);
+    resolveDuePredictions(db.raw, TRADER, hours(25));
+    markReflectionDone(db.raw, hours(26));
     expect(reflectionOpen(db.raw)).toBe(false);
+    // The marker covers only what the reflection was asked about: the late one stays due.
+    expect(reflectionDue(db.raw)).toBe(true);
+    startReflection(db.raw);
+    markReflectionDone(db.raw, hours(27));
     expect(reflectionDue(db.raw)).toBe(false);
   });
 });
@@ -269,6 +279,18 @@ describe("Owner views", () => {
     expect(runSonniCommand(["identite"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
     expect(out.join("\n")).toContain("version 2, écrite par Sonni");
     expect(out.join("\n")).toContain("v1 (2026-10-07, code) : identité de départ écrite par le code");
+    // The owner can write a version too (not counted against Sonni's daily revision).
+    out.length = 0;
+    expect(runSonniCommand(["identite", "Je", "suis", "Sonni.", "Tu", "travailles", "pour", "moi,", "prudemment,", "et", "tu", "notes", "chaque", "erreur", "de", "calibration", "dans", "ton", "journal."], db.raw, TRADER, (t) => out.push(t))).toBe(0);
+    expect(out.join("\n")).toContain("Identité version 3 enregistrée (écrite par toi)");
+    expect(currentIdentity(db.raw).source).toBe("owner");
+    out.length = 0;
+    expect(runSonniCommand(["identite", "Trop", "court"], db.raw, TRADER, (t) => out.push(t))).toBe(1);
+    expect(out.join("\n")).toBe("Refusé : trop court (au moins 80 caractères).");
+    out.length = 0;
+    expect(runSonniCommand(["identite", "Un", "agent", "prudent", "qui", "travaille", "pour", "son", "propriétaire", "et", "note", "chaque", "erreur", "de", "calibration."], db.raw, TRADER, (t) => out.push(t))).toBe(1);
+    expect(out.join("\n")).toBe("Refusé : le texte doit contenir « Je suis Sonni ».");
+    expect(currentIdentity(db.raw).version).toBe(3);
     out.length = 0;
     expect(runSonniCommand(["journal", "3"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
     expect(out.join("\n")).toContain("séance");
