@@ -290,7 +290,8 @@ const READER_KEYS = ["id", "baseUrl", "model", "keyEnv", "dailyRequests"];
 const READER_OPTIONAL_KEYS = ["jsonMode"];
 const ASSET_KEYS = ["symbol", "krakenPair"];
 export const SYMBOL = /^[A-Z0-9]{2,10}$/;
-export const PAIR = /^[A-Z0-9]{4,16}$/;
+/** A Kraken pair altname: XBTEUR, or a tokenized stock with a lower-case x before its quote, SPYxUSD. */
+export const PAIR = /^(?:[A-Z0-9]{4,16}|[A-Z0-9]{1,12}x(?:USD|EUR))$/;
 const READER_ID = /^[a-z0-9][a-z0-9-]{1,19}$/;
 const ENV_NAME = /^[A-Z][A-Z0-9_]{2,40}$/;
 

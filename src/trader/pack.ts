@@ -32,6 +32,8 @@ import { describeSources, metricsForPack } from "./sources.js";
 import { activeLessons, formatSelfReport, listReflections, predictionsAwaitingPostmortem, selfReport } from "./soul.js";
 import { decisionsPackLines, DECISION_HOURS } from "./decisions.js";
 import { getPredictionSnapshot } from "./snapshot.js";
+import { screenPackLines } from "./screen.js";
+import { MAX_SATELLITES, recordedCore } from "./universe.js";
 
 type DB = Database.Database;
 
@@ -40,7 +42,7 @@ export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
 const DOSSIER_PREVIEW = 400;
 
-export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
+export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events", "universe"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -210,6 +212,17 @@ function resolvedLine(db: DB, p: Prediction): string {
     : "";
   return `- ${p.id}: ${p.asset} ${p.direction} ${eur(p.threshold)} -> ${eur(p.resolutionPrice!)}, ` +
     `${p.outcome === 1 ? "happened" : "did not happen"}, p=${p.probability}, Brier ${p.brier!.toFixed(3)}${odds}`;
+}
+
+function universeSection(db: DB, cfg: TraderConfig, limit: number): Section {
+  const core = recordedCore(db, cfg);
+  const satellites = activeAssets(db, cfg).filter((a) => !core.has(a.symbol)).map((a) => a.symbol);
+  return {
+    title: `Your universe: core ${[...core].join(", ")} (the owner's); satellites ${satellites.join(", ") || "none"} ` +
+      `(${satellites.length} of ${MAX_SATELLITES}, yours to rotate with follow_asset). Weekly screen by code, assets you do not follow, most different from yours first:`,
+    lines: screenPackLines(db, limit),
+    detail: "universe",
+  };
 }
 
 function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
@@ -461,6 +474,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     dossiersSection(db, cfg, DOSSIER_PREVIEW),
     indicatorsSection(db, now),
     cyclesSection(db, cfg, now, false),
+    universeSection(db, cfg, 4),
     observationsSection(db, cfg, now, 2),
     reflectionsSection(db, PACK_REFLECTIONS, REFLECTION_PREVIEW),
     headlinesSection(db, now, PACK_HEADLINES),
@@ -523,6 +537,8 @@ export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSecti
       const cycles = cyclesSection(db, cfg, now, true);
       return fitSections(head, [cycles ?? { title: "Event cycles:", lines: ["- no reaction measured yet (needs the daily history and past event days)"] }]);
     }
+    case "universe":
+      return fitSections(head, [universeSection(db, cfg, 15)]);
     case "events": {
       const cycles = cyclesSection(db, cfg, now, true);
       return fitSections(head, [upcomingSection(db, now, 30), ...(cycles ? [cycles] : [])]);

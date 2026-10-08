@@ -137,6 +137,9 @@ function model(body) {
       /Upcoming events[^\n]*\n- \d{4}-\d{2}-\d{2} fomc/.test(pack) ? ok("memory pack shows the next Fed decision") : fail("Fed decision missing from the memory pack");
       hypothesisId = pack.match(/h_[0-9A-Z]+/)?.[0] ?? null;
       /BTC: \d+\.\d\d EUR/.test(pack) ? ok("memory pack shows the collected BTC price") : fail("memory pack has no BTC price");
+      // SPYxUSD at about 2400 USD, converted at 1.16 dollars per euro: about 2069 EUR.
+      /SPY: 20[67]\d\.\d\d EUR/.test(pack) && /NVDA: 20[67]\d\.\d\d EUR/.test(pack) && /PAXG: 24\d\d\.\d\d EUR/.test(pack)
+        ? ok("memory pack shows the tokenized stocks converted from USD to EUR, and gold") : fail("tokenized stock prices missing or not converted to EUR");
       hypothesisId ? ok("memory pack lists the owner's hypothesis") : fail("no hypothesis in the memory pack");
       step++;
       return reply([use("record_prediction", {
@@ -285,12 +288,13 @@ const server = http.createServer(async (req, res) => {
     while (!ohlcReleased && Date.now() < heldUntil) await new Promise((r) => setTimeout(r, 200));
     // 400 committed days in a 5-day cycle (+1, -1, +1, -4, +5 %), then the unfinished day.
     const pair = url.searchParams.get("pair");
+    if (/x(USD|EUR)$/.test(pair) && url.searchParams.get("asset_class") !== "tokenized_asset") return send(200, { error: ["EQuery:Unknown asset pair"] });
     ohlcCalls.push(pair);
     const rows = [];
-    let close = pair === "XBTEUR" ? 50000 : 2000;
+    let close = pair === "XBTEUR" ? 50000 : pair === "EURUSD" ? 1.16 : 2000;
     const start = Math.floor(Date.now() / 86_400_000) * 86_400 - 401 * 86_400;
     for (let i = 0; i < 400; i++) {
-      const r = i === 0 ? 0 : [1, -1, 1, -4, 5][(i - 1) % 5];
+      const r = i === 0 || pair === "EURUSD" ? 0 : [1, -1, 1, -4, 5][(i - 1) % 5];
       const open = close;
       close = open * (1 + r / 100);
       rows.push([start + i * 86_400, String(open), String(Math.max(open, close)), String(Math.min(open, close)), String(close), "0", "100", 10]);
@@ -302,8 +306,11 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith("/kraken/0/public/Ticker")) {
     if (Date.now() < chaos.krakenUntil) return send(503, { error: ["EService:Unavailable"] });
     const pair = url.searchParams.get("pair");
+    // Like Kraken: a tokenized stock is unknown without its asset class.
+    if (/x(USD|EUR)$/.test(pair) && url.searchParams.get("asset_class") !== "tokenized_asset") return send(200, { error: ["EQuery:Unknown asset pair"] });
     krakenCalls.push({ at: Date.now(), pair });
-    const price = pair === "XBTEUR" ? (jump ? 62500 : 60000 + 10 * ++tick) : 2400 + tick;
+    // EURUSD is the dollar rate code uses to convert the tokenized stocks (SPYxUSD, NVDAxUSD) to EUR.
+    const price = pair === "XBTEUR" ? (jump ? 62500 : 60000 + 10 * ++tick) : pair === "EURUSD" ? 1.16 : 2400 + tick;
     return send(200, { error: [], result: { [`X${pair}Z`]: { c: [String(price), "0.01"] } } });
   }
   if (url.pathname.startsWith("/telegram/")) {

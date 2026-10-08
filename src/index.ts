@@ -690,6 +690,14 @@ async function run(): Promise<void> {
       insertWakeEvent(db.raw, CONSOLIDATION_WAKE_SOURCE, CONSOLIDATION_WAKE_REASON);
       logger.info("[SONNI] Autopsie du soir : réveil.");
     });
+    // Step 2 (2026-10-08): the weekly screen of Kraken pairs Sonni does not follow; code only, no inference.
+    const { runScreen, screenDue } = await import("./trader/screen.js");
+    const sonniStartedAt = new Date();
+    every(60 * 60_000, "Sonni crible", async () => {
+      if (!screenDue(db.raw, sonniStartedAt)) return;
+      const screen = await runScreen(db.raw, live());
+      logger.info(`[SONNI] Crible de la semaine : ${screen.rows.length} candidat(s) mesuré(s)${screen.errors.length ? ` ; ${screen.errors.length} erreur(s) : ${screen.errors.slice(0, 3).join(" ; ")}` : ""}.`);
+    });
     every(60_000, "Sonni curiosité", async () => {
       const outcome = curiosityTick(db.raw, live(), { canWake, wake: (source, reason) => insertWakeEvent(db.raw, source, reason) });
       if (outcome.delivered) logger.info(`[SONNI] Réveil : ${outcome.reason}`);

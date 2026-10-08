@@ -604,6 +604,35 @@ function ensureAliveSchema(db: DB): void {
       computed_at TEXT NOT NULL
     );
     ${appendOnly("trader_prediction_snapshots")}
+
+    -- Step 2 of the 2026-10-08 plan: Kraken's EUR/USD rate (dollars per euro) for USD-quoted pairs.
+    CREATE TABLE IF NOT EXISTS trader_fx (
+      ts TEXT PRIMARY KEY,
+      eurusd REAL NOT NULL CHECK (eurusd > 0)
+    );
+    CREATE TABLE IF NOT EXISTS trader_fx_daily (
+      day TEXT PRIMARY KEY,
+      eurusd REAL NOT NULL CHECK (eurusd > 0)
+    );
+
+    -- The weekly screen of Kraken pairs Sonni does not follow (src/trader/screen.ts).
+    CREATE TABLE IF NOT EXISTS trader_screen (
+      screen_id TEXT NOT NULL,
+      at TEXT NOT NULL,
+      asset TEXT NOT NULL,
+      pair TEXT NOT NULL,
+      volume_eur REAL NOT NULL,
+      ret30_pct REAL,
+      ret90_pct REAL,
+      above_ma50 INTEGER,
+      vol_pct REAL,
+      corr_btc REAL,
+      max_corr REAL,
+      max_corr_with TEXT,
+      score REAL NOT NULL,
+      PRIMARY KEY (screen_id, pair)
+    );
+    ${appendOnly("trader_screen")}
   `);
 }
 

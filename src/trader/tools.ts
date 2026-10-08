@@ -35,7 +35,7 @@ import {
 import { cancelWatch, describeWatch, MAX_OPEN_WATCHES, MAX_WATCH_DAYS, openWatches, setWatch, WATCH_KINDS } from "./curiosity.js";
 import { readPage } from "./pages.js";
 import { describeSources, MAX_METRICS_PER_SOURCE, MIN_SOURCE_MINUTES, proposeSource, setSourceEnabled } from "./sources.js";
-import { activeConfig, followAsset, MAX_FOLLOWED_ASSETS, unfollowAsset } from "./universe.js";
+import { activeConfig, followAsset, MAX_SATELLITES, MIN_VOLUME_EUR, REFOLLOW_COOLDOWN_DAYS, SATELLITE_MIN_DAYS, unfollowAsset } from "./universe.js";
 import {
   addTrap, cancelOrder, listTraps, MAX_HORIZON_HOURS as ORDER_MAX_HORIZON_HOURS, ORDER_KINDS, ORDER_SIDES, placeOrder,
   recordTrapHit, THESIS_MAX, updatePosition, valuation,
@@ -543,10 +543,14 @@ export function createTraderTools(): AutomatonTool[] {
     {
       name: "follow_asset",
       description:
-        "Choose your assets. follow: add a Kraken EUR pair (symbol like SOL, kraken_pair like SOLEUR) with the reason " +
-        "(why it is worth your attention; realism: an asset the owner could buy on a MiCA-licensed exchange). " +
-        "unfollow: stop following one (no open prediction on it). At most " + MAX_FOLLOWED_ASSETS + " assets. Prices " +
-        "and daily history of a new asset arrive with the next collections. Every change is logged for the owner.",
+        "Rotate your satellite assets. The owner's core assets stay; besides them you hold at most " + MAX_SATELLITES +
+        " satellites. follow: a Kraken EUR pair (symbol like SOL, kraken_pair like SOLEUR) or a tokenized US stock " +
+        "(symbol like AAPL, kraken_pair like AAPLxUSD: quoted in USD, code converts every price to EUR), with the reason " +
+        "(what it teaches you that your assets do not; the weekly screen in your pack measures how different each candidate " +
+        "is). Code refuses a pair traded under " + MIN_VOLUME_EUR.toLocaleString("en-US") + " EUR a day on Kraken, and one you " +
+        "dropped less than " + REFOLLOW_COOLDOWN_DAYS + " days ago. unfollow: a satellite kept at least " + SATELLITE_MIN_DAYS +
+        " days, with no open prediction on it. Prices and daily history of a new asset arrive with the next collections. " +
+        "Every change is logged for the owner, who can veto a satellite.",
       category: "memory",
       riskLevel: "caution",
       parameters: {
@@ -554,7 +558,7 @@ export function createTraderTools(): AutomatonTool[] {
         properties: {
           action: { type: "string", enum: ["follow", "unfollow"] },
           symbol: { type: "string" },
-          kraken_pair: { type: "string", description: "For follow, e.g. SOLEUR" },
+          kraken_pair: { type: "string", description: "For follow, e.g. SOLEUR or NVDAxUSD" },
           reason: { type: "string" },
         },
         required: ["action", "symbol", "reason"],

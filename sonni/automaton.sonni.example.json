@@ -52,6 +52,22 @@
       {
         "symbol": "ETH",
         "krakenPair": "ETHEUR"
+      },
+      {
+        "symbol": "PAXG",
+        "krakenPair": "PAXGEUR"
+      },
+      {
+        "symbol": "USDC",
+        "krakenPair": "USDCEUR"
+      },
+      {
+        "symbol": "SPY",
+        "krakenPair": "SPYxUSD"
+      },
+      {
+        "symbol": "NVDA",
+        "krakenPair": "NVDAxUSD"
       }
     ],
     "collectMinutes": 5,

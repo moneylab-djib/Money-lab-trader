@@ -38,6 +38,8 @@ import { MockConwayClient, MockInferenceClient, createTestConfig, createTestIden
 const EXAMPLE = JSON.parse(
   fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"),
 );
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 const TRADER: TraderConfig = parseTraderConfig(EXAMPLE.trader)!;
 const ASSETS = ["BTC", "ETH"];
 

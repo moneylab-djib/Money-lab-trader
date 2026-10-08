@@ -29,6 +29,8 @@ import { runSonniCommand } from "../../trader/cli.js";
 import { createTestConfig } from "../mocks.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 const READERS = [
   { id: "gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-test", keyEnv: "GEMINI_TEST_KEY", dailyRequests: 5 },
 ];

@@ -19,7 +19,7 @@ import {
   decideSource, ensureCatalog, extractPath, fetchSourceMetrics, getSource, latestMetrics, listSources, MAX_FAILURES, metricsForPack,
   parseMetrics, proposeSource, setSourceEnabled, sourcesTick, toNumber,
 } from "../../trader/sources.js";
-import { activeAssets, activeConfig, followAsset, krakenEurPairs, syncConfigAssets, unfollowAsset, universeLog } from "../../trader/universe.js";
+import { activeAssets, activeConfig, followAsset, krakenPairs, syncConfigAssets, unfollowAsset, universeLog } from "../../trader/universe.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
 import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
 import { isoSeconds } from "../../trader/prices.js";
@@ -27,6 +27,8 @@ import { runSonniCommand } from "../../trader/cli.js";
 import { formatSonniStatus } from "../../trader/status.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 const TRADER: TraderConfig = parseTraderConfig(EXAMPLE.trader)!;
 const T0 = new Date("2026-10-07T08:00:00Z");
 const hours = (n: number) => new Date(T0.getTime() + n * 3_600_000);
@@ -224,52 +226,71 @@ describe("Asset universe", () => {
     SOLUSD: { altname: "SOLUSD", wsname: "SOL/USD", base: "SOL", quote: "ZUSD", status: "online" },
     OLDEUR: { altname: "OLDEUR", wsname: "OLD/EUR", base: "OLD", quote: "ZEUR", status: "cancel_only" },
   } };
+  /** Kraken's public API as these tests need it: spot and tokenized pair lists, a 24 h volume per pair. */
+  const kraken = (volumeEur: Record<string, number> = {}) => (url: URL) => {
+    if (url.pathname === "/0/public/AssetPairs") {
+      return url.searchParams.get("aclass_base") === "tokenized_asset"
+        ? json({ error: [], result: { NVDAxUSD: { altname: "NVDAxUSD", wsname: "NVDAx/USD", base: "NVDAx", quote: "USD", status: "online" } } })
+        : json(PAIRS);
+    }
+    const pair = url.searchParams.get("pair")!;
+    if (pair === "EURUSD") return json({ error: [], result: { ZEURZUSD: { c: ["1.16", "1"] } } });
+    return json({ error: [], result: { [pair]: { v: ["0", "1"], p: ["0", String(volumeEur[pair] ?? 10_000_000)] } } });
+  };
 
-  it("follows only Kraken EUR pairs, caches the list, logs reasons and replays the log", async () => {
+  it("follows liquid Kraken EUR pairs as satellites, caches the list, logs reasons and replays the log", async () => {
     const db = openDb();
-    const fetchFn = fakeFetch({ "api.kraken.com": () => json(PAIRS) });
-    expect((await krakenEurPairs(db.raw, fetchFn, T0)).map((p) => p.altname).sort()).toEqual(["ETHEUR", "SOLEUR", "XBTEUR"]);
-    await krakenEurPairs(db.raw, fetchFn, hours(1));
-    expect(fetchFn.calls).toHaveLength(1);
-    await krakenEurPairs(db.raw, fetchFn, hours(25));
+    const fetchFn = fakeFetch({ "api.kraken.com": kraken({ SOLEUR: 8_300_000 }) });
+    expect((await krakenPairs(db.raw, fetchFn, T0)).map((p) => p.altname).sort()).toEqual(["ETHEUR", "NVDAxUSD", "SOLEUR", "XBTEUR"]);
+    await krakenPairs(db.raw, fetchFn, hours(1));
     expect(fetchFn.calls).toHaveLength(2);
+    await krakenPairs(db.raw, fetchFn, hours(25));
+    expect(fetchFn.calls).toHaveLength(4);
     expect(await followAsset(db.raw, TRADER, { symbol: "sol", krakenPair: "SOLUSD", reason: "troisième capitalisation, disponible en EUR" }, fetchFn, T0))
-      .toMatchObject({ ok: false, error: expect.stringContaining("no EUR pair named SOLUSD") });
+      .toMatchObject({ ok: false, error: expect.stringContaining("no EUR pair or tokenized stock named SOLUSD") });
     expect(await followAsset(db.raw, TRADER, { symbol: "SOL", krakenPair: "SOLEUR", reason: "court" }, fetchFn, T0)).toMatchObject({ ok: false, error: expect.stringContaining("reason must be") });
     expect(await followAsset(db.raw, TRADER, { symbol: "BTC", krakenPair: "XBTEUR", reason: "déjà suivi pourtant" }, fetchFn, T0)).toMatchObject({ ok: false, error: "BTC is already followed." });
     const sol = await followAsset(db.raw, TRADER, { symbol: "sol", krakenPair: "soleur", reason: "troisième capitalisation, disponible en EUR" }, fetchFn, T0);
     expect(sol).toMatchObject({ ok: true, value: { asset: "SOL", krakenPair: "SOLEUR", action: "follow" } });
     expect(activeAssets(db.raw, TRADER).map((a) => a.symbol)).toEqual(["BTC", "ETH", "SOL"]);
     expect(activeConfig(db.raw, TRADER).assets).toHaveLength(3);
-    // Unfollow guards: open prediction, then the last asset.
-    const h = addHypothesis(db.raw, { statement: "ETH follows BTC with a lag", origin: "owner" }, T0);
-    db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('ETH', ?, 2400, 'test')").run(isoSeconds(T0));
-    const p = recordPrediction(db.raw, TRADER, { asset: "ETH", direction: "above", threshold: 2000, horizonHours: 24, probability: 0.8, hypothesisId: h.id, statement: "s", rationale: "r" }, T0);
-    expect(p.ok).toBe(true);
+    // Unfollow guards: the owner's core, a satellite kept too briefly, an open prediction.
     expect(unfollowAsset(db.raw, TRADER, { symbol: "ETH", reason: "trop corrélé à BTC pour m'apprendre quelque chose" }, hours(1)))
+      .toMatchObject({ ok: false, error: expect.stringContaining("in the owner's core") });
+    expect(unfollowAsset(db.raw, TRADER, { symbol: "SOL", reason: "finalement trop volatil pour mes horizons" }, hours(1)))
+      .toMatchObject({ ok: false, error: expect.stringContaining("keep a satellite at least 3 days") });
+    const h = addHypothesis(db.raw, { statement: "SOL amplifies BTC's moves", origin: "owner" }, T0);
+    db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('SOL', ?, 140, 'test')").run(isoSeconds(hours(80)));
+    const p = recordPrediction(db.raw, activeConfig(db.raw, TRADER), { asset: "SOL", direction: "above", threshold: 100, horizonHours: 24, probability: 0.8, hypothesisId: h.id, statement: "s", rationale: "r" }, hours(80));
+    expect(p.ok).toBe(true);
+    expect(unfollowAsset(db.raw, TRADER, { symbol: "SOL", reason: "finalement trop volatil pour mes horizons" }, hours(81)))
       .toMatchObject({ ok: false, error: expect.stringContaining("open prediction") });
-    expect(unfollowAsset(db.raw, TRADER, { symbol: "SOL", reason: "finalement trop volatil pour mes horizons" }, hours(1)).ok).toBe(true);
-    expect(unfollowAsset(db.raw, TRADER, { symbol: "BTC", reason: "je ne garde que l'ether pour voir" }, hours(2)).ok).toBe(true);
-    expect(unfollowAsset(db.raw, TRADER, { symbol: "ETH", reason: "impossible : le dernier actif" }, hours(3))).toMatchObject({ ok: false, error: expect.stringContaining("At least one asset") });
-    expect(activeAssets(db.raw, TRADER).map((a) => a.symbol)).toEqual(["ETH"]);
-    expect(universeLog(db.raw).map((e) => `${e.action} ${e.asset}`)).toEqual(["unfollow BTC", "unfollow SOL", "follow SOL"]);
+    db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('SOL', ?, 141, 'test')").run(isoSeconds(hours(104)));
+    resolveDuePredictions(db.raw, activeConfig(db.raw, TRADER), hours(104));
+    expect(unfollowAsset(db.raw, TRADER, { symbol: "SOL", reason: "finalement trop volatil pour mes horizons" }, hours(105)).ok).toBe(true);
+    // Dropped: not taken back within 7 days.
+    expect(await followAsset(db.raw, TRADER, { symbol: "SOL", krakenPair: "SOLEUR", reason: "je change d'avis sur sa volatilité" }, fetchFn, hours(106)))
+      .toMatchObject({ ok: false, error: expect.stringContaining("can come back after") });
+    expect(activeAssets(db.raw, TRADER).map((a) => a.symbol)).toEqual(["BTC", "ETH"]);
+    expect(universeLog(db.raw).map((e) => `${e.action} ${e.asset}`)).toEqual(["unfollow SOL", "follow SOL"]);
     expect(() => db.raw.prepare("DELETE FROM trader_universe").run()).toThrow(/append-only/);
-    // The status and the CLI follow the live universe.
-    expect(formatSonniStatus(db.raw, TRADER, hours(3))).not.toContain("- BTC :");
+    // The CLI follows the live universe.
     const out: string[] = [];
     expect(runSonniCommand(["actifs"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
-    expect(out.join("\n")).toContain("Actifs suivis (1, au plus 30) : ETH (ETHEUR)");
-    expect(out.join("\n")).toContain("retrait BTC : je ne garde que l'ether pour voir");
+    expect(out.join("\n")).toContain("Socle choisi par toi (2) : BTC (XBTEUR), ETH (ETHEUR)");
+    expect(out.join("\n")).toContain("Places tournantes choisies par Sonni (0 sur 3) : aucune pour l'instant");
+    expect(out.join("\n")).toContain("retrait SOL : finalement trop volatil pour mes horizons");
+    expect(out.join("\n")).toContain("Crible de la semaine : pas encore fait");
   });
 
   it("keeps the owner's config authoritative over Sonni's choices", async () => {
     const db = openDb();
-    const fetchFn = fakeFetch({ "api.kraken.com": () => json(PAIRS) });
+    const fetchFn = fakeFetch({ "api.kraken.com": kraken() });
     const sol = { symbol: "SOL", krakenPair: "SOLEUR" };
     // First start: the config is only recorded.
     expect(syncConfigAssets(db.raw, TRADER, T0)).toEqual([]);
     // Sonni follows SOL, then drops it.
-    expect((await followAsset(db.raw, TRADER, { symbol: "SOL", krakenPair: "SOLEUR", reason: "troisième capitalisation, disponible en EUR" }, fetchFn, T0)).ok).toBe(true);
+    expect((await followAsset(db.raw, TRADER, { symbol: "SOL", krakenPair: "SOLEUR", reason: "troisième capitalisation, disponible en EUR" }, fetchFn, hours(-80))).ok).toBe(true);
     expect(unfollowAsset(db.raw, TRADER, { symbol: "SOL", reason: "finalement trop volatil pour mes horizons" }, hours(1)).ok).toBe(true);
     // The owner adds SOL to the config: it is followed again despite Sonni's older unfollow.
     const withSol: TraderConfig = { ...TRADER, assets: [...TRADER.assets, sol] };

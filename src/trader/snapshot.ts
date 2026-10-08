@@ -65,7 +65,8 @@ function std(values: number[]): number {
 export function marketOdds(db: DB, asset: string, direction: "above" | "below", threshold: number, horizonHours: number): Odds | null {
   const last = latestPrice(db, asset);
   if (!last || !(threshold > 0) || !(horizonHours > 0)) return null;
-  const closes = loadDaily(db, asset).slice(-(HISTORY_DAYS + 1)).map((c) => c.close).filter((c) => c > 0);
+  // Traded days only: tokenized stocks show volume 0 on weekends, which would read as days without moves.
+  const closes = loadDaily(db, asset).filter((c) => c.close > 0 && c.volume > 0).slice(-(HISTORY_DAYS + 1)).map((c) => c.close);
   if (closes.length < MIN_RETURNS + 1) return null;
   const logReturns = closes.slice(1).map((c, i) => Math.log(c / closes[i]));
   const dailyVol = std(logReturns.slice(-VOL_DAYS));
