@@ -8,7 +8,9 @@ Recherches et versions vérifiées le 8 octobre 2026 (llama.cpp, Qwen3.6, Tailsc
 **Ce que c'est.** Ton PC fait tourner un modèle d'IA local (Qwen3.6-35B-A3B) qui travaille pour Sonni
 24 h/24, gratuitement : il lit l'actualité en premier et la trie, écrit une note de situation avant
 chaque réveil de Claude, joue l'avocat du diable sur ses positions, prépare les faits de ses autopsies
-et répond à tes `/question` sans réveiller Claude. En mode parallèle, il donne aussi sa propre
+et répond à tes `/question` sans réveiller Claude. Il relit aussi les chiffres que Sonni écrit (il montre
+où Sonni cite un chiffre du code, et le code juge s'il est faux) et, la nuit, propose un entretien des
+leçons de Sonni (doublons, contradictions), sans rien changer lui-même. En mode parallèle, il donne aussi sa propre
 probabilité pour chaque pari de Claude, et le code note les deux.
 
 **Ce qu'il ne fait jamais.** Il ne passe aucun ordre, ne change aucun réglage, n'écrit aucune
@@ -24,7 +26,9 @@ la clé Anthropic ni le jeton Telegram.
 plein travail repart d'elle-même (3 essais), une tâche devenue inutile est abandonnée, et Claude
 n'attend jamais le PC. Sonni continue avec les IA lectrices gratuites (Gemini, Groq), la veille du code
 et Claude. Au retour du PC, le serveur le voit en une minute et reprend par les tâches les plus
-fraîches. Au-delà de 2 heures d'absence, c'est noté dans `/technique`.
+fraîches. Au-delà de 2 heures d'absence, c'est noté dans `/technique`. Les tâches de nuit (relecture
+des anciens textes, entretien des leçons) attendent ton PC jusqu'à 19 h, puis sont abandonnées
+(`/cerveau` les compte) : sans ouverture de session automatique, elles tournent dès que tu te connectes.
 
 **Coût.** L'électricité de ton PC n'est pas comptée dans les 50 €/mois de Sonni (ta décision du
 8 octobre). Ordre de grandeur à vérifier avec une prise wattmètre : 50 à 100 kWh par mois selon
@@ -406,7 +410,8 @@ voulu).
 Sur Telegram :
 - `/cerveau` répond « 🧠 Second cerveau — mode assistant (qwen3.6-35b-a3b sur sonni-pc:8080) » et
   « En ligne depuis … » (une minute après le redémarrage), puis ses tâches du jour, le tri de
-  l'actualité, l'avis de Claude sur ses notes de situation et le compteur du modèle (étape 22).
+  l'actualité, l'avis de Claude sur ses notes de situation, le contrôle des chiffres (textes relus,
+  chiffres faux selon le code), l'entretien de la mémoire la nuit et le compteur du modèle (étape 22).
 - `/question Que sait Sonni sur le bitcoin en ce moment ?` répond « Question transmise au second
   cerveau » ; la réponse arrive en message à part, en général en une à trois minutes. Elle vient du
   modèle local, d'après des extraits de la mémoire de Sonni : à vérifier, ce n'est pas Claude, et
@@ -417,7 +422,7 @@ Sur Telegram :
 
 | Commande | Ce que fait le second cerveau |
 | --- | --- |
-| `/cerveau assistant` | **Par défaut.** Il lit l'actualité en premier (avant Gemini et Groq), la trie, écrit une note de situation avant chaque réveil de Claude (Claude dit si elle l'a aidé), plaide contre chaque position ouverte, prépare les faits des autopsies, répond à `/question`. Son tri propose des réveils « à blanc » : comptés dans `/cerveau`, sans réveiller Claude. |
+| `/cerveau assistant` | **Par défaut.** Il lit l'actualité en premier (avant Gemini et Groq), la trie, écrit une note de situation avant chaque réveil de Claude (Claude dit si elle l'a aidé), plaide contre chaque position ouverte, prépare les faits des autopsies, répond à `/question`, relit les chiffres que Sonni écrit (le code juge) et propose la nuit un entretien de ses leçons, sans rien changer. Son tri propose des réveils « à blanc » : comptés dans `/cerveau`, sans réveiller Claude. |
 | `/cerveau parallele` | Tout cela, et en plus il donne sa propre probabilité pour chaque pari de Claude, sans voir la réponse de Claude. Le code note les deux à l'échéance ; `/cerveau` compare leurs scores (Brier : 0 = parfait). |
 | `/cerveau delegue` | Verrouillé tant que les preuves manquent : au moins 100 paris parallèles notés, avec un score à moins de 0,01 de celui de Claude. Même alors, c'est ta décision ; on choisira ensemble quelles tâches lui confier. |
 | `/cerveau arret` | Sonni ne l'appelle plus du tout (le PC peut rester allumé). |

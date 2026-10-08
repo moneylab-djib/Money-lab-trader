@@ -314,6 +314,18 @@
       "path": "src/trader/consolidation.ts",
       "purpose": "When the daily evening turn is due, its wake and done markers, its status for the owner",
       "edit_when": "The evening schedule, its gate or what the turn asks for changes"
+    },
+    {
+      "area": "Sonni second brain",
+      "path": "src/trader/brain.ts",
+      "purpose": "The second brain's job queue on the VPS (priorities, leases, expiry), its prompts, code's checks of its answers, /cerveau and /question",
+      "edit_when": "A second-brain job, its priority or validation, the confirmation counter or the owner's commands change"
+    },
+    {
+      "area": "Sonni memory checks by the second brain",
+      "path": "src/trader/brainchecks.ts",
+      "purpose": "Consistency check of the figures in Claude's texts (the PC points, code judges) and night upkeep proposals about the lessons; what Claude and the owner see of them",
+      "edit_when": "A fact sheet, a judging rule, the night schedule, the upkeep checks or their display changes"
     }
   ],
   "bot_guards": {
@@ -348,7 +360,8 @@
       "src/__tests__/trader/guards.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
       "sonni/e2e.mjs",
-      "src/__tests__/trader/pc-scripts.test.ts"
+      "src/__tests__/trader/pc-scripts.test.ts",
+      "src/__tests__/trader/brainchecks.test.ts"
     ],
     "stop_reasons": [
       "src/__tests__/trader/guards.test.ts"
