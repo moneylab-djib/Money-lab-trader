@@ -347,7 +347,9 @@
   wake; failing on main too). PLAN.fr.md corrected (steps merged and in service; what the second brain really
   does). Checks (2026-10-08 evening, this sandbox, Likma project check 737cdf12): types PASS, sonni 179/179,
   money-lab PASS, build PASS, sonni-e2e PASS (622 s, "the second brain re-reads the figures of Sonni's texts",
-  no Claude call), deps PASS; feature brain-checks verified (f9f34850). Not yet observed on the VPS or the PC:
+  no Claude call), deps PASS; feature brain-checks verified (f9f34850); the 18 features sharing the touched files
+  re-verified (report f1d5da8f: build, sonni, money-lab, sonni-e2e PASS); audit 0 failures, 0 warnings. Not yet
+  observed on the VPS or the PC:
   the first night re-check should find the real 2026-10-07 « marge ~27 % ».
 - Next concrete action: owner updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
