@@ -1301,6 +1301,32 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "brain-checks",
+      "title": "Second brain checks Sonni's own memory: consistency of figures (code judges) and night upkeep of the lessons",
+      "criteria": [
+        "Each text Claude writes with a figure and a unit (reflections, prediction rationales, decision reasons, model order theses, model dossiers) is queued once for the second brain, which only points at passages naming code's figures; code judges each claim (passage of the text not cut inside a number, the fact's unit next to the number, an anchor word near it, forecasts and targets dropped, bounds and negations read, the sign only for moves, every reading of an ambiguous number, a mis-paired figure cleared) and stores at most 3 flags of Claude's own words with code's figure",
+        "Live flags are in Claude's pack for 48 hours and the evening instructions ask for code's figure; older texts are re-checked at night (01:00 to 05:00 local, 40 a night counted by the night's date, expired checks offered again up to 3 times) and shown on the evening or weekly wake",
+        "Once a night from 01:00 local (until 30 minutes before the evening turn, before the live checks) the second brain proposes lesson merges, conflicts and lessons resting on a hypothesis code finds refuted; code keeps only proposals whose ids are active, with a plain reason, not repeated within 7 days, shows them with code's counts on the evening and weekly wakes only (not the intake, not searchable) and never applies one",
+        "Neither task wakes Claude, writes a statistic or changes a stored text; nothing reaches Claude while the second brain is unconfigured or off; both stay out of the model's confirmation counter; /cerveau and the morning report show code's counts"
+      ],
+      "status": "built",
+      "paths": [
+        "src/trader/brainchecks.ts",
+        "src/trader/brain.ts",
+        "src/trader/pack.ts",
+        "src/trader/prompt.ts",
+        "src/trader/report.ts",
+        "src/trader/memory.ts",
+        "src/agent/loop.ts",
+        "src/__tests__/trader/brainchecks.test.ts",
+        "sonni/e2e.mjs"
+      ],
+      "implementation": {
+        "at": "2026-10-08T20:12:28.750914+00:00",
+        "note": "brainchecks.ts (planner, fact sheets, code's judgement, upkeep checks, wake and pack lines, owner counts), brain.ts job kinds and priorities 7 to 9, pack/loop/prompt/report hooks, memory index excludes upkeep; adversarial review: 27 confirmed findings fixed, each fix mutation-checked"
+      }
     }
   ]
 }
