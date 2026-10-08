@@ -22,7 +22,7 @@ import { availableReaders, insertObservation } from "../../trader/readers.js";
 import { brainMode, setBrainMode } from "../../trader/brainstate.js";
 import {
   askBrainFr, brainLineFr, brainStats, brainTick, briefingForWake, enqueueJob, formatBrainFr, maintainQueue, MAX_ATTEMPTS,
-  modelConfirmed, releaseAllLeases, setBrainModeFr,
+  modelConfirmed, releaseAllLeases, setBrainModeFr, TRIAGE_BATCH, triageMaxTokens,
 } from "../../trader/brain.js";
 import { listIncidents } from "../../trader/incidents.js";
 import { buildMemoryPack } from "../../trader/pack.js";
@@ -274,6 +274,67 @@ describe("The assistant's work", () => {
     expect(after.parallel.n).toBe(0);
     expect(after.modelDone).toBe(0);
     expect(formatBrainFr(db.raw, TRADER, ENV, minutes(70))).toContain("(gpt-oss-20b sur sonni-pc:8080)");
+    db.close();
+  });
+
+  it("counts only the model's own failures; triage batches fit their budget; answers lose Markdown marks", async () => {
+    // Field report, 2026-10-08: 20 observations in 1500 tokens were cut mid-answer, and the restarts of the
+    // afternoon (key change, reboot) would have counted against the model.
+    const db = openDb();
+    for (let i = 0; i < 20; i++) addObservation(db, minutes(-60 + i), `Spot ETF flows, report ${i}`);
+    let mode: "ok" | "cut" | "down" = "cut";
+    const pc = fakePc((body) => {
+      const user = String(body.messages[1].content);
+      if (mode === "down") throw new TypeError("fetch failed");
+      if (user.includes("Score each observation")) return triageAnswer(user);
+      if (user.includes("situation note")) return { note: "Les flux ETF dominent." };
+      return { answer: "## Bitcoin\n**Prix** : il a chuté sous 84 000 $ (`observation du 08/10`)." };
+    });
+    const cutFetch = Object.assign(vi.fn(async (input: any, init: any) => {
+      const resp = await pc(input, init);
+      if (mode !== "cut" || !String(input).endsWith("/chat/completions")) return resp;
+      const content = JSON.stringify(await resp.json().then((b: any) => JSON.parse(b.choices[0].message.content))).slice(0, 300);
+      return json({ choices: [{ finish_reason: "length", message: { content } }] });
+    }) as unknown as typeof fetch, { state: pc.state });
+    // One triage job takes at most TRIAGE_BATCH observations, with a token budget that grows with them.
+    await brainTick(db.raw, TRADER, ENV, cutFetch, () => T0);
+    const first = pc.state.requests[0];
+    expect([...String(first.messages[1].content).matchAll(/- \[o_/g)]).toHaveLength(TRIAGE_BATCH);
+    expect(first.max_tokens).toBe(triageMaxTokens(TRIAGE_BATCH));
+    // An answer stopped by the token limit is named as such, and it is the model's failure.
+    const job = () => db.raw.prepare("SELECT status, error, model FROM trader_brain_jobs WHERE kind = 'triage' ORDER BY created_at LIMIT 1").get() as any;
+    expect(job()).toMatchObject({ status: "queued", error: "answer cut at the token limit (300 chars)", model: "qwen3.6-35b-a3b" });
+    // The PC goes away for the remaining attempts: the job fails, but an outage does not count against the model.
+    mode = "down";
+    for (let i = 1; i <= MAX_ATTEMPTS; i++) await brainTick(db.raw, TRADER, ENV, cutFetch, () => minutes(i * 3));
+    expect(job()).toMatchObject({ status: "failed", error: "fetch failed", model: null });
+    expect(brainStats(db.raw, minutes(10)).modelFailed).toBe(0);
+    // A lease lost MAX_ATTEMPTS times is the link's failure too.
+    enqueueJob(db.raw, "briefing", "briefing:lost", {}, 600, minutes(10));
+    db.raw.prepare("UPDATE trader_brain_jobs SET status = 'leased', attempts = ?, lease_until = ?, model = 'qwen3.6-35b-a3b' WHERE dedupe_key = 'briefing:lost'")
+      .run(MAX_ATTEMPTS, minutes(11).toISOString());
+    expect(maintainQueue(db.raw, minutes(12)).failed).toBe(1);
+    expect(brainStats(db.raw, minutes(12)).modelFailed).toBe(0);
+    // Back online: the owner's question comes first, and its answer reaches Telegram without Markdown marks.
+    mode = "ok";
+    enqueueJob(db.raw, "question", "question:md", { question: "Que sait Sonni sur le bitcoin ?", context: "dossier BTC" }, 30, minutes(20));
+    const r = await brainTick(db.raw, TRADER, ENV, cutFetch, () => minutes(20));
+    expect(r).toMatchObject({ ran: "question", ok: true });
+    expect(String(pc.state.requests.at(-1).messages[1].content)).toContain("in plain text without Markdown");
+    const sent = pendingOwnerNotifications(db.raw).map((n) => n.text).join("\n");
+    expect(sent).toContain("Bitcoin\nPrix : il a chuté sous 84 000 $ (observation du 08/10).");
+    expect(sent).not.toMatch(/\*\*|##|`/);
+    // The batches queued meanwhile run; a newer observation still gets its turn. The failed batch is not tried
+    // again: it would come back first with the same dedupe key and hold back every later triage.
+    const failedIds: string[] = JSON.parse((db.raw.prepare("SELECT payload FROM trader_brain_jobs WHERE kind = 'triage' AND status = 'failed'").get() as any).payload).observationIds;
+    for (let i = 0; i < 4; i++) await brainTick(db.raw, TRADER, ENV, cutFetch, () => minutes(21 + i));
+    const late = addObservation(db, minutes(25), "Spot ETF flows, a late report");
+    for (let i = 0; i < 3; i++) await brainTick(db.raw, TRADER, ENV, cutFetch, () => minutes(26 + i));
+    const scored = (db.raw.prepare("SELECT observation_id FROM trader_brain_triage").all() as any[]).map((x) => x.observation_id);
+    expect(scored).toContain(late);
+    expect(scored).toHaveLength(20 - TRIAGE_BATCH + 1);
+    expect(scored.filter((id) => failedIds.includes(id))).toEqual([]);
+    expect(brainStats(db.raw, minutes(30)).modelFailed).toBe(0);
     db.close();
   });
 
