@@ -169,7 +169,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/reveils` | ses réveils spontanés et les déclencheurs notés |
 | `/lecteurs` | l'état des IA lectrices gratuites (voir plus bas) |
 | `/sources` / `/source ok\|non <id>` | ses sources de données ; accepter ou refuser une source qu'il propose |
-| `/actifs` | les actifs qu'il suit et ses changements motivés |
+| `/actifs` | le socle que tu as choisi, ses places tournantes (3 au plus) et le crible de la semaine ; `/actifs non <symbole>` retire une place tournante |
 | `/sante` | rapport de santé du serveur ; chaque matin tu reçois plutôt le rapport de Sonni (veille, journée, vraies alertes) |
 | `/fonds 58` | ajouter le budget du mois suivant, en dollars |
 | `/pause [raison]` / `/reprendre` | arrêter / relancer ses dépenses |
@@ -252,6 +252,10 @@ sert aussi à convertir ce que coûte l'IA pour la mesure d'autofinancement du p
 Depuis le 8 octobre, `systemctl restart sonni` pendant que Sonni dort ne le réveille plus : il reprend
 son sommeil sans appel payé (le journal affiche « Redémarrage pendant le sommeil : pas de réveil
 payé »). S'il ne dormait pas, ou si un de tes messages attend, il se réveille normalement.
+Avec la mise à jour de l'étape 2 (univers vivant), la ligne `configure.mjs` ajoute à ton socle l'or
+(PAXG), le dollar (USDC), les actions américaines (SPY) et Nvidia (NVDA) : au redémarrage, le journal
+affiche « suivi (ajouté dans la configuration) » pour chacun, puis leurs prix arrivent à la collecte
+suivante et leur historique dans les 6 heures. `/actifs` les montre dans le socle.
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.

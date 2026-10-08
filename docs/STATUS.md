@@ -219,6 +219,18 @@
   spend with SQLite's real clock under a fake JS clock (it failed after 10:00 UTC real time). Checks
   (2026-10-08 10:15 UTC, this sandbox, Likma project check 13d2f0f7): types PASS, sonni 134/134,
   money-lab 110/110, build PASS, sonni-e2e PASS (563 s). Not yet observed on the VPS.
+- Step 2 "living universe" (branch claude/sonni-universe, after step 1): the example config's core is BTC,
+  ETH, PAXG (PAXGEUR), USDC (USDCEUR), SPY (SPYxUSD) and NVDA (NVDAxUSD); src/trader/markets.ts (tokenized
+  pairs need `asset_class=tokenized_asset`; USD prices and daily candles converted to EUR with Kraken's
+  EURUSD, stored in trader_fx and trader_fx_daily; nothing stored in dollars); universe rules (core removed
+  only by the owner, 3 satellites, 250,000 EUR a day minimum, 3-day hold, 7-day cooldown, owner veto with
+  `/actifs non`, 30 days; guard G12); src/trader/screen.ts (weekly code screen of liquid pairs Sonni does
+  not follow, ranked by distinctness, in the pack and /actifs); trade-day volatility in code's odds.
+  Tests: src/__tests__/trader/universe.test.ts (4), sources.test universe cases rewritten, the other suites
+  pinned to BTC and ETH; e2e: tokenized prices converted to EUR, the fake Kraken refuses a tokenized pair
+  without its asset class. Checks (2026-10-08 10:28 UTC, this sandbox, Likma project check
+  d777ac8b): types PASS, sonni 138/138, money-lab 110/110, build PASS, sonni-e2e PASS (563 s). Not yet
+  observed on the VPS.
 - Next concrete action: owner merges the step 1 PR and runs the update block of sonni/GUIDE-VPS.fr.md; then
   observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee) while preparing the
   PC with sonni/GUIDE-PC.fr.md part 1; then step 2.
