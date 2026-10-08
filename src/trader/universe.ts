@@ -55,13 +55,13 @@ function rowToEntry(row: any): UniverseEntry {
 }
 
 export function universeLog(db: DB, limit = 50): UniverseEntry[] {
-  return (db.prepare("SELECT * FROM trader_universe ORDER BY recorded_at DESC, id DESC LIMIT ?").all(limit) as any[]).map(rowToEntry);
+  return (db.prepare("SELECT * FROM trader_universe ORDER BY recorded_at DESC, rowid DESC LIMIT ?").all(limit) as any[]).map(rowToEntry);
 }
 
 /** Config assets, then the log replayed in order; a config asset can be unfollowed too (at least one stays). */
 export function activeAssets(db: DB, cfg: TraderConfig): TraderAsset[] {
   const assets = new Map<string, TraderAsset>(cfg.assets.map((a) => [a.symbol, a]));
-  const rows = db.prepare("SELECT * FROM trader_universe ORDER BY recorded_at ASC, id ASC").all() as any[];
+  const rows = db.prepare("SELECT * FROM trader_universe ORDER BY recorded_at ASC, rowid ASC").all() as any[];
   for (const row of rows.map(rowToEntry)) {
     if (row.action === "follow") assets.set(row.asset, { symbol: row.asset, krakenPair: row.krakenPair });
     else assets.delete(row.asset);
@@ -154,7 +154,7 @@ export function recordedCore(db: DB, fallback: TraderConfig): Set<string> {
 }
 
 function lastEntry(db: DB, symbol: string, action: "follow" | "unfollow"): UniverseEntry | undefined {
-  const row = db.prepare("SELECT * FROM trader_universe WHERE asset = ? AND action = ? ORDER BY recorded_at DESC, id DESC LIMIT 1").get(symbol, action);
+  const row = db.prepare("SELECT * FROM trader_universe WHERE asset = ? AND action = ? ORDER BY recorded_at DESC, rowid DESC LIMIT 1").get(symbol, action);
   return row ? rowToEntry(row) : undefined;
 }
 
