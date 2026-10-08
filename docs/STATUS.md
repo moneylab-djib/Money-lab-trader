@@ -1,6 +1,16 @@
 # Working status
 - Updated: 2026-10-08
 - Branch / commit: main after PRs #20 to #24 (plan of 2026-10-08, steps 1 to 4 and their re-verification, merged 2026-10-08); claude/sonni-brain-fieldfixes holds the second brain's field fixes below
+- Likma 0.13.0 and agent posture (2026-10-08, branch claude/stoic-hawking-cpjn87), mirroring Money Lab 8e81318:
+  `project upgrade` 0.10.1 -> 0.13.0 (AGENTS.md Likma block, docs/LIKMA.md); removed the unused direct dependency
+  simple-git (its 2 critical advisories are fixed only in 3.32.3/4.x; nothing in the repository imports it); new
+  `deps` check (`pnpm audit --prod --audit-level critical`: 0 critical, 9 high and 17 moderate remain, transitive);
+  TruffleHog secret scan in CI (.github/workflows/secrets.yml, pinned v3.97.0); Claude Code deny rules for .claude/,
+  .git/hooks/, .mcp.json, .env*; `agent_isolation` records that the Claude Code sandbox cannot run in cloud
+  containers or on Windows and that Sonni runs as the separate `sonni` user on its VPS. Checks after the change
+  (likma project check): types, sonni, money-lab, build, sonni-e2e (589 s) and deps pass. After merging main (PR #25,
+  second-brain field fixes) the 15 stale features were re-verified (`project feature reverify`: build, sonni-e2e,
+  sonni, money-lab) and types and deps pass again.
 - Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
   profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
   `build`; setup `install`; budget 240 min; `bot_guards` maps the 8 Likma guard classes to guards.test, the
