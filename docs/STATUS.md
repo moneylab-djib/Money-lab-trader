@@ -323,6 +323,8 @@
   row is deleted, the parallel score is untouched. Checks (2026-10-08, this sandbox, Likma project check 644cb442):
   types PASS, sonni 165/165, money-lab PASS, build PASS, sonni-e2e PASS (591 s); feature brain-recount verified;
   the four features sharing brain.ts re-verified (report 996cd774: build, sonni, money-lab, sonni-e2e PASS).
+  After merging main (Likma 0.13.0, PR #27): project check 44d6324e PASS (types, sonni, money-lab, build, sonni-e2e
+  589 s, deps); the 8 features made stale by the merge re-verified (report 64016353); audit 0 failures, 0 warnings.
   Not yet observed on the VPS.
 - Next concrete action: owner updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
