@@ -185,7 +185,7 @@ describe.skipIf(!HAS_PWSH)("PC: the supervisor that keeps llama-server running (
     const calls = fs.readFileSync(path.join(tmp, "args.txt"), "utf-8").trim().split("\n");
     expect(calls).toHaveLength(2);
     expect(calls[0]).toBe(`-m ${path.join(root, "modeles", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf")} --alias qwen3.6-35b-a3b --host 127.0.0.1 --port 8080 ` +
-      `--api-key-file ${path.join(root, "cle.txt")} -c 32768 --no-webui --no-slots`);
+      `--api-key-file ${path.join(root, "cle.txt")} -c 32768 --no-ui --no-slots --load-mode none`);
     const supervisor = fs.readFileSync(path.join(root, "logs", "superviseur.log"), "utf-8");
     expect(supervisor.match(/llama-server arrete \(code 3\), relance dans 0 s/g)).toHaveLength(2);
     expect(fs.readdirSync(path.join(root, "logs")).some((f) => /^llama-.*\.log$/.test(f))).toBe(true);
@@ -196,7 +196,7 @@ describe.skipIf(!HAS_PWSH)("PC: the supervisor that keeps llama-server running (
     fs.rmSync(path.join(tmp, "args.txt"));
     expect(run(root, 1).status).toBe(0);
     expect(fs.readFileSync(path.join(tmp, "args.txt"), "utf-8").trim()).toBe(`-m ${path.join(root, "modeles", "gpt-oss-20b-MXFP4.gguf")} --alias gpt-oss-20b ` +
-      `--host 127.0.0.1 --port 8080 --api-key-file ${path.join(root, "cle.txt")} -c 32768 --no-webui --no-slots --n-cpu-moe 20`);
+      `--host 127.0.0.1 --port 8080 --api-key-file ${path.join(root, "cle.txt")} -c 32768 --no-ui --no-slots --load-mode none --n-cpu-moe 20`);
     // A malformed model file falls back to the default model, and says so.
     fs.writeFileSync(path.join(root, "modele.txt"), "rm -rf\n");
     fs.rmSync(path.join(tmp, "args.txt"));

@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-08
-- Branch / commit: main after PRs #20 to #23 (plan of 2026-10-08, steps 1 to 4, merged 2026-10-08 10:52 to 12:11 UTC); claude/sonni-likma-reverify records the re-verification below
+- Branch / commit: main after PRs #20 to #24 (plan of 2026-10-08, steps 1 to 4 and their re-verification, merged 2026-10-08); claude/sonni-brain-fieldfixes holds the second brain's field fixes below
 - Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
   profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
   `build`; setup `install`; budget 240 min; `bot_guards` maps the 8 Likma guard classes to guards.test, the
@@ -282,10 +282,27 @@
   this sandbox, on the tree merged in main): build PASS, sonni PASS, money-lab PASS, sonni-e2e PASS (591 s); the
   15 stale features re-verified, second-brain, pc-memory-copy and memory-v2 verified the same day: every feature
   verified.
-- Next concrete action: owner runs the update block of sonni/GUIDE-VPS.fr.md (main has steps 1 to 4 since
-  2026-10-08 12:11 UTC) and checks /actifs, /memoire, /lecons and /bilan; then follows sonni/GUIDE-PC.fr.md on
-  the PC and checks /cerveau; observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in
-  /journee, /cerveau).
+- Owner's setup, 2026-10-08 afternoon (observed, reported by the owner with screenshots): VPS updated to main
+  (6 assets); on the PC llama.cpp b11500 Vulkan on the RX 9070 XT serves qwen3.6-35b-a3b (UD-Q4_K_M, 20.6 GB,
+  part of it on the CPU); measured 30.6 tokens/s output and 100 tokens/s prompt with --load-mode none (13.5 and
+  4 at the first answer without it); "Sonni second cerveau" task restarts it at logon (checked after a reboot;
+  automatic logon declined by the owner, so after a reboot it waits for the owner's logon); Tailscale serve
+  tailnet-only, VPS limited to sonni-pc:8080; key in /etc/sonni.env (rotated once the same day after it showed
+  on a screenshot); /cerveau, /question and /technique answer; nightly memory copy fetched and verified once.
+- Field fixes from that run (branch claude/sonni-brain-fieldfixes, feature brain-field-fixes): the first 8 real
+  jobs gave 5 done and 3 failed, all triage answers cut mid-JSON (20 observations in 1500 tokens), plus one
+  timeout during the PC's reboot. Found while fixing it: a failed triage batch came back first with the same dedupe key and held
+  back every later triage for up to 6 hours. Now a triage job takes 8 observations with 200 + 160 tokens each, a
+  failed batch is not tried again, an answer
+  stopped by max_tokens is named "cut at the token limit", only answers the PC gave and code could not use
+  count against the model (outages and lost leases no longer do), Markdown marks are removed from the second
+  brain's texts (seen as ** on Telegram), and the supervisor starts llama-server with --no-ui (--no-webui is
+  deprecated) and --load-mode none. The 3 failures already recorded stay (append-only): with 50 done they
+  still allow confirmation (27 < 50).
+- Next concrete action: owner merges the field-fix PR and updates the VPS (update block of
+  sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
+  (/cerveau toward 50 tasks, /bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee). The VPS
+  shows "System restart required" (kernel update): reboot it at a quiet time, Sonni restarts by itself.
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.

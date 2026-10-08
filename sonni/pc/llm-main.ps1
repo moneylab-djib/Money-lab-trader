@@ -8,6 +8,9 @@
 #   C:\Sonni\modele.txt   "<file in C:\Sonni\modeles> <name shown to Sonni>", e.g. the fallback model:
 #                         gpt-oss-20b-MXFP4.gguf gpt-oss-20b
 #   C:\Sonni\options.txt  extra llama-server options, e.g. --n-cpu-moe 20
+# --load-mode none reads the model into memory instead of mapping it: the part of the model kept on the CPU
+# is not paged in from disk at the first requests (measured on the owner's PC, 2026-10-08: first answer
+# 30.6 instead of 13.5 tokens/s, prompt 100 instead of 4 tokens/s). --no-ui: llama-server serves no web page.
 # Windows PowerShell 5.1 compatible. ASCII only: 5.1 reads a script without a BOM as ANSI.
 param(
   [string]$Root = 'C:\Sonni',
@@ -71,7 +74,7 @@ while ($true) {
     Remove-Item -Force -ErrorAction SilentlyContinue
   $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
   $serverArgs = @('-m', $modelPath, '--alias', $alias, '--host', '127.0.0.1', '--port', '8080',
-    '--api-key-file', $KeyFile, '-c', '32768', '--no-webui', '--no-slots') + @(Read-Words 'options.txt')
+    '--api-key-file', $KeyFile, '-c', '32768', '--no-ui', '--no-slots', '--load-mode', 'none') + @(Read-Words 'options.txt')
   Write-Log ('demarrage de llama-server : ' + $model + ' (' + $alias + ')')
   $proc = Start-Process -FilePath $Server -ArgumentList (Join-Arguments $serverArgs) -NoNewWindow -PassThru `
     -RedirectStandardError (Join-Path $Logs "llama-$stamp.log") -RedirectStandardOutput (Join-Path $Logs "llama-$stamp.out.log")

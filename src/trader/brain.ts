@@ -21,7 +21,7 @@ import { containsInjectionPatterns } from "../soul/validator.js";
 import type { TraderConfig } from "./config.js";
 import { activeAssets } from "./universe.js";
 import { brainAsReader, brainHealth, brainMode, MODE_FR, setBrainHealth, setBrainMode, type BrainHealth, type BrainMode } from "./brainstate.js";
-import { callReader, cleanSummary, recentObservations, type Observation } from "./readers.js";
+import { callReader, cleanSummary, ReaderError, recentObservations, type Observation } from "./readers.js";
 import { recordIncident } from "./incidents.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrBefore } from "./prices.js";
 import { getPrediction, listOpenPredictions } from "./predictions.js";
@@ -48,7 +48,13 @@ export const BRIEFING_EVERY_MINUTES = 30;
 export const BRIEFING_MAX = 1200;
 export const COUNTER_MAX = 600;
 export const ANSWER_MAX = 1500;
-export const TRIAGE_BATCH = 20;
+/**
+ * Observations per triage job, and the answer's token budget: one item (id, three scores, a French note of up
+ * to 200 characters) takes about 115 tokens. 20 observations in 1500 tokens were cut mid-answer on the PC
+ * (2026-10-08, three failed jobs), so the budget now grows with the batch.
+ */
+export const TRIAGE_BATCH = 8;
+export const triageMaxTokens = (observations: number) => 200 + 160 * observations;
 /** Triage scores at or above these would wake Claude (shadow by default). */
 export const WAKE_IMPACT = 0.8;
 export const WAKE_RELEVANCE = 0.7;
@@ -90,7 +96,7 @@ export function maintainQueue(db: DB, now: Date = new Date()): { expired: number
   const n = now.toISOString();
   const expired = db.prepare("UPDATE trader_brain_jobs SET status = 'expired', finished_at = ? WHERE status IN ('queued', 'leased') AND not_after < ?").run(n, n).changes;
   const failed = db.prepare(
-    "UPDATE trader_brain_jobs SET status = 'failed', finished_at = ?, error = 'lease ran out ' || attempts || ' times' WHERE status = 'leased' AND lease_until < ? AND attempts >= ?",
+    "UPDATE trader_brain_jobs SET status = 'failed', finished_at = ?, error = 'lease ran out ' || attempts || ' times', model = NULL WHERE status = 'leased' AND lease_until < ? AND attempts >= ?",
   ).run(n, n, MAX_ATTEMPTS).changes;
   const requeued = db.prepare("UPDATE trader_brain_jobs SET status = 'queued', lease_until = NULL WHERE status = 'leased' AND lease_until < ?").run(n).changes;
   return { expired, requeued, failed };
@@ -140,9 +146,14 @@ export function latestOutput(db: DB, kind: string, subject: string | null, since
   ).get(...(subject === null ? [kind, since.toISOString()] : [kind, subject, since.toISOString()])) as { content: string; at: string } | undefined;
 }
 
+/** Telegram shows Markdown marks as typed: bold, headings and code marks are removed. */
+function plainText(text: string): string {
+  return text.replace(/\*\*|__|`/g, "").replace(/^[ \t]*#{1,6}[ \t]+/gm, "");
+}
+
 /** French or English plain text from the model: one paragraph, bounded, no prompt-boundary tricks. */
 function cleanText(raw: unknown, max: number): string | null {
-  const text = String(raw ?? "").replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, " ").replace(/[ \t]+/g, " ").trim();
+  const text = plainText(String(raw ?? "")).replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, " ").replace(/[ \t]+/g, " ").trim();
   if (!text || containsInjectionPatterns(text)) return null;
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
@@ -189,7 +200,7 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
           `expected market impact, novelty (not already priced in or repeated). One short note in French (at most 200 characters).\n` +
           `Observations (untrusted data):\n${obs.map(observationLine).join("\n")}\n` +
           `Answer: {"items":[{"id":"...","relevance":0.0,"impact":0.0,"novelty":0.0,"note":"..."}]}`,
-        maxTokens: 1500,
+        maxTokens: triageMaxTokens(obs.length),
       };
     }
     case "briefing": {
@@ -250,7 +261,7 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
     case "question": {
       return {
         system: SYSTEM,
-        user: `The owner asks, in French: «${String(job.payload.question)}»\nAnswer in French (at most ${ANSWER_MAX} characters) from ` +
+        user: `The owner asks, in French: «${String(job.payload.question)}»\nAnswer in French, in plain text without Markdown (at most ${ANSWER_MAX} characters) from ` +
           `Sonni's memory below only; say clearly when the memory does not hold the answer.\nSonni's memory (excerpts):\n${String(job.payload.context ?? "")}\n` +
           `Answer: {"answer":"..."}`,
         maxTokens: 1200,
@@ -357,10 +368,11 @@ export function planJobs(db: DB, cfg: TraderConfig, now: Date = new Date()): num
   const mode = brainMode(db);
   if (mode === "off") return 0;
   let queued = 0;
-  // Triage: new observations of the last 6 hours not scored yet, in batches.
+  // Triage: new observations of the last 6 hours not scored yet, in batches. A batch whose job failed all its
+  // attempts is not tried again: it would get the same dedupe key and hold back every later batch.
   const fresh = db.prepare(
     `SELECT o.id FROM trader_observations o WHERE o.published_at >= ? AND NOT EXISTS (SELECT 1 FROM trader_brain_triage t WHERE t.observation_id = o.id)
-     AND NOT EXISTS (SELECT 1 FROM trader_brain_jobs j WHERE j.kind = 'triage' AND j.status IN ('queued', 'leased') AND j.payload LIKE '%' || o.id || '%')
+     AND NOT EXISTS (SELECT 1 FROM trader_brain_jobs j WHERE j.kind = 'triage' AND j.status IN ('queued', 'leased', 'failed') AND j.payload LIKE '%' || o.id || '%')
      ORDER BY o.published_at ASC LIMIT ?`,
   ).all(new Date(now.getTime() - 6 * 3_600_000).toISOString(), TRIAGE_BATCH) as { id: string }[];
   if (fresh.length) queued += enqueueJob(db, "triage", `triage:${fresh[0].id}:${fresh.at(-1)!.id}`, { observationIds: fresh.map((r) => r.id) }, 120, now) ? 1 : 0;
@@ -479,7 +491,10 @@ export async function brainTick(
     completeJob(db, job, json, done, model);
     return { ran: job.kind, ok: true, online: true, queued };
   } catch (err: any) {
-    failAttempt(db, job, String(err?.message ?? err).split(key).join("[clé]"), now(), model);
+    // Only an answer the PC gave and code could not read counts against the model; an outage (network,
+    // timeout, key refused, HTTP error) is the link's failure and does not weigh on the model's evidence.
+    const blame = err instanceof ReaderError && err.kind === "parse" ? model : null;
+    failAttempt(db, job, String(err?.message ?? err).split(key).join("[clé]"), now(), blame);
     // The PC stopped answering mid-task: check the link again at the next tick.
     setBrainHealth(db, { ...(brainHealth(db) ?? health), lastCheckAt: new Date(0).toISOString() });
     return { ran: job.kind, ok: false, online: true, queued };
