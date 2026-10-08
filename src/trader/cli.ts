@@ -21,6 +21,7 @@ import { recall, type RecallHit } from "../money-lab/recall.js";
 import type { MoneyLabConfig } from "../money-lab/profile.js";
 import { activeConfig, formatUniverseFr, ownerVeto } from "./universe.js";
 import { formatScreenFr } from "./screen.js";
+import { askBrainFr, formatBrainFr, setBrainModeFr } from "./brain.js";
 
 const SOURCE_FR: [RegExp, string][] = [
   [/^identity v(\d+)/, "identité v$1"], [/^reflection \S+ \((\w+)\)/, "journal ($1)"], [/^lesson \S+ \[(\w+)\]/, "leçon ($1)"],
@@ -60,7 +61,9 @@ export const SONNI_USAGE = `Commandes Sonni :
   lecteurs               état des IA lectrices gratuites
   sources                sources de données et dernières valeurs
   source ok|non <id> [note]  accepter ou refuser une source proposée par Sonni
-  actifs [non <symbole>]  socle, places tournantes, crible de la semaine ; non : veto sur une place tournante`;
+  actifs [non <symbole>]  socle, places tournantes, crible de la semaine ; non : veto sur une place tournante
+  cerveau [mode]         le second cerveau sur ton PC ; modes : arret, assistant, parallele, delegue
+  question <texte>       poser une question au second cerveau sur la mémoire de Sonni`;
 
 /** The owner reads French; the validation messages are written for the model, in English. */
 function identityRefusalFr(error: string): string {
@@ -139,6 +142,19 @@ export function runSonniCommand(
     case "cycles":
       print(formatCyclesFr(db, live));
       return 0;
+    case "cerveau": {
+      // Step 3 (2026-10-08): the second brain on the owner's PC.
+      const env = options.env ?? withSecrets();
+      print(rest[0] ? setBrainModeFr(db, rest[0]) : formatBrainFr(db, cfg, env));
+      return 0;
+    }
+    case "question": {
+      const question = rest.join(" ").trim();
+      const hits = question ? recall(question, { home: options.home ?? process.env.HOME ?? "/root", db, limit: 8 }) : [];
+      const context = hits.map((h) => `[${h.source}] ${h.text}`).join("\n---\n");
+      print(askBrainFr(db, cfg, options.env ?? withSecrets(), question, context));
+      return 0;
+    }
     case "carnets": {
       const dir = notebooksDir(options.home ?? process.env.HOME ?? "/root");
       const files = exportNotebooks(db, live, dir);

@@ -23,6 +23,7 @@ import { ulid } from "ulid";
 import { containsInjectionPatterns } from "../soul/validator.js";
 import type { ReaderConfig, TraderConfig } from "./config.js";
 import { hypothesesToTranslate, setStatementFr } from "./hypotheses.js";
+import { brainAsReader, brainUsable } from "./brainstate.js";
 import { type Headline } from "./news.js";
 
 type DB = Database.Database;
@@ -95,9 +96,13 @@ export function readerStatuses(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv
   });
 }
 
-/** Readers usable right now, in configured order. */
+/**
+ * Readers usable right now, in configured order; the second brain on the owner's PC comes first while it
+ * answers and is not switched off (plan of 2026-10-08 step 3), the free hosted readers stay behind it.
+ */
 export function availableReaders(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv, now: Date = new Date()): ReaderConfig[] {
-  return cfg.readers.filter((r) => {
+  const brain = brainUsable(db, cfg, env) ? brainAsReader(cfg) : null;
+  return [...(brain ? [brain] : []), ...cfg.readers].filter((r) => {
     if (!env[r.keyEnv]) return false;
     const rest = resting.get(r.id);
     if (rest && rest.until > now.getTime()) return false;
@@ -162,8 +167,9 @@ export async function callReader(
         temperature: 0,
         max_tokens: request.maxTokens ?? READER_MAX_TOKENS,
         ...(reader.jsonMode ? { response_format: { type: "json_object" } } : {}),
+        ...(reader.extraBody ?? {}),
       }),
-      signal: AbortSignal.timeout(READER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(reader.timeoutMs ?? READER_TIMEOUT_MS),
     });
   } catch (err: any) {
     throw new ReaderError("network", scrub(String(err?.message ?? err), key));

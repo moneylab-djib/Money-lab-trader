@@ -29,6 +29,7 @@ import { runSonniCommand } from "../trader/cli.js";
 import { budgetView, formatSonniStatus } from "../trader/status.js";
 import { buildSonniDailyReport, buildSonniEveningSummary } from "../trader/report.js";
 import { ensureTraderSchema } from "../trader/schema.js";
+import { brainLineFr } from "../trader/brain.js";
 import { formatIncidentsFr } from "../trader/incidents.js";
 
 const KV_OFFSET = "money_lab.telegram_offset";
@@ -73,6 +74,8 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /lecteurs — IA lectrices gratuites
 /sources — sources de données ; /source ok|non <id> pour décider d'une proposition
 /actifs — socle, places tournantes et crible de la semaine ; /actifs non <symbole> pour retirer une place tournante
+/cerveau — le second cerveau sur ton PC (état, modes : /cerveau arret | assistant | parallele | delegue)
+/question <texte> — demander au second cerveau ce que Sonni sait (réponse ici, sans réveiller Claude)
 /technique — état technique du programme (budget détaillé, pauses, cycles)
 /sante — rapport de santé du serveur ; chaque matin tu reçois le rapport de Sonni
 /pause [raison] — mettre Sonni en pause
@@ -90,6 +93,7 @@ const SONNI_SUBCOMMANDS: Record<string, string> = {
   "/veto": "veto", "/reveils": "reveils", "/réveils": "reveils", "/lecteurs": "lecteurs", "/sources": "sources",
   "/source": "source", "/actifs": "actifs", "/portefeuille": "portefeuille", "/journee": "journee", "/journée": "journee",
   "/dossier": "dossier", "/note": "note", "/memoire": "memoire", "/mémoire": "memoire", "/carnets": "carnets", "/cycles": "cycles",
+  "/cerveau": "cerveau", "/question": "question",
 };
 
 type FetchFn = typeof fetch;
@@ -192,7 +196,7 @@ export class TelegramChannel {
         return formatStatus(this.raw, this.config);
       case "/technique":
         return `${formatStatus(this.raw, this.config, "ÉTAT TECHNIQUE")}\n\n` +
-          `${this.config.trader ? `${formatIncidentsFr(this.raw, new Date(), this.config.trader.timeZone)}\n\n` : ""}Rapport de santé du serveur : /sante`;
+          `${this.config.trader ? `${formatIncidentsFr(this.raw, new Date(), this.config.trader.timeZone)}\n\n${brainLineFr(this.raw, this.config.trader, withSecrets())}\n\n` : ""}Rapport de santé du serveur : /sante`;
       case "/idee":
       case "/idée":
       case "/intuitions":
@@ -218,7 +222,9 @@ export class TelegramChannel {
       case "/memoire":
       case "/mémoire":
       case "/carnets":
-      case "/cycles": {
+      case "/cycles":
+      case "/cerveau":
+      case "/question": {
         if (!this.config.trader) return `Commande inconnue.\n\n${TELEGRAM_HELP}`;
         ensureTraderSchema(this.raw);
         const sub = SONNI_SUBCOMMANDS[command];

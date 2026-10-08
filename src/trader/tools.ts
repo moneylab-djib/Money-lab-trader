@@ -23,6 +23,7 @@ import { recordPrediction, MAX_HORIZON_HOURS, MIN_HORIZON_HOURS } from "./predic
 import { describeOdds, marketOdds } from "./snapshot.js";
 import { DECISION_ACTIONS, DECISION_HOURS, DECISION_REASON_MAX, MAX_DECISIONS_PER_CALL, recordDecision } from "./decisions.js";
 import { clearBigOrder, holdBigOrder, isBigOrder, isStrongTurn, strongBudgetLeft } from "./strong.js";
+import { rateBriefing } from "./brain.js";
 import { addHypothesis, hypothesisCounts } from "./hypotheses.js";
 import { describeTest, runHistoricalTest } from "./historical.js";
 import { intakeOpen, MAX_MODEL_HYPOTHESES_PER_DAY, MAX_PRIOR_HYPOTHESES } from "./intake.js";
@@ -260,6 +261,7 @@ export function createTraderTools(): AutomatonTool[] {
               required: ["asset", "action", "reason"],
             },
           },
+          brain_note_useful: { type: "boolean", description: "Only when your wake carried a SECOND BRAIN NOTE: did it help these decisions?" },
         },
         required: ["decisions"],
       },
@@ -267,6 +269,7 @@ export function createTraderTools(): AutomatonTool[] {
         if (!ctx.config.trader) return NOT_CONFIGURED;
         const db = ctx.db.raw;
         const cfg = activeConfig(db, ctx.config.trader);
+        if (typeof args.brain_note_useful === "boolean") rateBriefing(db, args.brain_note_useful);
         const list = Array.isArray(args.decisions) ? args.decisions.slice(0, MAX_DECISIONS_PER_CALL) : [];
         if (list.length === 0) return "decisions: give one entry per asset.";
         const out = list.map((d: any) => {

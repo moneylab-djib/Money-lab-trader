@@ -9,6 +9,8 @@ const MAP = {
   "api.alternative.me": "fng", "api.coingecko.com": "coingecko", "mempool.space": "mempool",
   // Keyless RSS feeds read beside GDELT (the Fed's feed goes to the "fed" prefix above).
   "cointelegraph.com": "rss", "www.theblock.co": "rss", "decrypt.co": "rss", "news.google.com": "rss",
+  // Plan of 2026-10-08 step 3: the second brain on the owner's PC (llama-server through Tailscale).
+  "sonni-pc:8080": "brain",
 };
 globalThis.fetch = async (input, init) => {
   const req = input instanceof Request ? input : null;

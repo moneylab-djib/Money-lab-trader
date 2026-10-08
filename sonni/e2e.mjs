@@ -207,6 +207,8 @@ let ownerHelloSeen = 0;
 /** Step C3: the evening consolidation, scheduled 7 minutes after the start (Paris time) in this run. */
 let eveningSeen = false;
 let anthropicCalls = 0;
+/** Plan of 2026-10-08 step 3: requests the fake second brain (the owner's PC) received. */
+const brainCalls = [];
 
 const server = http.createServer(async (req, res) => {
   let raw = "";
@@ -277,6 +279,34 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith("/mempool/")) {
     sourceCalls.mempool++;
     return send(200, { fastestFee: 12, halfHourFee: 10, hourFee: 8, economyFee: 4, minimumFee: 2 });
+  }
+  if (url.pathname.startsWith("/brain/v1/")) {
+    // A fake llama-server on the owner's PC: it checks the key and answers each kind of job.
+    if (req.headers.authorization !== "Bearer pc-e2e") return send(401, { error: { message: "Invalid API Key" } });
+    if (url.pathname === "/brain/v1/models") { brainCalls.push("models"); return send(200, { data: [{ id: "qwen3.6-35b-a3b" }] }); }
+    const body = JSON.parse(raw);
+    const user = String(body.messages?.[1]?.content ?? "");
+    let answer;
+    if (user.includes("Score each observation")) {
+      brainCalls.push("triage");
+      answer = { items: [...user.matchAll(/- \[(o_\w+)\]/g)].map((m) => ({ id: m[1], relevance: 0.6, impact: 0.4, novelty: 0.5, note: "Flux ETF suivi de près" })) };
+    } else if (user.includes("The owner asks")) {
+      brainCalls.push("question");
+      answer = { answer: "D'après sa mémoire, Sonni pense que le BTC tient au-dessus de 59 000 EUR dans un marché calme." };
+    } else if (user.includes("situation note")) {
+      brainCalls.push("briefing");
+      answer = { note: "Marché calme ; les flux ETF restent le fil de la journée." };
+    } else if (user.includes("devil's advocate")) {
+      brainCalls.push("counter");
+      answer = { against: "Un marché calme peut basculer vite si les flux ETF s'inversent.", risk: 0.3 };
+    } else if (user.includes("post-mortem")) {
+      brainCalls.push("postmortem");
+      answer = { facts: "Prédit au-dessus de 59 000 ; le prix a fini plus haut.", explanations: ["Marché calme"] };
+    } else {
+      brainCalls.push("other");
+      answer = { items: [], probability: 0.5, reason: "n/a" };
+    }
+    return send(200, { choices: [{ message: { content: JSON.stringify(answer) } }] });
   }
   if (url.pathname.startsWith("/kraken/0/public/Depth")) {
     sourceCalls.depth++;
@@ -375,11 +405,11 @@ console.log(run(["dist/index.js", "--sonni", "idee", "BTC reste au-dessus de 59 
 
 let child;
 let out = "";
-function start() {
+function start(extraEnv = {}) {
   child = spawn("node", ["dist/index.js", "--run"], {
     cwd: REPO,
     env: { ...env, ANTHROPIC_API_KEY: "sk-ant-e2e", TELEGRAM_BOT_TOKEN: "123:e2e", GEMINI_API_KEY: "gem-e2e", E2E_PORT: String(PORT),
-      NODE_OPTIONS: `--import ${path.join(HERE, "e2e-preload.mjs")}` },
+      NODE_OPTIONS: `--import ${path.join(HERE, "e2e-preload.mjs")}`, ...extraEnv },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.on("data", (d) => { out += d; });
@@ -545,7 +575,9 @@ const afterStop = pricesStored();
   : fail("state lost after stopping the process");
 const callsBefore = krakenCalls.length;
 const paidBefore = anthropicCalls;
-start();
+brainCalls.length === 0 ? ok("without SECOND_BRAIN_API_KEY the second brain was never called") : fail(`second brain called without a key: ${brainCalls.join(", ")}`);
+// The owner set up the PC (sonni/GUIDE-PC.fr.md): this start has the key.
+start({ SECOND_BRAIN_API_KEY: "pc-e2e" });
 await until(() => krakenCalls.length > callsBefore, 20000)
   ? ok("collection resumes after a restart")
   : fail("no collection after restart");
@@ -553,6 +585,17 @@ await wait(3000);
 // A restart while Sonni sleeps resumes the sleep instead of paying for a wake (2026-10-08: 13 restarts cost ~0.96 $).
 anthropicCalls === paidBefore && /\[SONNI\] Redémarrage pendant le sommeil : pas de réveil payé/.test(out)
   ? ok("a restart during a sleep makes no paid call") : fail(`restart made ${anthropicCalls - paidBefore} paid call(s)`);
+// The second brain: contacted with its key, triages the news, answers the owner's /question by Telegram, no Claude call.
+await until(() => brainCalls.includes("triage"), 40_000)
+  ? ok("the second brain is contacted with its key and triages the stored observations") : fail(`second brain calls: ${brainCalls.join(", ") || "none"}`);
+tgSend("/question Que pense Sonni du BTC ?");
+await until(() => tgOutbox.some((m) => /🧠 Second cerveau — ta question « Que pense Sonni du BTC \? »/.test(m.text) && /59 000 EUR dans un marché calme/.test(m.text)), 60_000)
+  ? ok("/question is answered by the second brain on Telegram") : fail("/question got no answer from the second brain");
+tgSend("/cerveau");
+await until(() => tgOutbox.some((m) => /🧠 Second cerveau — mode assistant/.test(m.text) && /En ligne depuis/.test(m.text)), 30_000)
+  ? ok("/cerveau shows the second brain online in assistant mode") : fail("/cerveau lacks the online state");
+anthropicCalls === paidBefore ? ok("the second brain's work made no Claude call") : fail(`Claude called ${anthropicCalls - paidBefore} time(s) during the second brain's work`);
+if (/pc-e2e/.test(out) || tgOutbox.some((m) => /pc-e2e/.test(m.text))) fail("the second brain's key leaked");
 child.kill("SIGTERM");
 await wait(1500);
 

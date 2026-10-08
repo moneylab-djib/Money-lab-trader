@@ -698,6 +698,16 @@ async function run(): Promise<void> {
       const screen = await runScreen(db.raw, live());
       logger.info(`[SONNI] Crible de la semaine : ${screen.rows.length} candidat(s) mesuré(s)${screen.errors.length ? ` ; ${screen.errors.length} erreur(s) : ${screen.errors.slice(0, 3).join(" ; ")}` : ""}.`);
     });
+    // Step 3 (2026-10-08): the second brain on the owner's PC. One job at a time; nothing is in flight after a start.
+    const { brainTick, releaseAllLeases } = await import("./trader/brain.js");
+    const released = releaseAllLeases(db.raw);
+    if (released) logger.info(`[SONNI] Second cerveau : ${released} tâche(s) interrompue(s) remise(s) en file.`);
+    every(15_000, "Sonni second cerveau", async () => {
+      const r = await brainTick(db.raw, live(), withSecrets(), fetch, () => new Date(), {
+        canWake, wake: (source, reason) => insertWakeEvent(db.raw, source, reason),
+      });
+      if (r.ran) logger.info(`[SONNI] Second cerveau : ${r.ran} ${r.ok ? "fait" : "échoué (nouvel essai plus tard)"}.`);
+    });
     every(60_000, "Sonni curiosité", async () => {
       const outcome = curiosityTick(db.raw, live(), { canWake, wake: (source, reason) => insertWakeEvent(db.raw, source, reason) });
       if (outcome.delivered) logger.info(`[SONNI] Réveil : ${outcome.reason}`);

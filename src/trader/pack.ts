@@ -33,6 +33,7 @@ import { activeLessons, formatSelfReport, listReflections, predictionsAwaitingPo
 import { decisionsPackLines, DECISION_HOURS } from "./decisions.js";
 import { getPredictionSnapshot } from "./snapshot.js";
 import { screenPackLines } from "./screen.js";
+import { latestOutput } from "./brain.js";
 import { MAX_SATELLITES, recordedCore } from "./universe.js";
 
 type DB = Database.Database;
@@ -238,6 +239,11 @@ function resolvedSection(db: DB, limit: number): Section {
   const awaiting = predictionsAwaitingPostmortem(db, 10);
   const lines: string[] = [];
   if (awaiting.length) lines.push(`- Waiting for your post-mortem (write_reflection kind postmortem): ${awaiting.map((p) => p.id).join(", ")}`);
+  // Step 3 (2026-10-08): facts the second brain gathered for those post-mortems (code's numbers, its candidate explanations).
+  for (const p of awaiting.slice(0, 3)) {
+    const brief = latestOutput(db, "postmortem_brief", p.id, new Date(0));
+    if (brief) lines.push(`  ${p.id}, facts gathered by the second brain (untrusted): ${short(brief.content.replace(/\n/g, " "), 400)}`);
+  }
   if (resolved.length === 0) lines.push("- none yet");
   for (const p of resolved) lines.push(resolvedLine(db, p));
   return {
@@ -396,6 +402,9 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
     const s = p.pnlEur >= 0 ? "+" : "";
     lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} %); ` +
       `stop ${p.invalidation === null ? "none" : eur(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
+    // Step 3 (2026-10-08): the second brain's devil's advocate on this position, if fresh.
+    const against = latestOutput(db, "counter_case", p.asset, new Date(now.getTime() - 36 * 3_600_000));
+    if (against) lines.push(`  Second brain's case against it (untrusted, ${against.at.slice(5, 16).replace("T", " ")}): ${short(against.content, 320)}`);
   }
   for (const o of pendingOrders(db)) {
     lines.push(`- Pending ${o.id}: ${o.kind} ${o.side} ${o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${o.quantity} ${o.asset}`}${o.limitPrice ? ` at ${o.limitPrice} EUR` : ""}${o.origin === "stop" ? " (STOP placed by code)" : ""}, until ${o.horizonUntil}`);
