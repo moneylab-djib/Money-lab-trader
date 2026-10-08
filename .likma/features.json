@@ -1055,6 +1055,81 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "memory-v2",
+      "title": "Step 4: memory v2 (search, lessons scored when applied, similar past days, summaries)",
+      "criteria": [
+        "search_memory, /memoire and recall use one full-text index of every store, fed incrementally, filtered by asset, period and kind",
+        "Words are folded (accents, case, plural) and reach SQLite as quoted terms only; each hit carries its kind, id, date and asset, untrusted kinds marked",
+        "Ranking weighs importance and recency, puts the current dossier and identity above older versions and active lessons above retired ones",
+        "On the step 4 evaluation set the answer is in the first three hits for 16/16 questions against 11/16 for the old keyword recall; paraphrases are measured (0/3)",
+        "Code scores each cited lesson from the outcome and flags one used 6 times that hurt twice as often as it helped: flag in the cached prompt, counts in the pack and /lecons",
+        "The pack shows each asset's regime and its five most similar past days, a week apart, only days whose next 7 days are stored, with what followed",
+        "Code writes one summary per finished UTC day, ISO week and month with activity, once, with its sources, searchable and labelled in French for the owner"
+      ],
+      "status": "verified",
+      "paths": [
+        "src/trader/memory.ts",
+        "src/trader/lessonuse.ts",
+        "src/trader/analogs.ts",
+        "src/trader/summaries.ts",
+        "src/trader/tools.ts",
+        "src/trader/pack.ts",
+        "src/trader/prompt.ts",
+        "src/trader/cli.ts",
+        "src/money-lab/recall.ts",
+        "src/__tests__/trader/memory.test.ts",
+        "sonni/e2e.mjs"
+      ],
+      "implementation": {
+        "at": "2026-10-08T12:00:08.894601+00:00",
+        "note": "Full-text memory index and search_memory; lessons scored when applied; regimes and similar past days with the embargo; summaries by code; recall evaluation 16/16 vs 11/16"
+      },
+      "verification": {
+        "at": "2026-10-08T12:00:30.789289+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "28e8563bca2977f65a4d2c0ba23ffb8e580773746629e201af364bd70a3dc6ff",
+        "scope": [
+          "src/trader/memory.ts",
+          "src/trader/lessonuse.ts",
+          "src/trader/analogs.ts",
+          "src/trader/summaries.ts",
+          "src/trader/tools.ts",
+          "src/trader/pack.ts",
+          "src/trader/prompt.ts",
+          "src/trader/cli.ts",
+          "src/money-lab/recall.ts",
+          "src/__tests__/trader/memory.test.ts",
+          "sonni/e2e.mjs"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni",
+          "7": "sonni"
+        },
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/630475c7c9e24f289e2edd60425f582d.json",
+        "contract": "467fec282438fa77118ceca437a250fab5ed87617a9e360106c84703812dc4f6",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 21.664,
+            "output_bytes": 25150,
+            "output_sha256": "54e2eb5d904ce3ad08c23938b01198539fb3c0368004b323259c6dddd8f52c73"
+          }
+        ],
+        "integrity": {
+          "base": "76db54c906e561894712837126b485d711c7b8c5",
+          "flags": []
+        }
+      }
     }
   ]
 }

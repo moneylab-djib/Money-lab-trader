@@ -22,6 +22,8 @@ import { getKV, getPauseState } from "../money-lab/journal.js";
 import { survivalBalance } from "../money-lab/selfhosted.js";
 import { inferenceGetDailyCost } from "../state/database.js";
 import { ago, fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, fmtWhen, plural } from "./format.js";
+import { describeEvidenceFr, lessonEvidence } from "./lessonuse.js";
+import { describeRegimeFr, regimeAt } from "./analogs.js";
 import { listTrades, listTraps, type Order, pendingOrders, performance, recentOrders, valuation } from "./portfolio.js";
 
 type DB = Database.Database;
@@ -318,7 +320,13 @@ export function formatLessonsFr(db: DB): string {
   if (lessons.length === 0) return "Aucune leçon encore. Sonni en ajoute quand plusieurs post-mortems et son bilan vont dans le même sens.";
   const lines = [`Leçons actives (${active.length}) — /veto <id> [raison] pour en retirer une :`];
   if (active.length === 0) lines.push("- aucune");
-  for (const l of active) lines.push(`- ${l.id} (${fmtDay(l.recordedAt.slice(0, 10))}) : ${l.text}`);
+  // Step 4 (2026-10-08): how each lesson fared when Sonni applied it, and the market it was learned in.
+  const evidence = lessonEvidence(db);
+  for (const l of active) {
+    const learned = regimeAt(db, "BTC", l.recordedAt.slice(0, 10));
+    lines.push(`- ${l.id} (${fmtDay(l.recordedAt.slice(0, 10))}) : ${l.text}`);
+    lines.push(`  ${describeEvidenceFr(evidence.get(l.id))}${learned ? ` ; marché du BTC quand il l'a apprise : ${describeRegimeFr(learned)}` : ""}`);
+  }
   if (retired.length) {
     lines.push("", `Retirées (${retired.length}) :`);
     for (const l of retired.slice(-5)) lines.push(`- ${l.text} — retirée par ${l.retiredBy === "owner" ? "toi" : "Sonni"} : ${l.retireReason}`);

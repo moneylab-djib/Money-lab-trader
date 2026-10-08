@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-08
-- Branch / commit: claude/sonni-evening (step C3, stacked on claude/sonni-cycles = PR #14, #13, #12; main after PRs #1 to #11)
+- Branch / commit: claude/sonni-memory (step 4 of the plan of 2026-10-08, PR #23; steps 1 to 3 merged in main: PRs #20, #21, #22)
 - Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
   profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
   `build`; setup `install`; budget 240 min; `bot_guards` maps the 8 Likma guard classes to guards.test, the
@@ -260,9 +260,28 @@
   Checks (2026-10-08 11:42 UTC, this sandbox, Likma project check 789b457a): types PASS, sonni 151/151,
   money-lab 110/110, build PASS, sonni-e2e PASS (79 checks, 590 s); features second-brain and
   pc-memory-copy verified (sonni). Not yet observed on the VPS or the owner's PC.
-- Next concrete action: owner merges the step PRs in order (1, 2, 3; each contains the previous ones) and
-  runs the update block of sonni/GUIDE-VPS.fr.md; then follows sonni/GUIDE-PC.fr.md on the PC and checks
-  /cerveau; observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee, /cerveau).
+- Step 4 "memory v2" (branch claude/sonni-memory, after step 3): src/trader/memory.ts (one FTS5 index of every
+  store, fed by rowid high-water marks; `search_memory` tool, free: BM25 × importance × recency, current
+  versions first, retired lessons lower, filters by asset, period and kind, provenance on every hit and
+  untrusted kinds marked; words folded for accents, case and plural, passed as quoted terms only; `/memoire`,
+  `recall` and the second brain's `/question` context use it), src/trader/lessonuse.ts (`lesson_ids` on
+  record_prediction and record_decision; code scores each use against code's reference or the next 7 days;
+  flag after 6 uses that hurt twice as often as they helped, in the cached prompt only when flagged, counts in
+  the pack and /lecons; evening instruction to retire or justify), src/trader/analogs.ts (market regime per
+  asset and per lesson; the five most similar past days with the outcome embargo, in the pack),
+  src/trader/summaries.ts (day, ISO week and month summaries by code with their sources, hourly, searchable);
+  guard G15. Recall evaluation (memory.test): the answer in the first three hits for 16/16 questions against
+  11/16 for the keyword recall it replaced; paraphrases 0/3 for both (the semantic index's revisit trigger).
+  Fixed on the way: `/memoire l'or` found nothing (the English "or" was a filler word), plurals missed their
+  singular, a bare `until` date excluded its own day, and a summary showed a false 0 % move for a day without a
+  traded candle. Tests: memory.test.ts (12); e2e: the model's search_memory finds the dossier it just wrote,
+  `/memoire Catalyseurs` (case and plural folded). Checks (2026-10-08 12:08 UTC, this sandbox, Likma project check
+  c0fabd90): types PASS, sonni 163/163, money-lab 110/110, build PASS, sonni-e2e PASS (80
+  checks, 591 s); feature memory-v2 verified (sonni). Not yet observed on the VPS.
+- Next concrete action: owner merges PR #23 (step 4; steps 1 to 3 are in main since 2026-10-08 11:58 UTC)
+  and runs the update block of sonni/GUIDE-VPS.fr.md; then follows sonni/GUIDE-PC.fr.md on the PC and checks
+  /cerveau; observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee, /cerveau,
+  /memoire, /lecons).
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.

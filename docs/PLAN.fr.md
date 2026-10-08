@@ -45,10 +45,23 @@ sur le VPS entre deux étapes :
    si tu changes de modèle, ses scores repartent de zéro (jamais de mélange). La copie de chaque nuit
    passe par un compte en lecture seule sur le serveur, joignable seulement par Tailscale, et ton PC
    vérifie son empreinte avant de la garder (30 jours).
-4. **Mémoire v2** : trois niveaux (vital toujours présent, « à portée » choisi selon la situation,
-   archives cherchables), recherche plein texte, embargo des dénouements, leçons en fiches avec
-   compteurs tenus par le code, résumés jour/semaine/mois, cas similaires par indicateurs, régime de
-   marché ; la recherche « par le sens » seulement si un test de rappel montre qu'elle manque.
+4. **Mémoire v2** (construite et testée, en attente de ta fusion) : trois niveaux. Le vital toujours
+   présent (son identité, ses leçons avec le régime de marché où il les a apprises, ses règles) ; le
+   « à portée » choisi par le code à chaque réveil (son dossier du moment, et maintenant, pour chaque
+   actif, le régime du marché et les 5 journées passées qui ressemblent le plus à aujourd'hui avec ce qui
+   a suivi, en ne regardant que des journées dont la semaine suivante est connue) ; les archives, qu'il
+   fouille avec un nouvel outil gratuit (`search_memory`) : recherche plein texte dans tout ce qu'il a
+   écrit et lu, sans accents ni majuscules, pluriels compris, classée par pertinence, fraîcheur et
+   importance, filtrable par actif, période et type, avec la provenance de chaque résultat. Tes
+   `/memoire` et `/question` utilisent la même recherche. Ses leçons deviennent des fiches suivies par le
+   code : quand une prédiction ou une décision s'appuie sur une leçon, il la cite, et le code compte
+   ensuite si elle a aidé ou nui ; une leçon que les faits contredisent souvent est signalée
+   (« ⚠ les faits la contredisent » dans `/lecons`) et il doit la retirer ou se justifier. Le code écrit
+   aussi un résumé de chaque journée, semaine et mois terminés (faits et chiffres, reliés à leurs
+   sources), cherchable ensuite. Mesuré sur un jeu de 16 questions : la bonne réponse est dans les 3
+   premiers résultats 16 fois sur 16, contre 11 avec l'ancienne recherche ; les reformulations (autres
+   mots, autre langue) restent hors de portée (0 sur 3) : la recherche « par le sens » n'est construite
+   que si l'usage montre qu'elle manque.
 
 ## Ce qu'on construit
 

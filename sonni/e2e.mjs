@@ -108,7 +108,7 @@ function model(body) {
       const rulesAt = system.indexOf("--- SONNI RULES");
       rulesAt > 0 && system.indexOf("--- AVAILABLE TOOLS ---") < rulesAt ? ok("rules block after the tool list (cached prefix)") : fail("rules block not last in the system prompt");
       const offered = new Set(body.tools.map((t) => t.name));
-      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap", "market_odds", "record_decision"]) {
+      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap", "market_odds", "record_decision", "search_memory"]) {
         if (!offered.has(t)) fail(`tool ${t} not offered`);
       }
       for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal",
@@ -164,6 +164,7 @@ function model(body) {
         ] }),
         use("update_dossier", { asset: "BTC", reason: "Premier dossier après la première séance.",
           content: "Thèse : le BTC tient au-dessus de 59 000 EUR dans un marché calme. Catalyseur : décision de la Fed dans 9 jours. Niveaux : 55 000 (invalidation), 70 000 (à revoir)." }),
+        use("search_memory", { query: "catalyseurs de la Fed" }),
       ]);
     }
     case 3: {
@@ -175,6 +176,8 @@ function model(body) {
       results.some((r) => /- BTC: buy recorded \(d_\w+\)/.test(r) && /- ETH: stay_out recorded \(d_\w+\)/.test(r))
         ? ok("one decision per asset recorded through the agent loop, staying out included") : fail(`decisions not recorded: ${results.at(-1)}`);
       results.some((r) => /Cycle « Fed : BTC monte le jour » recorded: \d\/1 = \d+ % vs \d+ % on all days/.test(r)) ? ok("cycle named through the agent loop, counted by code against the measured Fed day") : fail(`cycle not named or not counted: ${results.at(-1)}`);
+      results.some((r) => /^MEMORY SEARCH «catalyseurs de la Fed» \(code: full-text/.test(r) && /\[dossier BTC v1 BTC, \d{4}-\d{2}-\d{2}\] Thèse : le BTC tient/.test(r))
+        ? ok("search_memory finds the dossier just written (plural folded, provenance shown)") : fail(`search_memory missed the dossier: ${results.at(-1)}`);
       step++;
       return reply([use("sleep", { duration_seconds: 3600, reason: "next session" })]);
     }
@@ -531,9 +534,9 @@ await until(() => tgOutbox.some((m) => /Note enregistrée \(BTC\)/.test(m.text))
 tgSend("/dossier BTC");
 await until(() => tgOutbox.some((m) => /📁 Dossier BTC — version 1, écrite par Sonni/.test(m.text) && /Thèse : le BTC tient/.test(m.text)), 30000)
   ? ok("/dossier shows the dossier the model wrote") : fail("/dossier lacks the dossier");
-tgSend("/memoire catalyseur");
-await until(() => tgOutbox.some((m) => /🧠 Ce que Sonni sait sur « catalyseur »/.test(m.text) && /\[dossier BTC v1\]/.test(m.text)), 30000)
-  ? ok("/memoire finds the dossier by a word it contains") : fail("/memoire lacks the dossier");
+tgSend("/memoire Catalyseurs");
+await until(() => tgOutbox.some((m) => /🧠 Ce que Sonni sait sur « Catalyseurs »/.test(m.text) && /\[dossier BTC v1\]/.test(m.text)), 30000)
+  ? ok("/memoire finds the dossier by a word it contains, whatever its case and number") : fail("/memoire lacks the dossier");
 tgSend("/cycles");
 await until(() => tgOutbox.some((m) => /décision de taux de la Fed — 1 cas/.test(m.text) && /- BTC : la veille [+−]\d+,\d\d % en moyenne/.test(m.text) && /« Fed : BTC monte le jour »/.test(m.text)), 30000)
   ? ok("/cycles shows the reactions measured around the past Fed day and the named cycle with code's verdict") : fail("/cycles lacks the measured reactions");

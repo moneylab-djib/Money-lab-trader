@@ -34,6 +34,8 @@ import { decisionsPackLines, DECISION_HOURS } from "./decisions.js";
 import { getPredictionSnapshot } from "./snapshot.js";
 import { screenPackLines } from "./screen.js";
 import { latestOutput } from "./brain.js";
+import { analogLine, similarSituations } from "./analogs.js";
+import { describeEvidence, lessonEvidence } from "./lessonuse.js";
 import { MAX_SATELLITES, recordedCore } from "./universe.js";
 
 type DB = Database.Database;
@@ -224,6 +226,24 @@ function universeSection(db: DB, cfg: TraderConfig, limit: number): Section {
     lines: screenPackLines(db, limit),
     detail: "universe",
   };
+}
+
+/** Step 4 (2026-10-08): regimes and the most similar past days per asset, all computed by code. */
+function analogsSection(db: DB, cfg: TraderConfig): Section | null {
+  const lines = activeAssets(db, cfg).map((a) => similarSituations(db, a.symbol)).filter((x) => x !== null).map((x) => analogLine(x!));
+  if (lines.length === 0) return null;
+  return {
+    title: "Similar past situations (code: closest past days by 1-, 7- and 30-day returns, volatility and distance to the 50-day average; only days whose next week is known; a pattern to weigh, not a forecast):",
+    lines,
+  };
+}
+
+/** Step 4 (2026-10-08): how each active lesson fared when cited in lesson_ids, counted by code. */
+function lessonUseSection(db: DB): Section | null {
+  const evidence = lessonEvidence(db);
+  const lines = activeLessons(db).filter((l) => evidence.has(l.id)).map((l) => `- ${l.id}: ${describeEvidence(evidence.get(l.id))}`);
+  if (lines.length === 0) return null;
+  return { title: "Your lessons in use (code: a prediction helped when it beat code's odds, a decision when the next 7 days proved it right):", lines };
 }
 
 function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
@@ -474,6 +494,8 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     ownerNotesSection(db, now, 7),
     portfolioSection(db, cfg, now),
     decisionsSection(db, cfg, now),
+    analogsSection(db, cfg),
+    lessonUseSection(db),
     openSection(db, PACK_OPEN),
     resolvedSection(db, PACK_RESOLVED),
     watchesSection(db, now),

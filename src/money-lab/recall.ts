@@ -9,6 +9,7 @@
 import fs from "fs";
 import path from "path";
 import type Database from "better-sqlite3";
+import { searchMemory } from "../trader/memory.js";
 import { listExperiments } from "./journal.js";
 
 const ROOTS = ["research", "library", "skills", "notes", path.join(".automaton", "skills")];
@@ -112,27 +113,17 @@ export function recall(query: string, options: { home: string; db?: Database.Dat
     for (const exp of listExperiments(options.db)) {
       consider(`experiment ${exp.id}`, JSON.stringify(exp, null, 1).split("\n"));
     }
-    // Sonni: its own memory stores (identity, journal, lessons, hypotheses) are searchable too.
+    // Sonni (plan of 2026-10-08 step 4): its stores come from the full-text memory index, ranked by relevance,
+    // recency and importance; their passages go first, ahead of files (scores live on another scale).
     const hasTrader = options.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_reflections'").get();
     if (hasTrader) {
-      const rows = options.db.prepare(
-        `SELECT 'identity v' || version AS source, content AS text FROM trader_identity
-         UNION ALL SELECT 'reflection ' || id || ' (' || kind || ')', content FROM trader_reflections
-         UNION ALL SELECT 'lesson ' || id || ' [' || status || ']', text FROM trader_lessons
-         UNION ALL SELECT 'hypothesis ' || id || ' [' || status || ']', statement FROM trader_hypotheses`,
-      ).all() as { source: string; text: string }[];
-      for (const row of rows) consider(row.source, row.text.split("\n"));
-      // Step C1: dossiers, traps, the owner's notes and the theses behind orders.
-      const hasDossiers = options.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_dossiers'").get();
-      if (hasDossiers) {
-        const more = options.db.prepare(
-          `SELECT 'dossier ' || asset || ' v' || version AS source, content AS text FROM trader_dossiers
-           UNION ALL SELECT 'trap ' || name, description || ' Signs: ' || warning_signs FROM trader_traps
-           UNION ALL SELECT 'owner note ' || substr(at, 1, 10), text FROM trader_owner_notes
-           UNION ALL SELECT 'order ' || id || ' ' || side || ' ' || asset || ' (' || status || ')', thesis FROM trader_orders`,
-        ).all() as { source: string; text: string }[];
-        for (const row of more) consider(row.source, row.text.split("\n"));
-      }
+      const found = searchMemory(options.db, query, { limit: options.limit ?? 8 });
+      found.forEach((h, rank) => hits.push({
+        source: `${h.kind} ${h.ref}${h.asset ? ` ${h.asset}` : ""} ${h.at.slice(0, 10)}`,
+        line: 1,
+        score: 1_000_000 - rank,
+        text: h.text,
+      }));
     }
   }
   hits.sort((a, b) => b.score - a.score);

@@ -126,6 +126,9 @@ docs/decisions/0005. Vendor claims are labelled; figures computed by us are labe
   summaries linked to their sources; similar cases by code's market features; market-regime tags; a
   recall evaluation set. Gated: the semantic index (decision 0005). Avoided: hosted memory services,
   graph databases, LLM-written links on every write, model-written confidence scores.
+- Built (step 4, 2026-10-08): all of the adopted list; summaries are computed by code (facts, no
+  inference) rather than written by the model. Measured: the answer in the first three hits for 16/16
+  questions against 11/16 for the keyword recall it replaced; paraphrases 0/3 for both (docs/MEMORY.md).
 
 ### 5.2 A local second brain on the owner's PC
 

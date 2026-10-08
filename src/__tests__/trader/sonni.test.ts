@@ -238,7 +238,7 @@ describe("Criterion 4: predictions are append-only", () => {
   it("offers the agent no tool to change a prediction", () => {
     const names = createTraderTools().map((t) => t.name);
     expect(names).toEqual([
-      "propose_hypothesis", "sonni_memory", "record_prediction", "market_odds", "record_decision", "write_reflection", "add_lesson", "retire_lesson",
+      "propose_hypothesis", "sonni_memory", "record_prediction", "search_memory", "market_odds", "record_decision", "write_reflection", "add_lesson", "retire_lesson",
       "revise_identity", "update_dossier", "name_pattern", "set_watch", "read_page", "manage_source", "follow_asset",
       "place_order", "cancel_order", "manage_position", "note_trap",
     ]);

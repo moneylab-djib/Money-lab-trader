@@ -155,7 +155,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/journee` | le résumé du jour (ordres et raisons, valeur, prédictions, journal, dépense) ; tu le reçois aussi chaque soir à 20 h |
 | `/dossier [actif]` | son dossier sur un actif (thèse, catalyseurs, niveaux, versions) |
 | `/note <texte>` | lui laisser une note : une information fiable de ta part, lue à sa prochaine séance (pas un ordre) |
-| `/memoire <sujet>` | ce qu'il sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres) |
+| `/memoire <sujet>` | ce qu'il sait sur un sujet : recherche dans toute sa mémoire (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres et décisions, l'actualité, le second cerveau, les résumés de chaque jour, semaine et mois), sans accents ni majuscules, les plus importants et récents d'abord |
 | `/cycles` | réactions mesurées par le code autour des événements (Fed, inflation, emploi) et cycles nommés par Sonni, avec leur verdict |
 | `/carnets` | écrire ses carnets Markdown dans `/home/sonni/carnet/` (aussi chaque dimanche) ; lis-les avec `sudo -u sonni cat /home/sonni/carnet/btc.md` |
 | `/technique` | état technique du programme (budget détaillé, pauses, cycles) et les incidents des 7 derniers jours (ce que le programme a fait seul : pause, plafond, erreurs, sauvegarde) |
@@ -165,7 +165,7 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/bilan` | sa calibration et ses scores, calculés par le code |
 | `/identite [texte]` | l'identité qu'il s'est écrite, et ses versions précédentes ; avec un texte, ta version (il doit y garder « Je suis Sonni ») |
 | `/journal [n]` | ses n dernières réflexions (post-mortems, notes de séance, revue) |
-| `/lecons` / `/veto <id> [raison]` | ses leçons ; en retirer une |
+| `/lecons` / `/veto <id> [raison]` | ses leçons, avec combien de fois chacune a aidé ou nui quand il l'a appliquée ; en retirer une |
 | `/reveils` | ses réveils spontanés et les déclencheurs notés |
 | `/lecteurs` | l'état des IA lectrices gratuites (voir plus bas) |
 | `/cerveau [mode]` | le second cerveau sur ton PC (état, modèle, tâches, scores) ; modes `arret`, `assistant` (par défaut), `parallele`, `delegue` (voir `sonni/GUIDE-PC.fr.md`) |
@@ -270,6 +270,9 @@ Avec la mise à jour de l'étape 3 (second cerveau), elle ajoute aussi le bloc `
 `/etc/sonni.env` (voir `sonni/GUIDE-PC.fr.md`). La même mise à jour corrige les sauvegardes
 quotidiennes : le serveur garde maintenant vraiment les 7 dernières (avant, environ 3 jours), et les
 fichiers en trop sont nettoyés à la sauvegarde suivante.
+Avec la mise à jour de l'étape 4 (mémoire v2), rien à configurer : au premier démarrage, le code construit
+l'index de recherche de toute sa mémoire (quelques secondes) et calcule les résumés des jours, semaines et
+mois déjà terminés (le journal affiche « Résumés calculés : … »).
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.
