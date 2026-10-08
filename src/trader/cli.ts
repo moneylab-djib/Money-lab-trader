@@ -17,26 +17,39 @@ import { addOwnerNote, formatDossierFr, listDossiers, listOwnerNotes, refusalFr 
 import { exportNotebooks, notebooksDir } from "./notebooks.js";
 import { formatCyclesFr } from "./cycles.js";
 import { fmtWhen } from "./format.js";
-import { recall, type RecallHit } from "../money-lab/recall.js";
+import { recall } from "../money-lab/recall.js";
+import { searchMemory, type MemoryHit } from "./memory.js";
 import type { MoneyLabConfig } from "../money-lab/profile.js";
 import { activeConfig, formatUniverseFr, ownerVeto } from "./universe.js";
 import { formatScreenFr } from "./screen.js";
 import { askBrainFr, formatBrainFr, setBrainModeFr } from "./brain.js";
 
-const SOURCE_FR: [RegExp, string][] = [
-  [/^identity v(\d+)/, "identité v$1"], [/^reflection \S+ \((\w+)\)/, "journal ($1)"], [/^lesson \S+ \[(\w+)\]/, "leçon ($1)"],
-  [/^hypothesis \S+ \[(\w+)\]/, "intuition ($1)"], [/^dossier (\w+) v(\d+)/, "dossier $1 v$2"], [/^trap (.+)/, "piège « $1 »"],
-  [/^owner note (\S+)/, "ta note du $1"], [/^order \S+ (\w+) (\w+) \((\w+)\)/, "ordre $1 $2 ($3)"], [/^experiment /, "expérience "],
-];
-
-/** /memoire: recall's hits, labelled in French, without identifiers. */
-export function formatMemoireFr(query: string, hits: RecallHit[]): string {
-  if (hits.length === 0) return `🧠 Rien dans la mémoire de Sonni sur « ${query} » (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres).`;
-  const label = (source: string) => {
-    for (const [re, fr] of SOURCE_FR) if (re.test(source)) return source.replace(re, fr);
-    return source;
+/** /memoire (plan of 2026-10-08 step 4): hits of the full-text memory index, labelled in French, without identifiers. */
+export function formatMemoireFr(db: Database.Database, query: string, hits: MemoryHit[]): string {
+  if (hits.length === 0) return `🧠 Rien dans la mémoire de Sonni sur « ${query} » (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres et décisions, l'actualité).`;
+  const day = (at: string) => at.slice(0, 10);
+  const status = (id: string) => (db.prepare("SELECT status FROM trader_lessons WHERE id = ?").get(id) as { status: string } | undefined)?.status === "retired" ? "retirée" : "active";
+  const strip = (text: string) => text.replace(/^[^:]{1,80}:\s*/, "");
+  const line = (h: MemoryHit): [string, string] => {
+    switch (h.kind) {
+      case "lesson": return [`leçon (${status(h.ref)})`, h.text];
+      case "reflection": return [`journal (${h.text.split(":")[0]}) du ${day(h.at)}`, strip(h.text)];
+      case "dossier": return [`dossier ${h.ref}`, h.text];
+      case "hypothesis": return [`intuition du ${day(h.at)}`, h.text];
+      case "trap": return [`piège « ${h.ref} »`, strip(h.text).replace(/ Signs: /, " Signes : ")];
+      case "note": return [`ta note du ${day(h.at)}`, h.text];
+      case "order": return [`ordre ${h.text.startsWith("buy") ? "d'achat" : "de vente"} ${h.asset ?? ""} du ${day(h.at)}`, strip(h.text)];
+      case "decision": return [`décision ${h.asset ?? ""} du ${day(h.at)}`, h.text];
+      case "observation": return [`actualité du ${day(h.at)}, non vérifiée`, strip(h.text)];
+      case "brain": return [`second cerveau, ${day(h.at)}, non vérifié`, strip(h.text)];
+      case "identity": return [h.ref.replace("identity", "identité"), h.text];
+      case "summary": return ["résumé calculé par le code", h.text.replace(/ \(calculé par le code\)/, "").replace(/ Sources : .*$/, "")];
+    }
   };
-  return [`🧠 Ce que Sonni sait sur « ${query} » :`, ...hits.map((h) => `- [${label(h.source)}] ${h.text.replace(/\s+/g, " ").trim().slice(0, 300)}`)].join("\n");
+  return [`🧠 Ce que Sonni sait sur « ${query} » :`, ...hits.map((h) => {
+    const [label, text] = line(h);
+    return `- [${label.replace(/\s+/g, " ").trim()}] ${text.replace(/\s+/g, " ").trim().slice(0, 300)}`;
+  })].join("\n");
 }
 
 export const SONNI_USAGE = `Commandes Sonni :
@@ -136,7 +149,7 @@ export function runSonniCommand(
         print("Usage : /memoire <sujet> — ce que Sonni sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres).");
         return 1;
       }
-      print(formatMemoireFr(query, recall(query, { home: options.home ?? process.env.HOME ?? "/root", db, limit: 8 })));
+      print(formatMemoireFr(db, query, searchMemory(db, query, { limit: 8 })));
       return 0;
     }
     case "cycles":

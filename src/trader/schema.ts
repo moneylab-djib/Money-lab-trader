@@ -13,6 +13,7 @@
  * acceptable while no money is at stake).
  */
 
+import { ensureMemoryIndex } from "./memory.js";
 import type Database from "better-sqlite3";
 
 type DB = Database.Database;
@@ -684,7 +685,30 @@ function ensureAliveSchema(db: DB): void {
       at TEXT NOT NULL
     );
     ${appendOnly("trader_brain_predictions")}
+
+    -- Step 4 of the 2026-10-08 plan: summaries of finished days, weeks and months computed by code (src/trader/summaries.ts).
+    CREATE TABLE IF NOT EXISTS trader_summaries (
+      period TEXT NOT NULL CHECK (period IN ('day', 'week', 'month')),
+      start_day TEXT NOT NULL,
+      end_day TEXT NOT NULL,
+      content TEXT NOT NULL,
+      sources TEXT NOT NULL,
+      recorded_at TEXT NOT NULL,
+      PRIMARY KEY (period, start_day)
+    );
+    ${appendOnly("trader_summaries")}
+
+    -- Step 4 of the 2026-10-08 plan: which lessons a prediction or decision applied, scored by code later.
+    CREATE TABLE IF NOT EXISTS trader_lesson_uses (
+      lesson_id TEXT NOT NULL,
+      subject_kind TEXT NOT NULL CHECK (subject_kind IN ('prediction', 'decision')),
+      subject_id TEXT NOT NULL,
+      at TEXT NOT NULL,
+      PRIMARY KEY (lesson_id, subject_kind, subject_id)
+    );
+    ${appendOnly("trader_lesson_uses")}
   `);
+  ensureMemoryIndex(db);
 }
 
 /** True once ensureTraderSchema has run on this database. */

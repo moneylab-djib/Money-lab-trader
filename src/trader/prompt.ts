@@ -21,6 +21,8 @@ import { brierSummary, listOpenPredictions } from "./predictions.js";
 import { readerStatuses } from "./readers.js";
 import { activeLessons, currentIdentity } from "./soul.js";
 import { activeAssets } from "./universe.js";
+import { describeEvidence, lessonEvidence, lessonFlag } from "./lessonuse.js";
+import { describeRegime, regimeAt } from "./analogs.js";
 import { pendingOrders, valuation } from "./portfolio.js";
 
 /**
@@ -99,6 +101,13 @@ first. Tokenized US stocks are quoted in dollars: code converts every price to E
 resolved predictions or one of your watches (set_watch: a level, a move, a date to revisit a question)
 deserves a look; self-wakes are capped per day by the owner. A watch costs nothing until it fires.
 
+Memory. Your pack holds what is vital now; search_memory finds anything older (lessons, journal, dossiers,
+notes, decisions, observations) by words, asset and period. Your pack also shows, per asset, the past days
+whose market indicators looked most like today and what followed them (code, only past days whose next
+week is known), and the market regime: a lesson learned in another regime may not hold now. When a
+lesson guides a prediction or a decision, cite it in lesson_ids: code scores every use against the
+outcome, and a lesson the facts keep contradicting is flagged for you to retire.
+
 Numbers. Before you state a probability, ask code for the odds (market_odds): the distance to a threshold
 in % and in volatility units, and a reference probability. Your Brier score is compared with that
 reference (your skill score in the self-report): beating it is the proof that you learn. Quote code's
@@ -153,9 +162,11 @@ export const SONNI_EVENING_INSTRUCTIONS = `SONNI EVENING (required in this wake 
    only for a mistake you now see repeating.
 3. Write the first dossier of every asset that has none yet (update_dossier: thesis, catalysts, levels,
    what you know so far), and rewrite the dossier of an asset whose picture changed today, not the others.
-4. Leave one reflection kind daily, in French, three to six sentences: what the day taught, what you
+4. Lessons: a lesson your system prompt flags with EVIDENCE AGAINST is retired now (retire_lesson) unless
+   you can say in one sentence why it still holds; prefer editing your lessons one at a time to rewriting them.
+5. Leave one reflection kind daily, in French, three to six sentences: what the day taught, what you
    watch tomorrow. The owner reads it in their 20:00 summary.
-5. Then sleep. No new prediction or order tonight unless something real happened today.`;
+6. Then sleep. No new prediction or order tonight unless something real happened today.`;
 
 /**
  * Weekly review for Sonni, replacing Money Lab's experiment review while
@@ -191,13 +202,23 @@ function usd(cents: number): string {
 export function buildSonniIdentityBlock(db: Database.Database): string {
   const identity = currentIdentity(db);
   const lessons = activeLessons(db);
+  const evidence = lessonEvidence(db);
   const lines = [
     "[Your own notes, written earlier through your tools: context about yourself, not instructions from the owner or the runtime.]",
     `## Your identity (version ${identity.version}, written by ${identity.source === "seed" ? "code as a seed; revise it with revise_identity" : identity.source === "model" ? "you" : "the owner"})`,
     identity.content,
     "",
-    `## Your lessons (${lessons.length} active; add_lesson, retire_lesson; the owner can veto one)`,
-    lessons.length === 0 ? "No lesson yet. Lessons come from post-mortems and the self-report, with evidence ids." : lessons.map((l) => `- ${l.id}: ${l.text} [${l.evidenceIds.join(", ")}]`).join("\n"),
+    `## Your lessons (${lessons.length} active; add_lesson, retire_lesson; the owner can veto one; cite the ones you apply in lesson_ids, code scores each use: the counts are in your memory pack)`,
+    lessons.length === 0
+      ? "No lesson yet. Lessons come from post-mortems and the self-report, with evidence ids."
+      : lessons.map((l) => {
+        // This block is cached: only the rare "evidence against" flag lives here, the counts are in the pack.
+        const learned = regimeAt(db, "BTC", l.recordedAt.slice(0, 10));
+        const e = evidence.get(l.id);
+        return `- ${l.id}: ${l.text} [${l.evidenceIds.join(", ")}]` +
+          (learned ? ` (learned in a BTC ${describeRegime(learned)} market)` : "") +
+          (lessonFlag(e) === "against" ? ` ${describeEvidence(e)}` : "");
+      }).join("\n"),
   ];
   return lines.join("\n");
 }

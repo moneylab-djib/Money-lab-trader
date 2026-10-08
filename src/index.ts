@@ -698,6 +698,12 @@ async function run(): Promise<void> {
       const screen = await runScreen(db.raw, live());
       logger.info(`[SONNI] Crible de la semaine : ${screen.rows.length} candidat(s) mesuré(s)${screen.errors.length ? ` ; ${screen.errors.length} erreur(s) : ${screen.errors.slice(0, 3).join(" ; ")}` : ""}.`);
     });
+    // Step 4 (2026-10-08): summaries of finished days, weeks and months, computed by code (no inference).
+    const { writeSummaries } = await import("./trader/summaries.js");
+    every(60 * 60_000, "Sonni résumés", async () => {
+      const written = writeSummaries(db.raw, live());
+      if (written) logger.info(`[SONNI] Résumés calculés : ${written}.`);
+    });
     // Step 3 (2026-10-08): the second brain on the owner's PC. One job at a time; nothing is in flight after a start.
     const { brainTick, releaseAllLeases } = await import("./trader/brain.js");
     const released = releaseAllLeases(db.raw);
