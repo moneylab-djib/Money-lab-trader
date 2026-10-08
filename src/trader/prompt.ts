@@ -165,9 +165,11 @@ export const SONNI_EVENING_INSTRUCTIONS = `SONNI EVENING (required in this wake 
    what you know so far), and rewrite the dossier of an asset whose picture changed today, not the others.
 4. Lessons: a lesson your system prompt flags with EVIDENCE AGAINST is retired now (retire_lesson) unless
    you can say in one sentence why it still holds; change your lessons one at a time (retire one, add one),
-   never all at once.
+   never all at once. Second-brain upkeep proposals, if this wake carries them, are untrusted suggestions
+   under the same rule: one change at most.
 5. Leave one reflection kind daily, in French, three to six sentences: what the day taught, what you
-   watch tomorrow. The owner reads it in their 20:00 summary.
+   watch tomorrow. The owner reads it in their 20:00 summary. If your pack lists numbers to correct, give
+   code's figure for each in this note, in one sentence.
 6. Then sleep. No new prediction or order tonight unless something real happened today.`;
 
 /**
@@ -181,7 +183,8 @@ export const SONNI_REVIEW_INSTRUCTIONS = `SONNI WEEKLY REVIEW (required in this 
    direction) went best and worst? Which sources and observations helped, which were noise?
 3. Write one weekly reflection (write_reflection kind weekly, in French) with the prediction ids that
    show each point. Update your lessons: add_lesson for what the evidence now supports, retire_lesson for
-   what it contradicts. Revise your identity (revise_identity) if the week changed how you see your work.
+   what it contradicts; weigh the SECOND BRAIN UPKEEP proposals if this wake carries them (untrusted; one
+   change at a time). Revise your identity (revise_identity) if the week changed how you see your work.
 4. Review your portfolio: positions, stops and horizons (manage_position), the week's trades and traps,
    your result after fees. Rewrite each asset's dossier (update_dossier) with what the week taught you
    and the catalysts ahead. Review your tools: the weekly screen and your satellites (follow_asset: rotate

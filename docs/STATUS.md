@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-08
-- Branch / commit: main after PRs #20 to #24 (plan of 2026-10-08, steps 1 to 4 and their re-verification, merged 2026-10-08); claude/sonni-brain-fieldfixes holds the second brain's field fixes below
+- Branch / commit: main after PRs #20 to #28 (plan of 2026-10-08, steps 1 to 4, field fixes, /cerveau recompter, Likma 0.13.0); claude/sonni-brain-coherence-night holds the second brain's memory checks below
 - Likma 0.13.0 and agent posture (2026-10-08, branch claude/stoic-hawking-cpjn87), mirroring Money Lab 8e81318:
   `project upgrade` 0.10.1 -> 0.13.0 (AGENTS.md Likma block, docs/LIKMA.md); removed the unused direct dependency
   simple-git (its 2 critical advisories are fixed only in 3.32.3/4.x; nothing in the repository imports it); new
@@ -326,6 +326,31 @@
   After merging main (Likma 0.13.0, PR #27): project check 44d6324e PASS (types, sonni, money-lab, build, sonni-e2e
   589 s, deps); the 8 features made stale by the merge re-verified (report 64016353); audit 0 failures, 0 warnings.
   Not yet observed on the VPS.
+- Second brain checks of Sonni's own memory (owner's go of 2026-10-08 after "the GPU idles"; branch
+  claude/sonni-brain-coherence-night, feature brain-checks, guard G16): src/trader/brainchecks.ts. The two
+  assistant tasks the plan announced but step 3 had not built: (1) consistency check: each text Claude writes
+  with a figure and a unit is read by the PC next to code's figures at its time; the PC only points (quote,
+  fact id, value) and code judges (passage not cut inside a number, the fact's unit next to the number, an
+  anchor word near it, forecasts and targets dropped, bounds and negations, sign only for moves, every reading
+  of an ambiguous number, a mis-pairing cleared by any figure written with '%'), at most 3 flags of Claude's
+  own words with code's figure, in the pack 48 h ("Numbers to correct"), corrected in the evening note; older
+  texts re-checked 01:00 to 05:00 local, 40 a night; (2) night upkeep from 01:00 local: lesson merges,
+  conflicts and lessons resting on a hypothesis code refutes, ids checked by code, shown with code's counts
+  on the evening and weekly wakes only, never applied. No wake, no statistic, no change to a stored text;
+  nothing reaches Claude when the second brain is unconfigured or off; both kinds stay out of the 50-task
+  confirmation. Designed by a 3-design + judge workflow; an adversarial review (5 dimensions, 2 skeptics per
+  finding) confirmed 27 findings, all fixed (number bound to its unit, list dashes read as minus, cut quotes,
+  forecasts, negations, expired checks never retried, the night cap overrun by seconds and the October clock
+  change, a dedupe subquery bug, upkeep reasons faking code's counts, search exposure, the confirmation counter
+  inflated by empty answers, a 'skipped' key hiding runs, a test making network calls), each fix shown to fail
+  its test when undone. Also fixed: decisions.test failed after 19:30 Paris (real clock, evening turn took the
+  wake; failing on main too). PLAN.fr.md corrected (steps merged and in service; what the second brain really
+  does). Checks (2026-10-08 evening, this sandbox, Likma project check 737cdf12): types PASS, sonni 179/179,
+  money-lab PASS, build PASS, sonni-e2e PASS (622 s, "the second brain re-reads the figures of Sonni's texts",
+  no Claude call), deps PASS; feature brain-checks verified (f9f34850); the 18 features sharing the touched files
+  re-verified (report f1d5da8f: build, sonni, money-lab, sonni-e2e PASS); audit 0 failures, 0 warnings. Not yet
+  observed on the VPS or the PC:
+  the first night re-check should find the real 2026-10-07 « marge ~27 % ».
 - Next concrete action: owner updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
   (/cerveau toward 50 tasks, /bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee). The VPS

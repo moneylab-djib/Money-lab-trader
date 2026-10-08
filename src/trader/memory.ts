@@ -50,7 +50,8 @@ const SOURCES: Source[] = [
   { kind: "order", table: "trader_orders", sql: "SELECT rowid AS rid, id AS ref, asset, placed_at AS at, side || ' ' || asset || ': ' || thesis AS text FROM trader_orders WHERE rowid > ? AND origin = 'model' ORDER BY rowid LIMIT 500" },
   { kind: "decision", table: "trader_decisions", sql: "SELECT rowid AS rid, id AS ref, asset, made_at AS at, action || ' ' || asset || ': ' || reason AS text FROM trader_decisions WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "observation", table: "trader_observations", sql: "SELECT rowid AS rid, id AS ref, NULLIF(assets, '') AS asset, published_at AS at, kind || ': ' || summary AS text FROM trader_observations WHERE rowid > ? ORDER BY rowid LIMIT 500" },
-  { kind: "brain", table: "trader_brain_outputs", sql: "SELECT rowid AS rid, id AS ref, subject AS asset, at, kind || ': ' || content AS text FROM trader_brain_outputs WHERE rowid > ? ORDER BY rowid LIMIT 500" },
+  // Night upkeep proposals are not searchable: they reach Claude only on the evening and weekly wakes, while their ids are still active.
+  { kind: "brain", table: "trader_brain_outputs", sql: "SELECT rowid AS rid, id AS ref, CASE WHEN instr(subject, ':') > 0 THEN NULL ELSE subject END AS asset, at, kind || ': ' || content AS text FROM trader_brain_outputs WHERE rowid > ? AND kind != 'upkeep' ORDER BY rowid LIMIT 500" },
   { kind: "identity", table: "trader_identity", sql: "SELECT rowid AS rid, 'identity v' || version AS ref, NULL AS asset, recorded_at AS at, content AS text FROM trader_identity WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "summary", table: "trader_summaries", sql: "SELECT rowid AS rid, period || ' ' || start_day AS ref, NULL AS asset, start_day || 'T00:00:00.000Z' AS at, content AS text FROM trader_summaries WHERE rowid > ? ORDER BY rowid LIMIT 500" },
 ];

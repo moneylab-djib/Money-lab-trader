@@ -39,6 +39,8 @@
 | Sonni notebooks | src/trader/notebooks.ts | Markdown notebooks in ~/carnet written from the stores, every Sunday and on /carnets | A notebook's content or the export schedule changes |
 | Sonni cycles | src/trader/cycles.ts | Reactions measured by code around events (four windows) and the cycles the model names with code-computed statistics | A window, a statistic or the verdict thresholds change (keep docs/MEMORY.md in sync) |
 | Sonni evening consolidation | src/trader/consolidation.ts | When the daily evening turn is due, its wake and done markers, its status for the owner | The evening schedule, its gate or what the turn asks for changes |
+| Sonni second brain | src/trader/brain.ts | The second brain's job queue on the VPS (priorities, leases, expiry), its prompts, code's checks of its answers, /cerveau and /question | A second-brain job, its priority or validation, the confirmation counter or the owner's commands change |
+| Sonni memory checks by the second brain | src/trader/brainchecks.ts | Consistency check of the figures in Claude's texts (the PC points, code judges) and night upkeep proposals about the lessons; what Claude and the owner see of them | A fact sheet, a judging rule, the night schedule, the upkeep checks or their display changes |
 
 Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

@@ -2,9 +2,10 @@
 
 Résumé en français de la spécification (les documents techniques sont en anglais : `PROJECT.md`,
 `ARCHITECTURE.md`, `docs/MEMORY.md`). État au 8 octobre 2026 : **étapes 1 à 4 (C1, C2, C3)
-construites et vérifiées avec de fausses API**, garde-fous G1 à G10 en place ; Sonni tourne sur son VPS
-depuis le 6 octobre. Le plan du 8 octobre (ci-dessous) est en cours de construction, une étape à la
-fois. Aucun compte créé par Sonni, aucun argent réel engagé.
+construites et vérifiées avec de fausses API**, garde-fous G1 à G16 en place ; Sonni tourne sur son VPS
+depuis le 6 octobre. Les quatre étapes du plan du 8 octobre (ci-dessous) sont construites, fusionnées et
+en service depuis le 8 octobre (PR #21 à #23 ; corrections du second cerveau #25, #26 et #28) ; le second
+cerveau tourne sur ton PC depuis le 8 octobre. Aucun compte créé par Sonni, aucun argent réel engagé.
 
 ## Le plan du 8 octobre (ton accord du jour ; décision 0005)
 
@@ -13,14 +14,14 @@ rester en cash ne lui coûtait rien), il a écrit « marge ~27 % » au lieu de 2
 presque ensemble (il apprend deux fois la même chose). Quatre étapes, une PR chacune, avec observation
 sur le VPS entre deux étapes :
 
-1. **Décider vraiment** (construit, PR #20 en attente de ta fusion) : une décision par actif suivi au moins toutes les 8 heures
+1. **Décider vraiment** (fusionné avec l'étape 2, PR #21 ; en service) : une décision par actif suivi au moins toutes les 8 heures
    (acheter, renforcer, garder, alléger, vendre ou rester en dehors, avec sa raison) que le code note à
    24 h et à 7 jours, rester en dehors compris, sans achat forcé ; avant chaque pari, la « fiche » du
    code (écart au seuil en % et en volatilité, probabilité de référence) gardée avec le pari ; un achat
    de 20 % du portefeuille ou plus est réexaminé par Opus avant d'être passé (tant qu'Opus n'a pas
    déjà dépensé la moitié du plafond du jour ; sinon l'ordre passe avec une mention) ; dans `/bilan`, le tableau « Est-ce qu'il apprend ? » (justesse face à
    la référence, tendance, décisions, leçons) et ton rituel de 5 minutes par semaine.
-2. **Univers vivant** (construit, en attente de ta fusion) : ton socle passe à six actifs, BTC, ETH, l'or
+2. **Univers vivant** (fusionné, PR #21 ; en service) : ton socle passe à six actifs, BTC, ETH, l'or
    (PAXG), le dollar face à l'euro (USDC), les actions américaines (SPY, via l'action tokenisée SPYx de
    Kraken) et Nvidia (NVDA, via NVDAx) ; ces deux dernières sont cotées en dollars et le code convertit
    tout en euros avec le taux EUR/USD de Kraken. Sonni ajoute au plus 3 « places tournantes » (une paire
@@ -30,14 +31,23 @@ sur le VPS entre deux étapes :
    suit) et lui montre d'abord les plus différentes. Toi : `/actifs` (socle, places tournantes, crible)
    et `/actifs non <symbole>` pour retirer une place tournante (il ne pourra pas la reprendre pendant
    30 jours). Le socle ne se retire que par la configuration.
-3. **Second cerveau sur ton PC** (RX 9070 XT ; construit et testé, en attente de ta fusion et de ton PC ; guide pas à pas
+3. **Second cerveau sur ton PC** (RX 9070 XT ; fusionné, PR #22 ; corrections du premier vrai jour PR #25 et
+   #26, `/cerveau recompter` PR #28 ; en service sur ton PC depuis le 8 octobre ; guide pas à pas
    `sonni/GUIDE-PC.fr.md`, scripts du PC testés) : un modèle local (Qwen3.6-35B-A3B, confirmé sur 50 vraies
    tâches avant d'être figé ; gpt-oss-20b en secours) joint par le VPS via Tailscale, sans port ouvert.
    Modes commandés par toi (`/cerveau`) : arrêt, **assistant (par défaut)**, parallèle, délégué (seulement
-   sur preuves et sur ta décision). En assistant : tri de l'actualité, note de situation avant chaque
-   réveil de Claude, lecture des textes longs, avocat du diable avant un trade, contrôle de cohérence,
-   dossier d'autopsie, entretien de la mémoire la nuit, `/question` sans réveiller Claude, et une copie
-   vérifiée de la mémoire sur ton PC chaque nuit. Il ne passe jamais d'ordre et ses textes restent des
+   sur preuves et sur ta décision). En assistant (en service) : lecture des titres et des pages en premier
+   (avant Gemini et Groq), tri de l'actualité, note de situation avant les réveils de Claude, avocat du
+   diable sur chaque position ouverte une fois par jour, faits préparés pour ses autopsies, `/question`
+   sans réveiller Claude, et une copie vérifiée de la mémoire sur ton PC chaque nuit. Ajoutés ensuite
+   (PR suivante, en attente de ta fusion) : le **contrôle des chiffres** (ton PC relit chaque texte de
+   Sonni qui cite un chiffre et montre où il cite un chiffre du code ; le code compare lui-même et ne
+   garde que les grosses erreurs, comme « marge ~27 % » au lieu de 2,7 % ; Sonni les voit 48 h dans sa
+   mémoire et donne le bon chiffre dans sa note du soir ; la nuit, ton PC relit aussi les anciens textes)
+   et l'**entretien de la mémoire la nuit** (dès 1 h, ou dès que ton PC répond avant 19 h : leçons en
+   double, leçons qui se contredisent, leçons appuyées sur une intuition que le code réfute ; de simples
+   propositions que le code vérifie, rien n'est changé automatiquement ; Sonni en suit une au plus, à
+   l'autopsie du soir ou à la revue du dimanche) ; tous deux mesurés dans `/cerveau`, sans réveil payé. Il ne passe jamais d'ordre et ses textes restent des
    données non fiables. Coupé en plein travail : rien n'est perdu (file d'attente sur le VPS, tâches
    reprises, réponses incomplètes jetées, Claude n'attend jamais) et Sonni continue sans lui. Son coût
    (électricité) n'est pas compté dans les 50 € (ton choix). `/cerveau` montre le modèle que ton PC fait
@@ -47,7 +57,7 @@ sur le VPS entre deux étapes :
    si tu changes de modèle, ses scores repartent de zéro (jamais de mélange). La copie de chaque nuit
    passe par un compte en lecture seule sur le serveur, joignable seulement par Tailscale, et ton PC
    vérifie son empreinte avant de la garder (30 jours).
-4. **Mémoire v2** (construite et testée, en attente de ta fusion) : trois niveaux. Le vital toujours
+4. **Mémoire v2** (fusionnée, PR #23 ; en service) : trois niveaux. Le vital toujours
    présent (son identité, ses leçons avec le régime de marché où il les a apprises, ses règles) ; le
    « à portée » choisi par le code à chaque réveil (son dossier du moment, et maintenant, pour chaque
    actif, le régime du marché et les 5 journées passées qui ressemblent le plus à aujourd'hui avec ce qui
@@ -98,6 +108,8 @@ savoir vérifié, sans tricher avec sa mémoire du passé.
 | Toutes les heures | Lit l'actualité et note ce qui compte | IA lectrices gratuites (Gemini, Groq) ; sans clé, il lit les titres lui-même |
 | Toutes les 5 minutes | Relève les prix, mesure les réactions | aucun (code) |
 | ~3 fois par jour + mouvements forts | Prend ses décisions virtuelles | Sonnet 5.5 |
+| Après chaque texte de Sonni | Contrôle des chiffres (le code juge) | second cerveau (ton PC) + code, gratuit |
+| La nuit, dès 1 h | Entretien des leçons (propositions), relecture des anciens textes | second cerveau (ton PC), gratuit |
 | Chaque soir à 19 h 30 | Autopsie de la journée (post-mortems, pièges, dossiers, note du jour) | Sonnet 5.5 |
 | Chaque dimanche | Grande revue, mise à jour de la mémoire, **rapport hebdo sur Telegram** | Opus 5.5 |
 

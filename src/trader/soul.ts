@@ -61,7 +61,7 @@ Ce que je ne sais pas encore : si mes intuitions tiennent sur les mois à venir,
 export type SoulResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 /** The runtime's own section markers: model text must not be able to forge them in the prompt. */
-const RUNTIME_MARKERS = /SONNI RULES|Sonni Mission|MEMORY PACK|UNTRUSTED DATA|Wake-up reason|SELF-REPORT|AVAILABLE TOOLS|CONSTITUTION/i;
+export const RUNTIME_MARKERS = /SONNI RULES|Sonni Mission|MEMORY PACK|UNTRUSTED DATA|Wake-up reason|SELF-REPORT|AVAILABLE TOOLS|CONSTITUTION/i;
 
 /**
  * Plain text only: no control characters, bounded length; refuses

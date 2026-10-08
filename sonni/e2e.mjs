@@ -290,7 +290,14 @@ const server = http.createServer(async (req, res) => {
     const body = JSON.parse(raw);
     const user = String(body.messages?.[1]?.content ?? "");
     let answer;
-    if (user.includes("Score each observation")) {
+    // The checks of Sonni's own memory first: the texts they embed may contain the other jobs' phrases.
+    if (user.startsWith("Check the figures Sonni wrote")) {
+      brainCalls.push("consistency");
+      answer = { claims: [] };
+    } else if (user.startsWith("Memory upkeep")) {
+      brainCalls.push("upkeep");
+      answer = { proposals: [] };
+    } else if (user.includes("Score each observation")) {
       brainCalls.push("triage");
       answer = { items: [...user.matchAll(/- \[(o_\w+)\]/g)].map((m) => ({ id: m[1], relevance: 0.6, impact: 0.4, novelty: 0.5, note: "Flux ETF suivi de près" })) };
     } else if (user.includes("The owner asks")) {
@@ -597,6 +604,8 @@ await until(() => tgOutbox.some((m) => /🧠 Second cerveau — ta question « Q
 tgSend("/cerveau");
 await until(() => tgOutbox.some((m) => /🧠 Second cerveau — mode assistant/.test(m.text) && /En ligne depuis/.test(m.text)), 30_000)
   ? ok("/cerveau shows the second brain online in assistant mode") : fail("/cerveau lacks the online state");
+await until(() => brainCalls.includes("consistency"), 150_000)
+  ? ok("the second brain re-reads the figures of Sonni's texts for code to judge") : fail(`no consistency check; second brain calls: ${[...new Set(brainCalls)].join(", ")}`);
 anthropicCalls === paidBefore ? ok("the second brain's work made no Claude call") : fail(`Claude called ${anthropicCalls - paidBefore} time(s) during the second brain's work`);
 if (/pc-e2e/.test(out) || tgOutbox.some((m) => /pc-e2e/.test(m.text))) fail("the second brain's key leaked");
 child.kill("SIGTERM");
