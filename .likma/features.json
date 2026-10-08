@@ -822,7 +822,7 @@
         "Any wake after the consolidation time is the evening turn until done; incident times shown in the owner's time zone",
         "Leftover automaton tools are denied to Sonni and its history window is 8 to 11 turns"
       ],
-      "status": "planned",
+      "status": "verified",
       "paths": [
         "src/index.ts",
         "src/agent/loop.ts",
@@ -830,7 +830,55 @@
         "src/trader/config.ts",
         "src/__tests__/trader/budget.test.ts",
         "sonni/e2e.mjs"
-      ]
+      ],
+      "implementation": {
+        "at": "2026-10-08T07:11:30.554731+00:00",
+        "note": "resumeSleep in src/index.ts; reserveBlocks/consolidationTimeToday + loop reserve; evening turn after its time; fmtTime incidents; 21 denied tools; SONNI_WINDOW 8/4"
+      },
+      "verification": {
+        "at": "2026-10-08T07:21:27.873200+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "e949392660419030ebd7c2ce345a006e218e93634f83ca9a6afd5907509a719c",
+        "scope": [
+          "src/index.ts",
+          "src/agent/loop.ts",
+          "src/trader/consolidation.ts",
+          "src/trader/config.ts",
+          "src/__tests__/trader/budget.test.ts",
+          "sonni/e2e.mjs"
+        ],
+        "criterion_checks": {
+          "1": "sonni-e2e",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni"
+        },
+        "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
+        "report": ".likma/checks/87bb5bccfa8b4f8b888d1ec045621427.json",
+        "contract": "c2ba5f6b9d799d07fd1d300077b399edf1ca34ed4079a85dea8c7f389b7e64ae",
+        "results": [
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 564.146,
+            "output_bytes": 4235,
+            "output_sha256": "c92a47f4203ffc67525dd33dc7d724d00e9b058fcec48b7130a2fd186895f4a4"
+          },
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 19.272,
+            "output_bytes": 18270,
+            "output_sha256": "bdd940d711edd5e1fb7ceddb8e2b5212c8fbf9dd357e58b7476292235263a3ba"
+          }
+        ],
+        "integrity": {
+          "base": "fde6365727da3337b97b1d7bede9fc81195a3b1c",
+          "flags": []
+        }
+      }
     }
   ]
 }
