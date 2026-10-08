@@ -70,6 +70,18 @@
         "requires": [
           "build"
         ]
+      },
+      "deps": {
+        "argv": [
+          "pnpm",
+          "audit",
+          "--prod",
+          "--audit-level",
+          "critical"
+        ],
+        "env": [],
+        "timeout_seconds": 300,
+        "description": "Fail on critical vulnerabilities in production dependencies (needs registry access)"
       }
     }
   },
@@ -341,5 +353,6 @@
     "stop_reasons": [
       "src/__tests__/trader/guards.test.ts"
     ]
-  }
+  },
+  "agent_isolation": "Coding agents run in Claude Code cloud containers (no bubblewrap, so the Claude Code sandbox is skipped) or on the owner's Windows machine; Sonni itself runs as the separate sonni user on its own VPS (decision 0004). Deny rules protect .claude, .git/hooks, .mcp.json and .env files."
 }

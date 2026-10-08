@@ -15,11 +15,6 @@
         "/statut shows open and resolved predictions in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-06T20:59:46.977677+00:00",
-        "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
-      },
       "paths": [
         "src",
         "sonni",
@@ -30,10 +25,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -55,26 +51,34 @@
           "8": "sonni"
         },
         "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "30356d0bf5c772617ad3fd14836400d34f98e3a2c87003b8f74cd699753d2e2e",
         "results": [
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 590.404,
-            "output_bytes": 5005,
-            "output_sha256": "ceeb7fef4f027ec541b1f26dd76180505b777d837012f8fa32eed2e1b9e865c2"
+            "seconds": 589.265,
+            "output_bytes": 5006,
+            "output_sha256": "df98a8338b772fadb840d4535f8cd56381b0e0cd7721747855a83c5a3476a242"
           },
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-06T20:59:46.977677+00:00",
+        "note": "src/trader: config, schema with append-only triggers, Kraken collector, hypotheses with computed confidence, record_prediction and sonni_memory tools, resolver, French status, /idee; wired into index, loop, prompt, guard, Telegram"
       }
     },
     {
@@ -90,11 +94,6 @@
         "The memory pack and /intuitions show historical verdicts next to forward evidence, in French for the owner",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-06T23:02:47.021473+00:00",
-        "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
-      },
       "paths": [
         "src",
         "sonni",
@@ -105,10 +104,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -130,26 +130,34 @@
           "8": "sonni"
         },
         "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "c00d4893d9fceb7a9e81afd76af1c3793972e63f55572c7a6e7fd84bde64e049",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 590.404,
-            "output_bytes": 5005,
-            "output_sha256": "ceeb7fef4f027ec541b1f26dd76180505b777d837012f8fa32eed2e1b9e865c2"
+            "seconds": 589.265,
+            "output_bytes": 5006,
+            "output_sha256": "df98a8338b772fadb840d4535f8cd56381b0e0cd7721747855a83c5a3476a242"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-06T23:02:47.021473+00:00",
+        "note": "src/trader: candles, rules, historical, intake; propose_hypothesis tool; loop and index hooks; pack and status"
       }
     },
     {
@@ -163,11 +171,6 @@
         "/agenda and /statut show upcoming events in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-06T23:21:32.647703+00:00",
-        "note": "src/trader/events.ts, news.ts; event condition in rules.ts; calendar and news ticks; pack, status, /agenda; guide FRED step"
-      },
       "paths": [
         "src",
         "sonni",
@@ -178,10 +181,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -201,18 +205,26 @@
           "6": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "c0241dd01c73ff18afe45c90979622afa9bc5982e86238deb9289abdc09504b8",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-06T23:21:32.647703+00:00",
+        "note": "src/trader/events.ts, news.ts; event condition in rules.ts; calendar and news ticks; pack, status, /agenda; guide FRED step"
       }
     },
     {
@@ -227,11 +239,6 @@
         "Identity and active lessons sit in the cached part of the system prompt; the rules block with the day's counters is the last, volatile part",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-07T00:28:41.416055+00:00",
-        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
-      },
       "paths": [
         "src",
         "sonni",
@@ -242,10 +249,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -266,26 +274,34 @@
           "7": "sonni"
         },
         "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "228797aaac3d5223783bc0f72fa42f7fe7afbbc004d4bab499e0f7ea1652166f",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 590.404,
-            "output_bytes": 5005,
-            "output_sha256": "ceeb7fef4f027ec541b1f26dd76180505b777d837012f8fa32eed2e1b9e865c2"
+            "seconds": 589.265,
+            "output_bytes": 5006,
+            "output_sha256": "df98a8338b772fadb840d4535f8cd56381b0e0cd7721747855a83c5a3476a242"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T00:28:41.416055+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       }
     },
     {
@@ -299,11 +315,6 @@
         "The memory pack lists what happened since the last session and /reveils shows the wakes in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-07T00:28:41.514420+00:00",
-        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
-      },
       "paths": [
         "src",
         "sonni",
@@ -314,10 +325,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -337,26 +349,34 @@
           "6": "sonni"
         },
         "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "e20d18e52860bc6f204fbb4b41357757e952c3192fca266b639f74a57072ccca",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 590.404,
-            "output_bytes": 5005,
-            "output_sha256": "ceeb7fef4f027ec541b1f26dd76180505b777d837012f8fa32eed2e1b9e865c2"
+            "seconds": 589.265,
+            "output_bytes": 5006,
+            "output_sha256": "df98a8338b772fadb840d4535f8cd56381b0e0cd7721747855a83c5a3476a242"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T00:28:41.514420+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       }
     },
     {
@@ -370,11 +390,6 @@
         "The memory pack shows observations per asset with code-averaged sentiment; /lecteurs shows reader status in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-07T00:28:41.609771+00:00",
-        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
-      },
       "paths": [
         "src",
         "sonni",
@@ -385,10 +400,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -408,18 +424,26 @@
           "6": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "f9faf929b0cf850d436575bce8aa944974d0eb64db8a9ae0cb277a32e6a8f1ea",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T00:28:41.609771+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       }
     },
     {
@@ -432,11 +456,6 @@
         "The memory pack shows the latest source values with 24 h and 7 d references; /sources and /actifs answer in French",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
-      "implementation": {
-        "at": "2026-10-07T00:28:41.709300+00:00",
-        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
-      },
       "paths": [
         "src",
         "sonni",
@@ -447,10 +466,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "ff4950645e78f47dec06048c8ea5e850f508336a67896e1d9f882dfaade8e042",
+        "fingerprint": "f9fcaa1a4acb5e475899d093fbaa2bb6a7783ab96c000df7446485503549a204",
         "scope": [
           "src",
           "sonni",
@@ -469,18 +489,26 @@
           "5": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "755da3cea08314c09ebc7e946175cf6e3cac8f5f4cdc3dbf279d77d1177b7db9",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T00:28:41.709300+00:00",
+        "note": "src/trader soul/curiosity/readers/pages/sources/catalog/universe, tools, prompt, pack, status, cli; hooks in index, loop, system-prompt, telegram, journal, recall; tests in src/__tests__/trader; e2e extended"
       }
     },
     {
@@ -493,7 +521,6 @@
         "The model writes hypothesis statements in French; the owner's hypotheses keep their text; a reader translates the others once for display, after the usual checks (length, prompt-boundary patterns), and the model's statement is never changed",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
       "paths": [
         "src",
         "sonni",
@@ -502,14 +529,11 @@
         "tsconfig.json",
         "vitest.config.ts"
       ],
-      "implementation": {
-        "at": "2026-10-07T09:05:43.918785+00:00",
-        "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "1ea4f24bd3f38af086107dedfd600eeb8a2eeac310db65b2196abb3a45b2c290",
+        "fingerprint": "e16fbf50e8395add03a898ebb0733dfca237bdf42a52aac8a1859a264957c2b1",
         "scope": [
           "src",
           "sonni",
@@ -526,18 +550,26 @@
           "5": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "d3c89b62c235fcecefcf94e6267e123c3fc6d7fc3cef9d2c6a8f6991a21a7122",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T09:05:43.918785+00:00",
+        "note": "src/trader/format.ts, status.ts, report.ts, readers.ts (translateHypothesesTick), hypotheses.ts (statement_fr), config.ts (timeZone); telegram.ts (/statut, /technique, morning report); tests clarity.test.ts"
       }
     },
     {
@@ -550,17 +582,13 @@
         "The model sees its portfolio, trades and traps in the memory pack and writes one post-mortem per closed trade; the self-report carries the three proofs of decision 0003",
         "The owner has /portefeuille, /journee and an evening summary at 20:00 local in French without identifiers; the e2e places and fills an order"
       ],
-      "status": "verified",
       "paths": [
         "src",
         "sonni"
       ],
-      "implementation": {
-        "at": "2026-10-07T09:34:38.170632+00:00",
-        "note": "src/trader/portfolio.ts, schema, tools, pack, prompt, curiosity, soul, status, report, cli, telegram, index; tests src/__tests__/trader/portfolio.test.ts (5) and the e2e order scenario"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "bd60d86b5d312cee9f036109debf5a7feee18dd7535ae5e651e9f67e9cd5859b",
         "scope": [
@@ -575,26 +603,34 @@
           "5": "sonni-e2e"
         },
         "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "25135845d18109a61417b6ea86906d1768e8a0966453d960eddcfe3d4c198d45",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 590.404,
-            "output_bytes": 5005,
-            "output_sha256": "ceeb7fef4f027ec541b1f26dd76180505b777d837012f8fa32eed2e1b9e865c2"
+            "seconds": 589.265,
+            "output_bytes": 5006,
+            "output_sha256": "df98a8338b772fadb840d4535f8cd56381b0e0cd7721747855a83c5a3476a242"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T09:34:38.170632+00:00",
+        "note": "src/trader/portfolio.ts, schema, tools, pack, prompt, curiosity, soul, status, report, cli, telegram, index; tests src/__tests__/trader/portfolio.test.ts (5) and the e2e order scenario"
       }
     },
     {
@@ -610,17 +646,13 @@
         "Automatic actions are logged as incidents, append-only with keys scrubbed, shown by /technique and counted in the morning report (G9)",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
       "paths": [
         "src",
         "sonni"
       ],
-      "implementation": {
-        "at": "2026-10-07T10:30:00.832332+00:00",
-        "note": "src/trader/incidents.ts, config.ts (SONNI_DENIED_TOOLS, maxOrdersPerDay), portfolio.ts, loop.ts, backup.ts, index.ts, journal.ts, telegram.ts, report.ts, sources.ts, readers.ts; tests src/__tests__/trader/guards.test.ts (8); docs/GUARDS.md"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "bd60d86b5d312cee9f036109debf5a7feee18dd7535ae5e651e9f67e9cd5859b",
         "scope": [
@@ -638,26 +670,34 @@
           "8": "sonni"
         },
         "checks_hash": "eed5bb1fb243ffadd03fc4e3d8d45359e7f8e8ea17dc9d31074c4b56c83293ef",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "f5d1247de86c14cae41710ca67b4795d3701599864fe09dfd0c48ecac10f7eb5",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           },
           {
             "name": "money-lab",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 68.63,
-            "output_bytes": 40205,
-            "output_sha256": "9c9727f1c913adff4fd0ee03129aa63c3463da9ec6adb6d7ff302f1409d033e4"
+            "seconds": 62.102,
+            "output_bytes": 40474,
+            "output_sha256": "5e79a49446469e670df74e333b2a207da28c60572e0ec33a82e3e02c2e4f2624"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T10:30:00.832332+00:00",
+        "note": "src/trader/incidents.ts, config.ts (SONNI_DENIED_TOOLS, maxOrdersPerDay), portfolio.ts, loop.ts, backup.ts, index.ts, journal.ts, telegram.ts, report.ts, sources.ts, readers.ts; tests src/__tests__/trader/guards.test.ts (8); docs/GUARDS.md"
       }
     },
     {
@@ -671,17 +711,13 @@
         "Chaos e2e (G8): three API 529s, Telegram and Kraken down 40 s; the process survives, collection resumes, the owner's message is handled exactly once",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
       "paths": [
         "src",
         "sonni"
       ],
-      "implementation": {
-        "at": "2026-10-07T11:06:30.200590+00:00",
-        "note": "src/trader/dossiers.ts, notebooks.ts, schema, tools (update_dossier), pack, prompt, recall, cli, telegram, index; tests src/__tests__/trader/dossiers.test.ts (6); e2e commands and chaos scenario"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "bd60d86b5d312cee9f036109debf5a7feee18dd7535ae5e651e9f67e9cd5859b",
         "scope": [
@@ -697,26 +733,34 @@
           "6": "sonni"
         },
         "checks_hash": "bbf79e53c673c90dbc8195a164a7025146a8acef1c3123d5ed2975a6bcca2cd4",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "639637716a663c81c92345e617c1e983827b4018b5a785308ee38bfd1e7cf6e2",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 590.404,
-            "output_bytes": 5005,
-            "output_sha256": "ceeb7fef4f027ec541b1f26dd76180505b777d837012f8fa32eed2e1b9e865c2"
+            "seconds": 589.265,
+            "output_bytes": 5006,
+            "output_sha256": "df98a8338b772fadb840d4535f8cd56381b0e0cd7721747855a83c5a3476a242"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T11:06:30.200590+00:00",
+        "note": "src/trader/dossiers.ts, notebooks.ts, schema, tools (update_dossier), pack, prompt, recall, cli, telegram, index; tests src/__tests__/trader/dossiers.test.ts (6); e2e commands and chaos scenario"
       }
     },
     {
@@ -728,17 +772,13 @@
         "The memory pack shows the measured windows and named cycles for the event types due within 7 days, and every type on request; /cycles and cycles.md give them to the owner in French without identifiers",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
       "paths": [
         "src",
         "sonni"
       ],
-      "implementation": {
-        "at": "2026-10-07T11:21:34.690412+00:00",
-        "note": "src/trader/cycles.ts, schema, runtime (history tick), index (calendar), tools (name_pattern), pack, cli, telegram, notebooks, prompt; tests src/__tests__/trader/cycles.test.ts (3); e2e past Fed day and /cycles"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "bd60d86b5d312cee9f036109debf5a7feee18dd7535ae5e651e9f67e9cd5859b",
         "scope": [
@@ -752,18 +792,26 @@
           "4": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "6d40388d599271b46ef3207802494317f36ccf1baa3811f16a7d447ec18bda08",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T11:21:34.690412+00:00",
+        "note": "src/trader/cycles.ts, schema, runtime (history tick), index (calendar), tools (name_pattern), pack, cli, telegram, notebooks, prompt; tests src/__tests__/trader/cycles.test.ts (3); e2e past Fed day and /cycles"
       }
     },
     {
@@ -775,17 +823,13 @@
         "The evening summary tells whether the consolidation happened and shows the day's note",
         "Tests make no network or paid inference calls"
       ],
-      "status": "verified",
       "paths": [
         "src",
         "sonni"
       ],
-      "implementation": {
-        "at": "2026-10-07T11:36:59.270450+00:00",
-        "note": "src/trader/consolidation.ts, config (trader.consolidation), prompt (SONNI_EVENING_INSTRUCTIONS), loop, index, report; tests src/__tests__/trader/consolidation.test.ts (2); e2e evening wake and /journee"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "bd60d86b5d312cee9f036109debf5a7feee18dd7535ae5e651e9f67e9cd5859b",
         "scope": [
@@ -799,18 +843,26 @@
           "4": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "bcc8488832f240d5d31663fe55486e44dcbc3581f58735a767cea7260083217b",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-07T11:36:59.270450+00:00",
+        "note": "src/trader/consolidation.ts, config (trader.consolidation), prompt (SONNI_EVENING_INSTRUCTIONS), loop, index, report; tests src/__tests__/trader/consolidation.test.ts (2); e2e evening wake and /journee"
       }
     },
     {
@@ -938,7 +990,6 @@
         "Parallel mode scores the second brain's own probabilities against Claude's by code; each answer records the model the PC serves and the evidence (parallel score, delegation gate, confirmation at 50 tasks with under one failure in ten) counts only that model; delegation is refused until 100 are scored within 0.01 of Claude's Brier",
         "On the owner's PC a supervisor runs llama-server on 127.0.0.1 with the key file, restarts it when it stops, pauses on a flag file and reads optional model and options files; sonni/GUIDE-PC.fr.md takes the owner from Windows settings to /cerveau through Tailscale serve, with a grants policy limiting the VPS to that one port"
       ],
-      "status": "verified",
       "paths": [
         "src/trader/brain.ts",
         "src/trader/brainstate.ts",
@@ -951,12 +1002,9 @@
         "sonni/GUIDE-PC.fr.md",
         "src/__tests__/trader/pc-scripts.test.ts"
       ],
-      "implementation": {
-        "at": "2026-10-08T11:37:33.688039+00:00",
-        "note": "Queue, modes, assistant jobs, parallel scoring, served-model attribution, /cerveau, /question; PC supervisor script and sonni/GUIDE-PC.fr.md (26 steps)"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "ef1f9e55c0ba573a5214484fed54cea5cf2bd9d7e7ef77c88664d74268eb1150",
         "scope": [
@@ -979,18 +1027,26 @@
           "5": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "337dd462902e46ac352f6e648dab7fb42b1a21d51d5283415241694657842c9c",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-08T11:37:33.688039+00:00",
+        "note": "Queue, modes, assistant jobs, parallel scoring, served-model attribution, /cerveau, /question; PC supervisor script and sonni/GUIDE-PC.fr.md (26 steps)"
       }
     },
     {
@@ -1001,7 +1057,6 @@
         "Each night the VPS exports the newest copy as the sonni user only after reopening it (integrity_check, Sonni's stores present), with its SHA-256, keeping only the newest in the export folder; a damaged or incomplete copy is refused and the previous one stays",
         "The PC fetches only daily-copy names through a read-only, chrooted, key-only SFTP account usable from the tailnet range only, keeps a copy only when its SHA-256 matches, keeps 30 days and logs failures and stale copies"
       ],
-      "status": "verified",
       "paths": [
         "src/money-lab/backup.ts",
         "sonni/vps/export-backup.mjs",
@@ -1011,12 +1066,9 @@
         "src/__tests__/trader/pc-scripts.test.ts",
         "src/__tests__/trader/guards.test.ts"
       ],
-      "implementation": {
-        "at": "2026-10-08T11:37:33.864902+00:00",
-        "note": "Self-contained backups with a 7-copy rotation that holds; nightly export as sonni with SHA-256; read-only chrooted SFTP from the tailnet; PC pull checks names and SHA-256, keeps 30 days"
-      },
+      "status": "verified",
       "verification": {
-        "at": "2026-10-08T15:26:19.613720+00:00",
+        "at": "2026-10-08T15:43:56.247667+00:00",
         "fingerprint_version": 3,
         "fingerprint": "ca7cd4948385afc76fe8e512114f5d4b9671ef496a235fcd73cebc014957cd6a",
         "scope": [
@@ -1034,18 +1086,26 @@
           "3": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/f2dd6a7e9b5f4d4298551fe940483cf1.json",
+        "report": ".likma/checks/99614f5cf1184a178602c9c300ab6a4e.json",
         "contract": "61dc0349d6a8422b500a48fe41790a6a100a4cc5ee1b32bfff74b30b83a80df2",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 20.247,
-            "output_bytes": 24931,
-            "output_sha256": "31216048b903155c069a593c9a5a023d676d1fb1287f5ed66c00de5e15958c72"
+            "seconds": 13.617,
+            "output_bytes": 24493,
+            "output_sha256": "a44f5d19847dcf55e136b4a17e6897a5944d323f311fcb7a6b1cb8e86173d3fa"
           }
-        ]
+        ],
+        "integrity": {
+          "base": "4c015b0fbe6a8e33eb018dc6bf977404217aafc5",
+          "flags": []
+        }
+      },
+      "implementation": {
+        "at": "2026-10-08T11:37:33.864902+00:00",
+        "note": "Self-contained backups with a 7-copy rotation that holds; nightly export as sonni with SHA-256; read-only chrooted SFTP from the tailnet; PC pull checks names and SHA-256, keeps 30 days"
       }
     },
     {
