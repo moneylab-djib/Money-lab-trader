@@ -20,7 +20,9 @@ import { queueOwnerNotification } from "../money-lab/journal.js";
 import { containsInjectionPatterns } from "../soul/validator.js";
 import type { TraderConfig } from "./config.js";
 import { activeAssets } from "./universe.js";
-import { brainAsReader, brainHealth, brainMode, MODE_FR, setBrainHealth, setBrainMode, type BrainHealth, type BrainMode } from "./brainstate.js";
+import {
+  brainAsReader, brainHealth, brainMode, evidenceSince, MODE_FR, setBrainHealth, setBrainMode, setEvidenceSince, type BrainHealth, type BrainMode,
+} from "./brainstate.js";
 import { callReader, cleanSummary, ReaderError, recentObservations, type Observation } from "./readers.js";
 import { recordIncident } from "./incidents.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrBefore } from "./prices.js";
@@ -521,6 +523,8 @@ export interface BrainStats {
   notesNotUseful: number;
   /** The model the PC serves now; the totals and the parallel score count only its work, so a model change starts afresh. */
   model: string | null;
+  /** The confirmation counter (modelDone, modelFailed) counts jobs finished from this time on; null: from the first job. */
+  since: string | null;
   modelDone: number;
   modelFailed: number;
   parallel: { n: number; brain: number | null; claude: number | null };
@@ -530,7 +534,10 @@ export function brainStats(db: DB, now: Date = new Date()): BrainStats {
   const day = `${now.toISOString().slice(0, 10)}T00:00:00.000Z`;
   const count = (status: string) => (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = ? AND finished_at >= ?").get(status, day) as { n: number }).n;
   const model = brainHealth(db)?.model ?? null;
-  const byModel = (status: string) => (model === null ? 0 : (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = ? AND model = ?").get(status, model) as { n: number }).n);
+  const since = evidenceSince(db);
+  const byModel = (status: string) => (model === null ? 0 : (db.prepare(
+    "SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = @status AND model = @model AND (@since IS NULL OR finished_at >= @since)",
+  ).get({ status, model, since }) as { n: number }).n);
   const rows = db.prepare(
     `SELECT b.probability AS bp, p.probability AS cp, p.outcome AS o FROM trader_brain_predictions b JOIN trader_predictions p ON p.id = b.prediction_id
      WHERE p.brier IS NOT NULL AND (@model IS NULL OR b.model = @model)`,
@@ -546,6 +553,7 @@ export function brainStats(db: DB, now: Date = new Date()): BrainStats {
     notesUseful: kv("sonni.brain_note_useful"),
     notesNotUseful: kv("sonni.brain_note_not_useful"),
     model,
+    since,
     modelDone: byModel("done"),
     modelFailed: byModel("failed"),
     parallel: { n: rows.length, brain: mean((r) => (r.bp - r.o) ** 2), claude: mean((r) => (r.cp - r.o) ** 2) },
@@ -580,7 +588,8 @@ export function formatBrainFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv,
   const s = brainStats(db, now);
   lines.push(`- Tâches : ${s.queued} en attente ; aujourd'hui ${s.doneToday} faites, ${s.failedToday} échouées, ${s.expiredToday} abandonnées (devenues inutiles).`);
   if (s.model) {
-    lines.push(`- Avec le modèle ${s.model} depuis le début : tâches réussies ${s.modelDone}, échouées ${s.modelFailed} ` +
+    const from = s.since ? `depuis le ${s.since.slice(0, 16).replace("T", " ")} UTC (compteur remis à zéro)` : "depuis le début";
+    lines.push(`- Avec le modèle ${s.model} ${from} : tâches réussies ${s.modelDone}, échouées ${s.modelFailed} ` +
       `(${modelConfirmed(s) ? "modèle confirmé" : `à confirmer : ${MODEL_CONFIRM_TASKS} réussies avec moins d'un échec sur 10`}).`);
   }
   lines.push(`- Tri de l'actualité : ${s.shadowWakes7d} réveil(s) de Claude proposé(s) en 7 jours ` +
@@ -589,7 +598,8 @@ export function formatBrainFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv,
   if (s.parallel.n > 0 || mode === "parallel") {
     lines.push(`- Paris en parallèle${s.model ? ` (${s.model})` : ""} : ${s.parallel.n} noté(s) ; Brier du second cerveau ${fmtBrier(s.parallel.brain)} contre ${fmtBrier(s.parallel.claude)} pour Claude sur les mêmes (0 = parfait).`);
   }
-  lines.push("Modes : /cerveau arret | assistant | parallele | delegue. /question <texte> pour l'interroger sur la mémoire de Sonni.");
+  lines.push("Modes : /cerveau arret | assistant | parallele | delegue. /question <texte> pour l'interroger sur la mémoire de Sonni. " +
+    "/cerveau recompter remet le compteur de confirmation à zéro.");
   return lines.join("\n");
 }
 
@@ -603,12 +613,31 @@ export function modelConfirmed(s: BrainStats): boolean {
 /** Parallel predictions scored before delegation can even be discussed. */
 export const DELEGATION_MIN_SCORED = 100;
 
-/** /cerveau <mode>: French answer; delegation needs evidence first. */
-export function setBrainModeFr(db: DB, raw: string): string {
+/**
+ * /cerveau recompter: the confirmation counter starts again from now (owner's decision of 2026-10-08: the first
+ * day's failures came from a triage budget bug, not from the model). Nothing is deleted: earlier jobs stay in
+ * trader_brain_jobs, /cerveau shows the date the count starts from, and each restart is an incident (/technique),
+ * so bad results can never be dropped quietly. The parallel score is not touched.
+ */
+export function resetBrainEvidenceFr(db: DB, now: Date = new Date()): string {
+  const before = brainStats(db, now);
+  const at = now.toISOString();
+  setEvidenceSince(db, at);
+  const model = before.model ?? "modèle inconnu";
+  recordIncident(db, "brain_recount",
+    `compteur de confirmation remis à zéro par toi ; avant : ${before.modelDone} réussie(s), ${before.modelFailed} échouée(s) (${model}), gardées dans l'historique`, now);
+  return `Compteur du second cerveau remis à zéro : il compte les tâches finies depuis le ${at.slice(0, 16).replace("T", " ")} UTC. ` +
+    `Avant : ${before.modelDone} réussie(s), ${before.modelFailed} échouée(s) avec ${model} ; elles restent dans l'historique ` +
+    "et la remise à zéro est notée dans les incidents (/technique).";
+}
+
+/** /cerveau <mode>: French answer; delegation needs evidence first. /cerveau recompter restarts the confirmation counter. */
+export function setBrainModeFr(db: DB, raw: string, now: Date = new Date()): string {
   const wanted = raw.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  if (wanted === "recompter") return resetBrainEvidenceFr(db, now);
   const map: Record<string, BrainMode> = { arret: "off", assistant: "assistant", parallele: "parallel", delegue: "delegated" };
   const mode = map[wanted];
-  if (!mode) return "Mode inconnu. Modes : arret, assistant, parallele, delegue.";
+  if (!mode) return "Mode inconnu. Modes : arret, assistant, parallele, delegue (ou recompter pour remettre le compteur à zéro).";
   if (mode === "delegated") {
     const s = brainStats(db);
     if (s.parallel.n < DELEGATION_MIN_SCORED || s.parallel.brain === null || s.parallel.claude === null || s.parallel.brain > s.parallel.claude + 0.01) {

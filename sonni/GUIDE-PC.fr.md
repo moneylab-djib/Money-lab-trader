@@ -432,6 +432,9 @@ de sa configuration (`triageWakes`).
 puis **« modèle confirmé »** quand il a réussi 50 vraies tâches avec moins d'un échec sur 10 (calculé
 par le code). Compte quelques jours en mode assistant. Seules les mauvaises réponses du modèle comptent
 comme échecs : un PC éteint, redémarré ou injoignable, ou une clé refusée, ne pèse pas contre lui.
+`/cerveau recompter` fait repartir ce compteur de zéro (par exemple après une correction du code) : les
+tâches d'avant restent dans l'historique, `/cerveau` affiche la date de départ et `/technique` note la
+remise à zéro dans les incidents.
 
 S'il échoue trop souvent, s'il est trop lent, ou si Claude juge ses notes rarement utiles, essaie le
 modèle de secours : avec le Bloc-notes, écris la ligne

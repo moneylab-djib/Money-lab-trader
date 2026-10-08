@@ -305,6 +305,12 @@
   reverify`, report f2dd6a7e, this sandbox): build PASS, sonni PASS, money-lab PASS, sonni-e2e PASS (590 s); the 15
   features made stale by the shared brain and reader sources re-verified: every feature verified.
   Not yet observed on the VPS or the PC.
+- Confirmation counter restart (owner's decision 2026-10-08 after the diagnosis; branch claude/sonni-brain-recount,
+  feature brain-recount): the first day ended with 9 done and 9 failed, all 9 failures between 14:34 and 15:38 UTC
+  under the old code (8 triage answers cut by the 1500-token budget, 1 timeout during the PC's reboot), none after
+  the update at 15:46 UTC. `/cerveau recompter` makes the confirmation counter count jobs finished from that moment
+  (KV sonni.brain_evidence_since); /cerveau shows the start date, each restart is a `brain_recount` incident, no
+  row is deleted, the parallel score is untouched.
 - Next concrete action: owner updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
   (/cerveau toward 50 tasks, /bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee). The VPS

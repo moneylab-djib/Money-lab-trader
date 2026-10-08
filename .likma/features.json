@@ -1187,6 +1187,27 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "brain-recount",
+      "title": "Owner restarts the second brain's confirmation counter (/cerveau recompter)",
+      "criteria": [
+        "/cerveau recompter makes the confirmation counter count only jobs finished from that moment; /cerveau shows the start date, the answer names the done and failed jobs set aside",
+        "Each restart is a brain_recount incident, no job row is deleted, the parallel score is untouched, and an unknown /cerveau word names recompter"
+      ],
+      "status": "built",
+      "paths": [
+        "src/trader/brain.ts",
+        "src/trader/brainstate.ts",
+        "src/trader/incidents.ts",
+        "src/money-lab/telegram.ts",
+        "src/__tests__/trader/brain.test.ts"
+      ],
+      "track": "quick",
+      "implementation": {
+        "at": "2026-10-08T15:54:52.689294+00:00",
+        "note": "KV sonni.brain_evidence_since filters modelDone and modelFailed; resetBrainEvidenceFr records a brain_recount incident; /cerveau shows the start; help, guide, MEMORY, PLAN.fr and STATUS updated"
+      }
     }
   ]
 }
