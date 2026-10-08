@@ -30,7 +30,7 @@ sur le VPS entre deux étapes :
    suit) et lui montre d'abord les plus différentes. Toi : `/actifs` (socle, places tournantes, crible)
    et `/actifs non <symbole>` pour retirer une place tournante (il ne pourra pas la reprendre pendant
    30 jours). Le socle ne se retire que par la configuration.
-3. **Second cerveau sur ton PC** (RX 9070 XT) : un modèle local (Qwen3.6-35B-A3B, confirmé sur 50 vraies
+3. **Second cerveau sur ton PC** (RX 9070 XT ; construit, en attente de ta fusion et de ton PC) : un modèle local (Qwen3.6-35B-A3B, confirmé sur 50 vraies
    tâches avant d'être figé ; gpt-oss-20b en secours) joint par le VPS via Tailscale, sans port ouvert.
    Modes commandés par toi (`/cerveau`) : arrêt, **assistant (par défaut)**, parallèle, délégué (seulement
    sur preuves et sur ta décision). En assistant : tri de l'actualité, note de situation avant chaque
