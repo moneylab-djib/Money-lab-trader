@@ -13,6 +13,7 @@ import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import type { TraderConfig } from "./config.js";
 import { getHypothesis, refreshHypothesis } from "./hypotheses.js";
+import { marketOdds, recordPredictionSnapshot, type Odds } from "./snapshot.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter } from "./prices.js";
 
 type DB = Database.Database;
@@ -79,7 +80,7 @@ function rowToPrediction(row: any): Prediction {
   };
 }
 
-export type RecordResult = { ok: true; prediction: Prediction } | { ok: false; error: string };
+export type RecordResult = { ok: true; prediction: Prediction; odds: Odds | null } | { ok: false; error: string };
 
 /**
  * Validate and record a prediction. Refused when a field is missing or
@@ -133,7 +134,10 @@ export function recordPrediction(db: DB, cfg: TraderConfig, input: PredictionInp
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(id, madeAt, asset, input.direction, threshold, latest.price, latest.ts, horizonUntil, probability,
     hypothesis.id, statement, rationale);
-  return { ok: true, prediction: getPrediction(db, id)! };
+  // Code's odds at the moment of the prediction, kept with it for post-mortems and the skill score.
+  const odds = marketOdds(db, asset, input.direction as Direction, threshold, horizonHours);
+  if (odds) recordPredictionSnapshot(db, id, odds, now);
+  return { ok: true, prediction: getPrediction(db, id)!, odds };
 }
 
 export function getPrediction(db: DB, id: string): Prediction | undefined {

@@ -19,7 +19,8 @@ import { formatCyclesFr } from "./cycles.js";
 import { fmtWhen } from "./format.js";
 import { recall, type RecallHit } from "../money-lab/recall.js";
 import type { MoneyLabConfig } from "../money-lab/profile.js";
-import { activeConfig, formatUniverseFr } from "./universe.js";
+import { activeConfig, formatUniverseFr, ownerVeto } from "./universe.js";
+import { formatScreenFr } from "./screen.js";
 
 const SOURCE_FR: [RegExp, string][] = [
   [/^identity v(\d+)/, "identité v$1"], [/^reflection \S+ \((\w+)\)/, "journal ($1)"], [/^lesson \S+ \[(\w+)\]/, "leçon ($1)"],
@@ -59,7 +60,7 @@ export const SONNI_USAGE = `Commandes Sonni :
   lecteurs               état des IA lectrices gratuites
   sources                sources de données et dernières valeurs
   source ok|non <id> [note]  accepter ou refuser une source proposée par Sonni
-  actifs                 actifs suivis et changements décidés par Sonni`;
+  actifs [non <symbole>]  socle, places tournantes, crible de la semaine ; non : veto sur une place tournante`;
 
 /** The owner reads French; the validation messages are written for the model, in English. */
 function identityRefusalFr(error: string): string {
@@ -225,7 +226,11 @@ export function runSonniCommand(
       return r.ok ? 0 : 1;
     }
     case "actifs":
-      print(formatUniverseFr(db, cfg));
+      if (rest[0] === "non") {
+        print(ownerVeto(db, cfg, rest[1]));
+        return 0;
+      }
+      print(`${formatUniverseFr(db, cfg)}\n\n${formatScreenFr(db)}`);
       return 0;
     default:
       print(SONNI_USAGE);

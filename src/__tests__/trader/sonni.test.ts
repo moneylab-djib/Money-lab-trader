@@ -54,6 +54,8 @@ import {
 const EXAMPLE = JSON.parse(
   fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"),
 );
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 const TRADER: TraderConfig = parseTraderConfig(EXAMPLE.trader)!;
 const T0 = new Date("2026-10-07T08:00:00Z");
 const minutes = (n: number) => new Date(T0.getTime() + n * 60_000);
@@ -236,7 +238,7 @@ describe("Criterion 4: predictions are append-only", () => {
   it("offers the agent no tool to change a prediction", () => {
     const names = createTraderTools().map((t) => t.name);
     expect(names).toEqual([
-      "propose_hypothesis", "sonni_memory", "record_prediction", "write_reflection", "add_lesson", "retire_lesson",
+      "propose_hypothesis", "sonni_memory", "record_prediction", "market_odds", "record_decision", "write_reflection", "add_lesson", "retire_lesson",
       "revise_identity", "update_dossier", "name_pattern", "set_watch", "read_page", "manage_source", "follow_asset",
       "place_order", "cancel_order", "manage_position", "note_trap",
     ]);

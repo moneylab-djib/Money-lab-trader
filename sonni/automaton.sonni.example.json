@@ -52,6 +52,22 @@
       {
         "symbol": "ETH",
         "krakenPair": "ETHEUR"
+      },
+      {
+        "symbol": "PAXG",
+        "krakenPair": "PAXGEUR"
+      },
+      {
+        "symbol": "USDC",
+        "krakenPair": "USDCEUR"
+      },
+      {
+        "symbol": "SPY",
+        "krakenPair": "SPYxUSD"
+      },
+      {
+        "symbol": "NVDA",
+        "krakenPair": "NVDAxUSD"
       }
     ],
     "collectMinutes": 5,
@@ -88,7 +104,8 @@
       "slippageBps": 5,
       "minOrderEur": 10,
       "eurUsd": 1.16,
-      "maxOrdersPerDay": 10
+      "maxOrdersPerDay": 10,
+      "bigOrderPct": 20
     },
     "consolidation": {
       "hour": 19,

@@ -24,6 +24,8 @@ import { digestTick } from "../../trader/runtime.js";
 import { runSonniCommand } from "../../trader/cli.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 /** The example without its readers: the defaults a config without the key gets. */
 const BASE: TraderConfig = parseTraderConfig({ ...EXAMPLE.trader, readers: undefined })!;
 const READERS = [
@@ -140,8 +142,15 @@ describe("Calling a reader", () => {
     // A missing key means the reader is skipped silently.
     expect(availableReaders(db.raw, CFG, { GROQ_TEST_KEY: "x" }, hours(30)).map((r) => r.id)).toEqual(["groq"]);
     expect(() => db.raw.prepare("DELETE FROM trader_reader_calls").run()).toThrow(/append-only/);
+    // The command reads the clock: pin it an hour after the failure (the rest lasts longer), whatever the real date.
     const out: string[] = [];
-    runSonniCommand(["lecteurs"], db.raw, CFG, (t) => out.push(t), { env: ENV });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(hours(1));
+    try {
+      runSonniCommand(["lecteurs"], db.raw, CFG, (t) => out.push(t), { env: ENV });
+    } finally {
+      vi.useRealTimers();
+    }
     expect(out.join("\n")).toContain("gemini (gemini-test) : au repos");
     expect(out.join("\n")).toContain("groq (llama-test)");
     expect(formatReadersFr(db.raw, BASE, ENV)).toContain("Aucune IA lectrice configurée");

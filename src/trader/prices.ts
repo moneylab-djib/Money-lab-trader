@@ -8,12 +8,12 @@
 
 import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
+import { fetchKrakenLast, FX_PAIR, quoteOf, storeFx, usdToEur } from "./markets.js";
 
 type DB = Database.Database;
 type FetchFn = typeof fetch;
 
 export const KRAKEN_TICKER_URL = "https://api.kraken.com/0/public/Ticker";
-const FETCH_TIMEOUT_MS = 15_000;
 
 export interface PricePoint {
   asset: string;
@@ -29,25 +29,6 @@ export function isoSeconds(date: Date): string {
   return date.toISOString().slice(0, 19) + "Z";
 }
 
-async function fetchKrakenPrice(pair: string, fetchFn: FetchFn): Promise<number> {
-  const resp = await fetchFn(`${KRAKEN_TICKER_URL}?pair=${encodeURIComponent(pair)}`, {
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!resp.ok) throw new Error(`Kraken ${pair}: HTTP ${resp.status}`);
-  const data = (await resp.json()) as { error?: string[]; result?: Record<string, { c?: unknown[] }> };
-  if (data.error && data.error.length > 0) throw new Error(`Kraken ${pair}: ${data.error.join(", ")}`);
-  // Kraken answers with its own key for the pair (XBTEUR -> XXBTZEUR); one pair per request.
-  const entries = Object.values(data.result ?? {});
-  if (entries.length !== 1) throw new Error(`Kraken ${pair}: unexpected result`);
-  const price = Number(entries[0]?.c?.[0]);
-  if (!Number.isFinite(price) || price <= 0) throw new Error(`Kraken ${pair}: invalid price`);
-  return price;
-}
-
-/**
- * Collect one price per asset. A failing asset does not stop the others;
- * its error is returned so the runtime can log it.
- */
 export async function collectPrices(
   db: DB,
   cfg: TraderConfig,
@@ -60,9 +41,22 @@ export async function collectPrices(
   );
   let stored = 0;
   const errors: string[] = [];
+  // USD-quoted pairs (tokenized stocks) are converted with Kraken's EUR/USD rate of the same collection.
+  let eurUsd: number | null = null;
+  if (cfg.assets.some((a) => quoteOf(a.krakenPair) === "USD")) {
+    try {
+      eurUsd = await fetchKrakenLast(FX_PAIR, fetchFn);
+      storeFx(db, ts, eurUsd);
+    } catch (err: any) {
+      errors.push(`EUR/USD: ${String(err?.message ?? err)}`);
+    }
+  }
   for (const asset of cfg.assets) {
     try {
-      const price = await fetchKrakenPrice(asset.krakenPair, fetchFn);
+      const usd = quoteOf(asset.krakenPair) === "USD";
+      if (usd && eurUsd === null) throw new Error(`Kraken ${asset.krakenPair}: no EUR/USD rate, price not stored`);
+      const last = await fetchKrakenLast(asset.krakenPair, fetchFn);
+      const price = usd ? usdToEur(last, eurUsd!) : last;
       stored += insert.run(asset.symbol, ts, price).changes;
     } catch (err: any) {
       errors.push(String(err?.message ?? err));

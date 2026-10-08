@@ -20,6 +20,9 @@ import type { AutomatonTool } from "../types.js";
 import { withSecrets } from "../money-lab/selfhosted.js";
 import { buildMemoryPack, buildMemorySection, PACK_SECTIONS, type PackSection } from "./pack.js";
 import { recordPrediction, MAX_HORIZON_HOURS, MIN_HORIZON_HOURS } from "./predictions.js";
+import { describeOdds, marketOdds } from "./snapshot.js";
+import { DECISION_ACTIONS, DECISION_HOURS, DECISION_REASON_MAX, MAX_DECISIONS_PER_CALL, recordDecision } from "./decisions.js";
+import { clearBigOrder, holdBigOrder, isBigOrder, isStrongTurn, strongBudgetLeft } from "./strong.js";
 import { addHypothesis, hypothesisCounts } from "./hypotheses.js";
 import { describeTest, runHistoricalTest } from "./historical.js";
 import { intakeOpen, MAX_MODEL_HYPOTHESES_PER_DAY, MAX_PRIOR_HYPOTHESES } from "./intake.js";
@@ -32,7 +35,7 @@ import {
 import { cancelWatch, describeWatch, MAX_OPEN_WATCHES, MAX_WATCH_DAYS, openWatches, setWatch, WATCH_KINDS } from "./curiosity.js";
 import { readPage } from "./pages.js";
 import { describeSources, MAX_METRICS_PER_SOURCE, MIN_SOURCE_MINUTES, proposeSource, setSourceEnabled } from "./sources.js";
-import { activeConfig, followAsset, MAX_FOLLOWED_ASSETS, unfollowAsset } from "./universe.js";
+import { activeConfig, followAsset, MAX_SATELLITES, MIN_VOLUME_EUR, REFOLLOW_COOLDOWN_DAYS, SATELLITE_MIN_DAYS, unfollowAsset } from "./universe.js";
 import {
   addTrap, cancelOrder, listTraps, MAX_HORIZON_HOURS as ORDER_MAX_HORIZON_HOURS, ORDER_KINDS, ORDER_SIDES, placeOrder,
   recordTrapHit, THESIS_MAX, updatePosition, valuation,
@@ -43,8 +46,24 @@ const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 /** Sonni tools that write to its memory or fetch the world: work, never idle turns (src/agent/loop.ts). */
 export const SONNI_WORK_TOOLS: ReadonlySet<string> = new Set([
   "propose_hypothesis", "record_prediction", "write_reflection", "add_lesson", "retire_lesson", "revise_identity",
-  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier", "name_pattern",
+  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier", "name_pattern", "record_decision",
 ]);
+
+class DryRunRollback extends Error {}
+
+/** Runs fn in a transaction that is always rolled back, and returns its result: a validation without effects. */
+function dryRun<T>(db: import("better-sqlite3").Database, fn: () => T): T {
+  let out: T | undefined;
+  try {
+    db.transaction(() => {
+      out = fn();
+      throw new DryRunRollback();
+    })();
+  } catch (err) {
+    if (!(err instanceof DryRunRollback)) throw err;
+  }
+  return out as T;
+}
 
 function str(v: unknown): string {
   return v === undefined || v === null ? "" : String(v);
@@ -137,6 +156,7 @@ export function createTraderTools(): AutomatonTool[] {
         "the asset's price will be above or below a threshold (EUR) at the horizon, with your probability (0 to 1) " +
         "that the event happens. Predictions can never be edited or deleted. At the horizon, code reads the price, " +
         "scores you (Brier) and adds support (event happened) or contradiction (it did not) to the hypothesis. " +
+        "Check market_odds first: code keeps its odds with the prediction and scores you against them. " +
         "Refused when the latest price is stale.",
       category: "memory",
       riskLevel: "safe",
@@ -172,7 +192,88 @@ export function createTraderTools(): AutomatonTool[] {
         if (!result.ok) return `Prediction refused: ${result.error}`;
         const p = result.prediction;
         return `Prediction ${p.id} recorded: ${p.asset} ${p.direction} ${p.threshold} EUR at ${p.horizonUntil}, ` +
-          `p=${p.probability} (reference price ${p.referencePrice} EUR at ${p.referenceTs}).`;
+          `p=${p.probability} (reference price ${p.referencePrice} EUR at ${p.referenceTs}).` +
+          (result.odds ? ` Code's odds, kept with it: ${describeOdds(result.odds)}` : " Code's odds: not enough daily history yet.");
+      },
+    },
+    {
+      name: "market_odds",
+      description:
+        "Read-only, free of side effects: code's odds for a price threshold before you state a probability. For each " +
+        "threshold: the distance from the latest price in % and in units of the asset's recent volatility over the " +
+        "horizon, a reference probability (driftless random walk at the volatility of the last 30 days) and the share " +
+        "of past windows of that length that moved that far. Your Brier score is compared with this reference.",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: {
+        type: "object",
+        properties: {
+          asset: { type: "string", description: "Followed asset symbol, e.g. BTC" },
+          direction: { type: "string", enum: ["above", "below"] },
+          thresholds: { type: "array", items: { type: "number" }, description: "1 to 5 price thresholds in EUR" },
+          horizon_hours: { type: "number", description: `Hours ahead (${MIN_HORIZON_HOURS} to ${MAX_HORIZON_HOURS})` },
+        },
+        required: ["asset", "direction", "thresholds", "horizon_hours"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const cfg = activeConfig(ctx.db.raw, ctx.config.trader);
+        const asset = str(args.asset).toUpperCase().trim();
+        if (!cfg.assets.some((a) => a.symbol === asset)) return `Unknown asset ${asset}: you follow ${cfg.assets.map((a) => a.symbol).join(", ")}.`;
+        const direction = args.direction === "below" ? "below" : args.direction === "above" ? "above" : null;
+        if (!direction) return 'direction must be "above" or "below".';
+        const horizon = Number(args.horizon_hours);
+        if (!Number.isFinite(horizon) || horizon < MIN_HORIZON_HOURS || horizon > MAX_HORIZON_HOURS) return `horizon_hours must be between ${MIN_HORIZON_HOURS} and ${MAX_HORIZON_HOURS}.`;
+        const thresholds = (Array.isArray(args.thresholds) ? args.thresholds : [args.thresholds]).map(Number).filter((t) => Number.isFinite(t) && t > 0).slice(0, 5);
+        if (thresholds.length === 0) return "thresholds: give 1 to 5 positive prices in EUR.";
+        const lines = thresholds.map((t) => {
+          const o = marketOdds(ctx.db.raw, asset, direction, t, horizon);
+          return o ? `- ${describeOdds(o)}` : `- ${asset} ${direction} ${t}: no price or fewer than 20 days of history yet.`;
+        });
+        return `Code's odds (data, not advice):\n${lines.join("\n")}`;
+      },
+    },
+    {
+      name: "record_decision",
+      description:
+        "State your decision on each followed asset: buy, add, hold, reduce, sell or stay_out, with the reason in French " +
+        `(at most ${DECISION_REASON_MAX} characters). One decision per asset is due when none was recorded in the last ` +
+        `${DECISION_HOURS} hours. Staying out is a decision like the others: code stores the price, your position and the ` +
+        "portfolio with it (append-only) and scores it at 24 hours and 7 days from stored prices (right side of the move or " +
+        "not). A decision does not place an order: use place_order for buy, add, reduce or sell, then give its order_id here.",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: {
+        type: "object",
+        properties: {
+          decisions: {
+            type: "array",
+            description: "One entry per asset",
+            items: {
+              type: "object",
+              properties: {
+                asset: { type: "string" },
+                action: { type: "string", enum: [...DECISION_ACTIONS] },
+                reason: { type: "string", description: "Why, in French" },
+                order_id: { type: "string", description: "The order that carries it out, if any" },
+              },
+              required: ["asset", "action", "reason"],
+            },
+          },
+        },
+        required: ["decisions"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const db = ctx.db.raw;
+        const cfg = activeConfig(db, ctx.config.trader);
+        const list = Array.isArray(args.decisions) ? args.decisions.slice(0, MAX_DECISIONS_PER_CALL) : [];
+        if (list.length === 0) return "decisions: give one entry per asset.";
+        const out = list.map((d: any) => {
+          const r = recordDecision(db, cfg, { asset: d?.asset, action: d?.action, reason: d?.reason, orderId: d?.order_id });
+          return r.ok ? `- ${r.value.asset}: ${r.value.action} recorded (${r.value.id}) at ${r.value.price} EUR.` : `- ${String(d?.asset ?? "?")}: refused: ${r.error}`;
+        });
+        return `Decisions:\n${out.join("\n")}`;
       },
     },
     {
@@ -442,10 +543,14 @@ export function createTraderTools(): AutomatonTool[] {
     {
       name: "follow_asset",
       description:
-        "Choose your assets. follow: add a Kraken EUR pair (symbol like SOL, kraken_pair like SOLEUR) with the reason " +
-        "(why it is worth your attention; realism: an asset the owner could buy on a MiCA-licensed exchange). " +
-        "unfollow: stop following one (no open prediction on it). At most " + MAX_FOLLOWED_ASSETS + " assets. Prices " +
-        "and daily history of a new asset arrive with the next collections. Every change is logged for the owner.",
+        "Rotate your satellite assets. The owner's core assets stay; besides them you hold at most " + MAX_SATELLITES +
+        " satellites. follow: a Kraken EUR pair (symbol like SOL, kraken_pair like SOLEUR) or a tokenized US stock " +
+        "(symbol like AAPL, kraken_pair like AAPLxUSD: quoted in USD, code converts every price to EUR), with the reason " +
+        "(what it teaches you that your assets do not; the weekly screen in your pack measures how different each candidate " +
+        "is). Code refuses a pair traded under " + MIN_VOLUME_EUR.toLocaleString("en-US") + " EUR a day on Kraken, and one you " +
+        "dropped less than " + REFOLLOW_COOLDOWN_DAYS + " days ago. unfollow: a satellite kept at least " + SATELLITE_MIN_DAYS +
+        " days, with no open prediction on it. Prices and daily history of a new asset arrive with the next collections. " +
+        "Every change is logged for the owner, who can veto a satellite.",
       category: "memory",
       riskLevel: "caution",
       parameters: {
@@ -453,7 +558,7 @@ export function createTraderTools(): AutomatonTool[] {
         properties: {
           action: { type: "string", enum: ["follow", "unfollow"] },
           symbol: { type: "string" },
-          kraken_pair: { type: "string", description: "For follow, e.g. SOLEUR" },
+          kraken_pair: { type: "string", description: "For follow, e.g. SOLEUR or NVDAxUSD" },
           reason: { type: "string" },
         },
         required: ["action", "symbol", "reason"],
@@ -504,16 +609,37 @@ export function createTraderTools(): AutomatonTool[] {
       execute: async (args, ctx) => {
         if (!ctx.config.trader) return NOT_CONFIGURED;
         const db = ctx.db.raw;
-        const r = placeOrder(db, activeConfig(db, ctx.config.trader), {
+        const cfg = activeConfig(db, ctx.config.trader);
+        const input = {
           asset: args.asset, side: args.side, kind: args.kind, amountEur: args.amount_eur, quantity: args.quantity, limitPrice: args.limit_price,
           thesis: args.thesis, probability: args.probability, invalidation: args.invalidation, horizonHours: args.horizon_hours, hypothesisIds: args.hypothesis_ids,
-        });
+        };
+        // A big buy waits for the stronger model unless this turn runs on it or its daily share is used.
+        // Only an order code would accept is held: the rules are checked first in a rolled-back transaction.
+        let strongNote = "";
+        if (args.side === "buy" && Number.isFinite(Number(args.amount_eur))) {
+          const amount = Number(args.amount_eur);
+          const equity = valuation(db).equityEur;
+          if (isBigOrder(cfg.portfolio.bigOrderPct, equity, amount) && !isStrongTurn(db)) {
+            if (strongBudgetLeft(db, ctx.config.moneyLab?.inference.dailyCents ?? null)) {
+              const check = dryRun(db, () => placeOrder(db, cfg, input));
+              if (!check.ok) return `Refused: ${check.error}`;
+              const share = (amount / equity) * 100;
+              holdBigOrder(db, String(args.asset ?? "").toUpperCase(), amount, share);
+              return `Held, NOT placed: a buy of ${amount} EUR is ${share.toFixed(1)} % of the portfolio, a big decision ` +
+                `(${cfg.portfolio.bigOrderPct} % or more). Your stronger model re-examines it on your next turn; do not sleep before it.`;
+            }
+            strongNote = " (big order placed without the stronger model: its daily share of the budget is used)";
+          }
+        }
+        const r = placeOrder(db, cfg, input);
         if (!r.ok) return `Refused: ${r.error}`;
         const o = r.value;
+        if (o.side === "buy" && isStrongTurn(db)) clearBigOrder(db);
         const what = o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${o.quantity} ${o.asset}`;
         return `Order ${o.id} pending: ${o.kind} ${o.side} ${what}${o.limitPrice ? ` at ${o.limitPrice} EUR` : ""}` +
           `${o.invalidation ? `, stop at ${o.invalidation} EUR` : ""}, horizon ${o.horizonUntil}. Code fills it at the next stored price; ` +
-          "you will see the fill in your next memory pack.";
+          "you will see the fill in your next memory pack." + strongNote;
       },
     },
     {

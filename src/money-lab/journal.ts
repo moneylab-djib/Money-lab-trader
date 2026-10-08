@@ -562,7 +562,10 @@ export function journalFingerprint(db: DB): string {
                 (SELECT COUNT(*) FROM trader_traps) || '/' || (SELECT COUNT(*) FROM trader_trap_hits) AS p`,
       ).get() as any).p
     : "";
-  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}|${portfolio}`;
+  // Step 1 (2026-10-08): a stated decision per asset, staying out included, is the model's work.
+  const hasDecisions = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_decisions'").get();
+  const decisions = hasDecisions ? (db.prepare("SELECT COUNT(*) AS n FROM trader_decisions").get() as any).n : 0;
+  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}|${portfolio}|${decisions}`;
 }
 
 /** Closed help requests, most recently resolved first. */

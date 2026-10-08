@@ -72,7 +72,9 @@ import { seedAnthropicModels, survivalBalance } from "../money-lab/selfhosted.js
 import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
-import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
+import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS, sonniDecisionInstructions } from "../trader/prompt.js";
+import { decisionsDue } from "../trader/decisions.js";
+import { bigOrderInstructions, clearBigOrder, readPendingBigOrder, setStrongTurn } from "../trader/strong.js";
 import {
   CONSOLIDATION_RESERVE_CENTS, consolidationDue, consolidationPending, consolidationTimeToday, markConsolidationDone, reserveBlocks,
 } from "../trader/consolidation.js";
@@ -488,6 +490,16 @@ export async function runAgentLoop(
       if (consolidationPending(db.raw, evening) || consolidationDue(db.raw, evening)) {
         consolidationTurn = true;
         wakeupInput += `\n\n${SONNI_EVENING_INSTRUCTIONS}`;
+      } else {
+        // Step 1 (2026-10-08): an explicit decision per followed asset every few hours, staying out included.
+        const due = decisionsDue(db.raw, evening);
+        if (due.length) wakeupInput += `\n\n${sonniDecisionInstructions(due)}`;
+      }
+      // A big order held on the previous wake gets its stronger-model turn now.
+      const held = readPendingBigOrder(db.raw);
+      if (held) {
+        reviewModelTurns = Math.max(reviewModelTurns, 1);
+        wakeupInput += `\n\n${bigOrderInstructions(held)}`;
       }
     }
     if (isReviewDue(db.raw)) {
@@ -824,6 +836,7 @@ export async function runAgentLoop(
       log(config, `[THINK] Routing inference (tier: ${survivalTier}, model: ${inference.getDefaultModel()})...`);
 
       const inferenceTools = toolsToInferenceFormat(tools);
+      const strongTurn = reviewModelTurns > 0;
       const routerResult = await inferenceRouter.route(
         {
           messages: messages,
@@ -942,6 +955,8 @@ export async function runAgentLoop(
       };
 
       // ── Execute Tool Calls ──
+      // Sonni: place_order holds a big buy unless this turn runs on the stronger model.
+      if (trader) setStrongTurn(db.raw, strongTurn);
       if (response.toolCalls && response.toolCalls.length > 0) {
         const toolCallMessages: any[] = [];
         let callCount = 0;
@@ -993,6 +1008,17 @@ export async function runAgentLoop(
           );
 
           callCount++;
+        }
+      }
+
+      // Sonni: a big buy held this turn runs again on the stronger model next turn; one chance only.
+      if (trader) {
+        const held = readPendingBigOrder(db.raw);
+        if (held && strongTurn) {
+          clearBigOrder(db.raw);
+        } else if (held) {
+          reviewModelTurns = Math.max(reviewModelTurns, 1);
+          pendingInput = { content: bigOrderInstructions(held), source: "system" };
         }
       }
 

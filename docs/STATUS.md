@@ -204,10 +204,36 @@
   no paid call. Checks (2026-10-08 07:10 UTC, this sandbox, Likma project check
   6b775e3c): types PASS, sonni 127/127, money-lab 110/110, build PASS, sonni-e2e PASS (565 s). Not yet
   observed on the VPS.
-- Next concrete action: owner merges the budget PR and runs the update block of sonni/GUIDE-VPS.fr.md
-  (that restart is the last one that wakes Sonni); then observe one day: /technique, /reveils, the
-  evening post-mortems, the day's spend in /sante. Memory improvements wait for that observation (owner,
-  2026-10-08).
+- Plan of 2026-10-08 (docs/decisions/0005, owner's agreement): four steps, one PR each, observed on the
+  VPS between steps: 1 decide for real, 2 living universe (PAXG, SPYx, USDC/EUR, NVDAx), 3 second brain on
+  the owner's PC (assistant mode by default), 4 memory v2. Research of the day: docs/RESEARCH.md section 5.
+- Step 1 "decide for real" (branch claude/sonni-decisions): src/trader/decisions.ts (a stated decision per
+  followed asset every 8 hours, scored by code at 24 h and 7 d, staying out included), src/trader/snapshot.ts
+  (code's odds: distance in % and in volatility units, random-walk reference, historical share; stored with
+  every prediction; `market_odds` tool; skill score against the reference), src/trader/strong.ts (a buy of
+  20 % of the portfolio or more is validated, held and confirmed on the stronger model within half of the
+  daily cap; guard G11), the "is it learning?" scoreboard in /bilan and the self-report, decisions in the
+  pack and in the G3 fingerprint, the readers test no longer depends on the real date. Tests:
+  src/__tests__/trader/decisions.test.ts (7); e2e: decision instructions in the wake, market_odds, one
+  decision per asset, the scoreboard in /bilan. Also fixed: the budget test of 2026-10-08 recorded its
+  spend with SQLite's real clock under a fake JS clock (it failed after 10:00 UTC real time). Checks
+  (2026-10-08 10:15 UTC, this sandbox, Likma project check 13d2f0f7): types PASS, sonni 134/134,
+  money-lab 110/110, build PASS, sonni-e2e PASS (563 s). Not yet observed on the VPS.
+- Step 2 "living universe" (branch claude/sonni-universe, after step 1): the example config's core is BTC,
+  ETH, PAXG (PAXGEUR), USDC (USDCEUR), SPY (SPYxUSD) and NVDA (NVDAxUSD); src/trader/markets.ts (tokenized
+  pairs need `asset_class=tokenized_asset`; USD prices and daily candles converted to EUR with Kraken's
+  EURUSD, stored in trader_fx and trader_fx_daily; nothing stored in dollars); universe rules (core removed
+  only by the owner, 3 satellites, 250,000 EUR a day minimum, 3-day hold, 7-day cooldown, owner veto with
+  `/actifs non`, 30 days; guard G12); src/trader/screen.ts (weekly code screen of liquid pairs Sonni does
+  not follow, ranked by distinctness, in the pack and /actifs); trade-day volatility in code's odds.
+  Tests: src/__tests__/trader/universe.test.ts (4), sources.test universe cases rewritten, the other suites
+  pinned to BTC and ETH; e2e: tokenized prices converted to EUR, the fake Kraken refuses a tokenized pair
+  without its asset class. Checks (2026-10-08 10:28 UTC, this sandbox, Likma project check
+  d777ac8b): types PASS, sonni 138/138, money-lab 110/110, build PASS, sonni-e2e PASS (563 s). Not yet
+  observed on the VPS.
+- Next concrete action: owner merges the step 1 PR and runs the update block of sonni/GUIDE-VPS.fr.md; then
+  observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee) while preparing the
+  PC with sonni/GUIDE-PC.fr.md part 1; then step 2.
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.

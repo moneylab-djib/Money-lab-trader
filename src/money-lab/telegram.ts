@@ -72,7 +72,7 @@ export const SONNI_TELEGRAM_HELP = `Commandes Sonni :
 /reveils — ses réveils et déclencheurs
 /lecteurs — IA lectrices gratuites
 /sources — sources de données ; /source ok|non <id> pour décider d'une proposition
-/actifs — actifs suivis et changements décidés par Sonni
+/actifs — socle, places tournantes et crible de la semaine ; /actifs non <symbole> pour retirer une place tournante
 /technique — état technique du programme (budget détaillé, pauses, cycles)
 /sante — rapport de santé du serveur ; chaque matin tu reçois le rapport de Sonni
 /pause [raison] — mettre Sonni en pause

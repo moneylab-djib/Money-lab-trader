@@ -45,6 +45,8 @@ import { insertObservation } from "../../trader/readers.js";
 import { MockConwayClient, MockInferenceClient, createTestConfig, createTestIdentity, toolCallResponse } from "../mocks.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 const TRADER: TraderConfig = parseTraderConfig(EXAMPLE.trader)!;
 const T0 = new Date("2026-10-07T08:00:00Z");
 const hours = (n: number) => new Date(T0.getTime() + n * 3_600_000);
@@ -112,8 +114,8 @@ describe("Tools through the policy engine", () => {
     expect((await run("read_page", { url: "https://example.com", why: "" })).result).toContain("Refused: say in `why`");
     expect((await run("manage_source", { action: "list" })).result).toContain("Sources:");
     expect((await run("manage_source", { action: "enable", id: "nope", reason: "inconnue" })).result).toContain("Unknown source");
-    expect((await run("follow_asset", { action: "unfollow", symbol: "ETH", reason: "je me concentre sur le bitcoin pour commencer" })).result).toContain("ETH no longer followed");
-    expect((await run("follow_asset", { action: "unfollow", symbol: "BTC", reason: "le dernier actif, cela doit échouer" })).result).toContain("At least one asset");
+    // The owner's core assets stay: only satellites rotate (universe.test covers follow and unfollow).
+    expect((await run("follow_asset", { action: "unfollow", symbol: "ETH", reason: "je me concentre sur le bitcoin pour commencer" })).result).toContain("in the owner's core");
     // Sonni's own writes count as progress for the no-progress sleep (1 reflection, 1 lesson);
     // the owner's hypothesis does not (0 model hypotheses).
     expect(journalFingerprint(db.raw)).toContain("|0/1/1/");
@@ -291,7 +293,7 @@ describe("Telegram", () => {
     expect(channel.handleOwnerText("/lecteurs", 7)).toContain("gemini (gemini-3.5-flash-lite) : clé absente");
     expect(channel.handleOwnerText("/sources", 8)).toContain("fear_greed [active]");
     expect(channel.handleOwnerText("/source ok nope", 9)).toContain("Source inconnue");
-    expect(channel.handleOwnerText("/actifs", 10)).toContain("Actifs suivis (2, au plus 30)");
+    expect(channel.handleOwnerText("/actifs", 10)).toContain("Socle choisi par toi (2) : BTC (XBTEUR), ETH (ETHEUR)");
     expect(channel.handleOwnerText("/veto l_nope", 11)).toContain("Unknown lesson");
     expect(channel.handleOwnerText("/statut", 12)).toContain("0 réveil sur 6 aujourd'hui (/reveils)");
     expect(openWatches(db.raw)).toEqual([]);

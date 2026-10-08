@@ -9,6 +9,7 @@
 
 import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
+import { fxOnOrBefore, FX_PAIR, pairQuery, quoteOf, storeFxDaily } from "./markets.js";
 
 type DB = Database.Database;
 type FetchFn = typeof fetch;
@@ -29,8 +30,8 @@ function dayOf(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString().slice(0, 10);
 }
 
-async function fetchKrakenDaily(pair: string, fetchFn: FetchFn): Promise<Candle[]> {
-  const resp = await fetchFn(`${KRAKEN_OHLC_URL}?pair=${encodeURIComponent(pair)}&interval=1440`, {
+export async function fetchKrakenDaily(pair: string, fetchFn: FetchFn): Promise<Candle[]> {
+  const resp = await fetchFn(`${KRAKEN_OHLC_URL}?${pairQuery(pair)}&interval=1440`, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!resp.ok) throw new Error(`Kraken OHLC ${pair}: HTTP ${resp.status}`);
@@ -68,11 +69,28 @@ export async function collectCandles(
   );
   let stored = 0;
   const errors: string[] = [];
+  // USD-quoted pairs: daily EUR/USD closes first, then each day converted at its own rate.
+  let fxReady = false;
+  if (cfg.assets.some((a) => quoteOf(a.krakenPair) === "USD")) {
+    try {
+      const fx = await fetchKrakenDaily(FX_PAIR, fetchFn);
+      db.transaction(() => { for (const c of fx) storeFxDaily(db, c.day, c.close); })();
+      fxReady = fx.length > 0;
+    } catch (err: any) {
+      errors.push(`EUR/USD daily: ${String(err?.message ?? err)}`);
+    }
+  }
   for (const asset of cfg.assets) {
     try {
+      const usd = quoteOf(asset.krakenPair) === "USD";
+      if (usd && !fxReady) throw new Error(`Kraken OHLC ${asset.krakenPair}: no EUR/USD history, candles not stored`);
       const candles = await fetchKrakenDaily(asset.krakenPair, fetchFn);
       db.transaction(() => {
-        for (const c of candles) stored += upsert.run(asset.symbol, c.day, c.open, c.high, c.low, c.close, c.volume).changes;
+        for (const c of candles) {
+          const rate = usd ? fxOnOrBefore(db, c.day) : 1;
+          if (!rate) continue;
+          stored += upsert.run(asset.symbol, c.day, c.open / rate, c.high / rate, c.low / rate, c.close / rate, c.volume).changes;
+        }
       })();
     } catch (err: any) {
       errors.push(String(err?.message ?? err));

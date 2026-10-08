@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { createDatabase, inferenceInsertCost } from "../../state/database.js";
+import { createDatabase } from "../../state/database.js";
 import { runAgentLoop } from "../../agent/loop.js";
 import { PolicyEngine } from "../../agent/policy-engine.js";
 import { SpendTracker } from "../../agent/spend-tracker.js";
@@ -26,6 +26,8 @@ import { listIncidents } from "../../trader/incidents.js";
 import { createTestConfig, createTestIdentity, MockConwayClient, MockInferenceClient, toolCallResponse } from "../mocks.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
+/** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
+EXAMPLE.trader.assets = EXAMPLE.trader.assets.filter((a: { symbol: string }) => a.symbol === "BTC" || a.symbol === "ETH");
 const TRADER: TraderConfig = parseTraderConfig(EXAMPLE.trader)!;
 const CAP: number = EXAMPLE.moneyLab.inference.dailyCents;
 
@@ -43,11 +45,17 @@ function openDb(): AutomatonDatabase {
   ensureTraderSchema(db.raw);
   return db;
 }
+/**
+ * Spend recorded two hours before the test's (fake) clock, on the same UTC day: SQLite's own
+ * datetime('now') follows the real clock, which would put the row in the test's current hour (and
+ * under the hourly cap) or not depending on when the suite runs.
+ */
 function spend(db: AutomatonDatabase, cents: number): void {
-  inferenceInsertCost(db.raw, {
-    sessionId: "s", turnId: null, model: "claude", provider: "anthropic", inputTokens: 1, outputTokens: 1, costCents: cents,
-    latencyMs: 1, tier: "normal", taskType: "agent_turn", cacheHit: false,
-  } as any);
+  const at = new Date(Date.now() - 2 * 3_600_000).toISOString().slice(0, 19).replace("T", " ");
+  db.raw.prepare(
+    `INSERT INTO inference_costs (id, session_id, turn_id, model, provider, input_tokens, output_tokens, cost_cents, latency_ms, tier, task_type, cache_hit, created_at)
+     VALUES (?, 's', NULL, 'claude', 'anthropic', 1, 1, ?, 1, 'normal', 'agent_turn', 0, ?)`,
+  ).run(`c_${Math.random().toString(36).slice(2)}`, cents, at);
 }
 async function runLoop(db: AutomatonDatabase, inference: MockInferenceClient): Promise<void> {
   await runAgentLoop({

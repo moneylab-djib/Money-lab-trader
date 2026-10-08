@@ -30,6 +30,10 @@ import { describeWatch, openWatches, recentWatches, wakesSince } from "./curiosi
 import { observationsSince, recentObservations, sentimentByAsset, type Observation } from "./readers.js";
 import { describeSources, metricsForPack } from "./sources.js";
 import { activeLessons, formatSelfReport, listReflections, predictionsAwaitingPostmortem, selfReport } from "./soul.js";
+import { decisionsPackLines, DECISION_HOURS } from "./decisions.js";
+import { getPredictionSnapshot } from "./snapshot.js";
+import { screenPackLines } from "./screen.js";
+import { MAX_SATELLITES, recordedCore } from "./universe.js";
 
 type DB = Database.Database;
 
@@ -38,7 +42,7 @@ export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
 const DOSSIER_PREVIEW = 400;
 
-export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events"] as const;
+export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events", "universe"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -198,11 +202,34 @@ function openSection(db: DB, limit: number): Section {
   return { title: `Open predictions (${open.length}):`, lines, detail: "predictions" };
 }
 
-function resolvedLine(p: Prediction): string {
-  return p.voidReason
-    ? `- ${p.id}: void (${p.voidReason})`
-    : `- ${p.id}: ${p.asset} ${p.direction} ${eur(p.threshold)} -> ${eur(p.resolutionPrice!)}, ` +
-      `${p.outcome === 1 ? "happened" : "did not happen"}, p=${p.probability}, Brier ${p.brier!.toFixed(3)}`;
+function resolvedLine(db: DB, p: Prediction): string {
+  if (p.voidReason) return `- ${p.id}: void (${p.voidReason})`;
+  // Code's odds at the time of the prediction: the figures a post-mortem quotes.
+  const s = getPredictionSnapshot(db, p.id);
+  const odds = s
+    ? `; at the time: ${s.distancePct >= 0 ? "+" : ""}${s.distancePct.toFixed(2)} % away${s.sigmas === null ? "" : ` (${s.sigmas >= 0 ? "+" : ""}${s.sigmas.toFixed(2)} σ)`}, ` +
+      `reference ${Math.round(s.refProbability * 100)} % (reference Brier ${((s.refProbability - p.outcome!) ** 2).toFixed(3)})`
+    : "";
+  return `- ${p.id}: ${p.asset} ${p.direction} ${eur(p.threshold)} -> ${eur(p.resolutionPrice!)}, ` +
+    `${p.outcome === 1 ? "happened" : "did not happen"}, p=${p.probability}, Brier ${p.brier!.toFixed(3)}${odds}`;
+}
+
+function universeSection(db: DB, cfg: TraderConfig, limit: number): Section {
+  const core = recordedCore(db, cfg);
+  const satellites = activeAssets(db, cfg).filter((a) => !core.has(a.symbol)).map((a) => a.symbol);
+  return {
+    title: `Your universe: core ${[...core].join(", ")} (the owner's); satellites ${satellites.join(", ") || "none"} ` +
+      `(${satellites.length} of ${MAX_SATELLITES}, yours to rotate with follow_asset). Weekly screen by code, assets you do not follow, most different from yours first:`,
+    lines: screenPackLines(db, limit),
+    detail: "universe",
+  };
+}
+
+function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
+  return {
+    title: `Your decisions per asset (record_decision; one is due every ${DECISION_HOURS} h; code scores each, staying out included):`,
+    lines: decisionsPackLines(db, cfg, now),
+  };
 }
 
 function resolvedSection(db: DB, limit: number): Section {
@@ -212,7 +239,7 @@ function resolvedSection(db: DB, limit: number): Section {
   const lines: string[] = [];
   if (awaiting.length) lines.push(`- Waiting for your post-mortem (write_reflection kind postmortem): ${awaiting.map((p) => p.id).join(", ")}`);
   if (resolved.length === 0) lines.push("- none yet");
-  for (const p of resolved) lines.push(resolvedLine(p));
+  for (const p of resolved) lines.push(resolvedLine(db, p));
   return {
     title: `Recent resolutions (Brier score: 0 is perfect, 0.25 is a constant 50 %; mean ${summary.meanBrier === null ? "n/a" : summary.meanBrier.toFixed(3)} over ${summary.scored} scored):`,
     lines,
@@ -362,7 +389,8 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
   const lines: string[] = [];
   const sign = v.pnlEur >= 0 ? "+" : "";
   lines.push(`- Cash ${eur(v.cashEur)}, positions ${eur(v.positionsEur)}, total ${eur(v.equityEur)} (${sign}${eur(v.pnlEur)}, ${sign}${v.pnlPct.toFixed(2)} % on ${eur(v.contributedEur)} contributed); ` +
-    `position cap ${pc.maxPositionPct} % of the portfolio (${eur((v.equityEur * pc.maxPositionPct) / 100)}), fees ${pc.takerFeePct} % taker / ${pc.makerFeePct} % maker`);
+    `position cap ${pc.maxPositionPct} % of the portfolio (${eur((v.equityEur * pc.maxPositionPct) / 100)}); a buy from ${pc.bigOrderPct} % (${eur((v.equityEur * pc.bigOrderPct) / 100)}) is a big decision your stronger model confirms; ` +
+    `fees ${pc.takerFeePct} % taker / ${pc.makerFeePct} % maker`);
   if (v.positions.length === 0) lines.push("- No open position: all in cash.");
   for (const p of v.positions) {
     const s = p.pnlEur >= 0 ? "+" : "";
@@ -436,6 +464,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     pricesSection(db, cfg, now),
     ownerNotesSection(db, now, 7),
     portfolioSection(db, cfg, now),
+    decisionsSection(db, cfg, now),
     openSection(db, PACK_OPEN),
     resolvedSection(db, PACK_RESOLVED),
     watchesSection(db, now),
@@ -445,6 +474,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     dossiersSection(db, cfg, DOSSIER_PREVIEW),
     indicatorsSection(db, now),
     cyclesSection(db, cfg, now, false),
+    universeSection(db, cfg, 4),
     observationsSection(db, cfg, now, 2),
     reflectionsSection(db, PACK_REFLECTIONS, REFLECTION_PREVIEW),
     headlinesSection(db, now, PACK_HEADLINES),
@@ -464,7 +494,7 @@ export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSecti
     case "notes":
       return fitSections(head, [ownerNotesSection(db, now, 30) ?? { title: "Notes from the owner (last 30 days):", lines: ["- none"] }]);
     case "portfolio":
-      return fitSections(head, [portfolioSection(db, cfg, now), tradesSection(db, 10), trapsSection(db)]);
+      return fitSections(head, [portfolioSection(db, cfg, now), decisionsSection(db, cfg, now), tradesSection(db, 10), trapsSection(db)]);
     case "trades":
       return fitSections(head, [tradesSection(db, 100)]);
     case "traps":
@@ -507,6 +537,8 @@ export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSecti
       const cycles = cyclesSection(db, cfg, now, true);
       return fitSections(head, [cycles ?? { title: "Event cycles:", lines: ["- no reaction measured yet (needs the daily history and past event days)"] }]);
     }
+    case "universe":
+      return fitSections(head, [universeSection(db, cfg, 15)]);
     case "events": {
       const cycles = cyclesSection(db, cfg, now, true);
       return fitSections(head, [upcomingSection(db, now, 30), ...(cycles ? [cycles] : [])]);

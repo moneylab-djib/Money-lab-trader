@@ -83,3 +83,99 @@ transferable to real money later:
   relying on them (slice 7).
 - Check whether a French resident can open an Alpaca data account.
 - Halawi et al. aggregation: measure the extra cost per prediction before enabling it by default.
+
+## 5. Research of 2026-10-08: memory at scale, a local second brain, more assets
+
+Three research passes on 2026-10-08 (web pages and Kraken's public API read that day), for the plan in
+docs/decisions/0005. Vendor claims are labelled; figures computed by us are labelled too.
+
+### 5.1 Long-term memory as the data grows
+
+- Benchmarks: headline scores are mostly vendor claims and not comparable. Mem0 reports 92.5 on LoCoMo
+  and 94.4 on LongMemEval for its 2026 algorithm ([vendor](https://mem0.ai/research)); in its own 2025
+  paper a full-context baseline reportedly beat it (seen second-hand in
+  [Zep's rebuttal](https://blog.getzep.com/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/),
+  vendor against vendor). Letta's agent with plain files and grep scored 74.0 % on LoCoMo
+  ([vendor, 2025-08-12](https://www.letta.com/blog/benchmarking-ai-agent-memory)). An independent audit
+  found 6.4 % of LoCoMo's answers wrong and a lenient judge
+  ([Penfield Labs, 2026-04-08](https://penfieldlabs.substack.com/p/we-audited-locomo-64-of-the-answer)).
+  Conclusion: build a small Sonni-specific recall evaluation instead of choosing by leaderboard.
+- What measurably helps ([LongMemEval, ICLR 2025](https://arxiv.org/abs/2410.10813), academic):
+  fact-augmented index keys (+9.4 % recall), time-range filtering (+6.8 to +11.3 % recall on temporal
+  questions); the reading format alone moves results by up to 10 points.
+- Hybrid keyword plus dense search gives mixed gains once the agent searches iteratively (preprints,
+  for example [arXiv 2608.29606](https://arxiv.org/pdf/2608.29606)).
+- Lessons as items, not rewrites ([ACE, ICLR 2026](https://arxiv.org/abs/2510.04618), academic): items
+  with helpful/harmful counters and small edits; full rewrites caused "context collapse" (18,282 tokens
+  to 122, accuracy below baseline); without reliable ground truth, lessons polluted the context.
+- Evidence kept apart from beliefs: [Hindsight](https://arxiv.org/abs/2512.12818) (MIT licence).
+- Trading memory ([Agentic Trading survey, 2026-05](https://arxiv.org/html/2605.19337v1), academic):
+  no dominant architecture; failure modes are outcome leakage when a past case is retrieved with its
+  story ("Oracle Fallacy"), stale cases after a regime change, poisoning from uncurated sources and
+  lost-in-the-middle; remedies: outcome embargo, decay, provenance, replayable snapshots.
+  [META (2026-09)](https://arxiv.org/html/2609.28771): retrieval on indicator vectors beat text
+  embeddings (64.0 % against 56.0 % directional accuracy); results unstable before about 300 trades.
+- Sleep-time compute ([Letta and UC Berkeley](https://huggingface.co/papers/2504.13171)): pays only when
+  future questions are predictable from stored context; Sonni's evening consolidation plays that role.
+- Practical: SQLite FTS5 with the `unicode61 remove_diacritics 2` tokenizer (the Porter stemmer is
+  English-only); sqlite-vec (about 8.2k stars, 0.1.x, last release 2026-05) as a later, measured option;
+  small multilingual embedding models: Qwen3-Embedding-0.6B (Apache-2.0), EmbeddingGemma-300M,
+  multilingual-e5-small, bge-m3 (licences to re-check before use).
+- Adopted for memory v2 (step 4): FTS5 with recency and importance weights and time filters; an outcome
+  embargo; lessons as items with code-computed support and contradiction counts; day/week/month
+  summaries linked to their sources; similar cases by code's market features; market-regime tags; a
+  recall evaluation set. Gated: the semantic index (decision 0005). Avoided: hosted memory services,
+  graph databases, LLM-written links on every write, model-written confidence scores.
+
+### 5.2 A local second brain on the owner's PC
+
+PC: Ryzen 5 5500 (no integrated GPU), 32 GB DDR4-3200, Radeon RX 9070 XT 16 GB (RDNA 4, gfx1201),
+Windows; PCIe 3.0 link.
+
+- Runtime: llama.cpp `llama-server` with the Windows Vulkan build: OpenAI-compatible chat and
+  embeddings endpoints, JSON-schema `response_format`, `--api-key`, loopback binding by default
+  ([server README](https://raw.githubusercontent.com/ggml-org/llama.cpp/master/tools/server/README.md)).
+  On this card Vulkan generated faster than ROCm in a secondary benchmark (Qwen3.5-9B 92.3 against
+  81.7 tokens/s; [localaimaster, 2026-08-09](https://localaimaster.com/blog/rx-9070-xt-local-ai)).
+  Ollama's Windows ROCm list does not include the 9070 XT, it has no built-in authentication and had an
+  unauthenticated memory leak fixed in 0.17.1 ([CVE-2026-7482 report](https://lilting.ch/en/articles/ollama-cve-2026-7482-memory-leak)):
+  not used. AMD's HIP SDK 7.2 lists gfx1201 on Windows
+  ([AMD](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.2/reference/system-requirements.html)).
+- Models (16 GB VRAM): gpt-oss-20b MXFP4 (about 12.8 GiB, fully on the GPU, about 92 tokens/s measured on
+  this card under Linux); Qwen3.6-35B-A3B UD-Q4_K_M (about 22 GB, Apache-2.0, part of its experts in
+  system RAM; not measured on this card, estimated 25 to 40 tokens/s); Qwen3.5-9B and Gemma 4 12B as
+  small fallbacks. Choice for Sonni: Qwen3.6-35B-A3B for quality in French and reasoning, confirmed by an
+  offline comparison on 50 real Sonni reader tasks before it is fixed; gpt-oss-20b as the fallback.
+  Known issue: schema-constrained JSON with gpt-oss's Harmony format has had bugs in several runtimes
+  ([llama.cpp discussion](https://github.com/ggml-org/llama.cpp/discussions/15341)): code validates
+  every answer and retries.
+- Link: Tailscale (free Personal plan, non-commercial): the VPS is tagged and a single grant lets it
+  reach the PC's port and nothing else; the server stays on loopback or the Tailscale interface, with an
+  API key; no router port is opened ([pricing](https://tailscale.com/pricing),
+  [run unattended](https://tailscale.com/kb/1088/run-unattended), [serve](https://tailscale.com/kb/1312/serve)).
+- Always-on Windows: sleep and hibernation off, BIOS power restore on, pinned AMD driver, a start task
+  at logon checked after a reboot (Vulkan from a session-0 service is unverified). Power draw estimated
+  at 60 to 80 W idle and 250 to 330 W under load (estimates, not measurements); the owner does not
+  count it against Sonni's budget (decision 0005).
+
+### 5.3 Assets with different drivers (Kraken public API, 2026-10-08)
+
+Correlations are our own Pearson correlations of daily log returns against XBTEUR over 365 days
+(90 days in brackets); volumes are 24-hour base volume times VWAP; spreads are single snapshots.
+
+| Asset | Kraken pair (altname, wsname) | Driver | Corr. with BTC | Volume / day | Notes |
+| --- | --- | --- | --- | --- | --- |
+| ETH (followed) | ETHEUR, ETH/EUR | crypto | 0.90 (0.87) | — | repeats BTC |
+| Gold | PAXGEUR, PAXG/EUR | safe haven, real rates | 0.31 (0.49) | about 0.5 M EUR | thin book; MiCA status not verified |
+| US equities | SPYxUSD, SPYx/USD | risk appetite | 0.35 | about 0.8 M USD | `asset_class=tokenized_asset` needed on Ticker, OHLC and Depth; USD only (EUR via Kraken's EURUSD); history from 2025-08-14; weekends without trades |
+| Dollar vs euro | USDCEUR, USDC/EUR | Fed against ECB | −0.17 (−0.28) | about 114 M EUR | lowest volatility (6 %/year) |
+| Nvidia | NVDAxUSD, NVDAx/USD | one stock, AI cycle, quarterly earnings | 0.35 | about 0.28 M USD | same caveats as SPYx (owner's choice) |
+| SOL (runner-up) | SOLEUR, SOL/EUR | high-beta crypto | 0.86 (0.83) | about 8.3 M EUR | beta 1.3 against BTC |
+| HYPE (runner-up) | HYPEEUR, HYPE/EUR | exchange token | 0.44 (253 days) | about 2.2 M EUR | EUR pair since 2026-01-28 |
+
+Rejected: XRP (0.86) and LINK (0.81) duplicate BTC; QQQx and GLDx too thin; XAUT and USDT are on
+Kraken's EEA restriction list ([geographic restrictions, updated 2026-09-30](https://support.kraken.com/articles/360001368823-geographic-restrictions)).
+Tokenized US stocks opened to EU clients in September 2025
+([Bloomberg, 2025-09-10](https://www.bloomberg.com/news/articles/2025-09-10/kraken-expands-tokenized-us-stocks-to-eu-clients)).
+Unverified: PAXG's MiCA status; whether EEA retail can trade Kraken's EURUSD pair (used only as a data
+feed).
