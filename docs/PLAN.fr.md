@@ -30,7 +30,8 @@ sur le VPS entre deux étapes :
    suit) et lui montre d'abord les plus différentes. Toi : `/actifs` (socle, places tournantes, crible)
    et `/actifs non <symbole>` pour retirer une place tournante (il ne pourra pas la reprendre pendant
    30 jours). Le socle ne se retire que par la configuration.
-3. **Second cerveau sur ton PC** (RX 9070 XT) : un modèle local (Qwen3.6-35B-A3B, confirmé sur 50 vraies
+3. **Second cerveau sur ton PC** (RX 9070 XT ; construit et testé, en attente de ta fusion et de ton PC ; guide pas à pas
+   `sonni/GUIDE-PC.fr.md`, scripts du PC testés) : un modèle local (Qwen3.6-35B-A3B, confirmé sur 50 vraies
    tâches avant d'être figé ; gpt-oss-20b en secours) joint par le VPS via Tailscale, sans port ouvert.
    Modes commandés par toi (`/cerveau`) : arrêt, **assistant (par défaut)**, parallèle, délégué (seulement
    sur preuves et sur ta décision). En assistant : tri de l'actualité, note de situation avant chaque
@@ -39,7 +40,11 @@ sur le VPS entre deux étapes :
    vérifiée de la mémoire sur ton PC chaque nuit. Il ne passe jamais d'ordre et ses textes restent des
    données non fiables. Coupé en plein travail : rien n'est perdu (file d'attente sur le VPS, tâches
    reprises, réponses incomplètes jetées, Claude n'attend jamais) et Sonni continue sans lui. Son coût
-   (électricité) n'est pas compté dans les 50 € (ton choix). Guide pas à pas : `sonni/GUIDE-PC.fr.md`.
+   (électricité) n'est pas compté dans les 50 € (ton choix). `/cerveau` montre le modèle que ton PC fait
+   vraiment tourner et le déclare « confirmé » après 50 tâches réussies avec moins d'un échec sur 10 ;
+   si tu changes de modèle, ses scores repartent de zéro (jamais de mélange). La copie de chaque nuit
+   passe par un compte en lecture seule sur le serveur, joignable seulement par Tailscale, et ton PC
+   vérifie son empreinte avant de la garder (30 jours).
 4. **Mémoire v2** : trois niveaux (vital toujours présent, « à portée » choisi selon la situation,
    archives cherchables), recherche plein texte, embargo des dénouements, leçons en fiches avec
    compteurs tenus par le code, résumés jour/semaine/mois, cas similaires par indicateurs, régime de
@@ -253,7 +258,9 @@ Ce que le code fait tout seul pour que Sonni reste dans son cadre (détail : `do
 - **Le web reste de la donnée** : une page qui prétend que tu as autorisé une dépense ne produit
   qu'une observation marquée « non fiable », testé.
 - **Sauvegarde vérifiée** : chaque copie quotidienne est rouverte et contrôlée (intégrité, nombre de
-  lignes) avant de compter ; sinon tu le vois dans `/technique` et le rapport du matin.
+  lignes) avant de compter ; sinon tu le vois dans `/technique` et le rapport du matin. Corrigé le
+  8 octobre : le serveur ne gardait en réalité qu'environ 3 jours de copies au lieu de 7 (des fichiers
+  annexes laissés par la vérification étaient comptés) ; il en garde maintenant vraiment 7.
 - **Journal des incidents** : tout ce que le programme fait seul pour se protéger (pause, plafond,
   erreurs en série, réponse coupée, source désactivée, IA lectrice refusée, sauvegarde invalide) est
   daté dans `/technique` et compté dans ton rapport du matin.

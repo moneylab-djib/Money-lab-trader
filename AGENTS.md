@@ -38,7 +38,8 @@ Checks (configured in likma.project.json; `likma project check --path .`, or
   - build: pnpm run build
   - sonni-e2e: node sonni/e2e.mjs (requires `build`, which Likma runs first; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~9 min incl. the outage scenario)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
-Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/ (keep them in sync
+Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/; the owner's PC (second brain,
+nightly memory copy): sonni/GUIDE-PC.fr.md and sonni/pc/, scripts tested in pc-scripts.test (keep them in sync
 with config keys and commands).
 src/__tests__/context-hardening.test.ts hangs on unmodified upstream: plain `pnpm test` never finishes.
 No start command is configured: starting runs a paid agent and requires owner approval.
@@ -48,7 +49,7 @@ features. Bot guards are mapped to their tests in likma.project.json (`bot_guard
 ## Code layout
 Sonni lives in src/trader/ (config, schema, prices, candles, rules, historical, hypotheses,
 predictions, intake, events, news, readers, pages, sources + catalog, universe, soul, curiosity,
-portfolio (paper broker), dossiers, notebooks, cycles, consolidation, incidents, decisions, snapshot (code's odds), strong (big orders on the stronger model), markets (tokenized stocks, EUR/USD), screen (weekly screen), pack, prompt, tools, status, report, format, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
+portfolio (paper broker), dossiers, notebooks, cycles, consolidation, incidents, decisions, snapshot (code's odds), strong (big orders on the stronger model), markets (tokenized stocks, EUR/USD), screen (weekly screen), brainstate + brain (the second brain on the owner's PC), pack, prompt, tools, status, report, format, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
 src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts,
 src/money-lab/recall.ts and src/conway/inference.ts. The rest is the Money Lab runtime imported at a
 pinned commit (docs/upstream/): prefer changes under src/trader/ over edits to imported modules.

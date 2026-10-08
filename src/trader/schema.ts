@@ -633,6 +633,61 @@ function ensureAliveSchema(db: DB): void {
       PRIMARY KEY (screen_id, pair)
     );
     ${appendOnly("trader_screen")}
+
+    -- Step 3 of the 2026-10-08 plan: the second brain's work queue and what it produced (src/trader/brain.ts).
+    CREATE TABLE IF NOT EXISTS trader_brain_jobs (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      priority INTEGER NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      not_before TEXT NOT NULL,
+      not_after TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('queued', 'leased', 'done', 'failed', 'expired')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      lease_until TEXT,
+      result TEXT,
+      error TEXT,
+      finished_at TEXT,
+      model TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_brain_jobs_queue ON trader_brain_jobs (status, priority, created_at);
+    CREATE TRIGGER IF NOT EXISTS trader_brain_jobs_no_delete BEFORE DELETE ON trader_brain_jobs
+      BEGIN SELECT RAISE(ABORT, 'trader_brain_jobs keeps its history'); END;
+
+    CREATE TABLE IF NOT EXISTS trader_brain_outputs (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      subject TEXT,
+      content TEXT NOT NULL,
+      at TEXT NOT NULL,
+      model TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_brain_outputs_kind ON trader_brain_outputs (kind, subject, at);
+    ${appendOnly("trader_brain_outputs")}
+
+    CREATE TABLE IF NOT EXISTS trader_brain_triage (
+      observation_id TEXT PRIMARY KEY,
+      relevance REAL NOT NULL,
+      impact REAL NOT NULL,
+      novelty REAL NOT NULL,
+      note TEXT,
+      would_wake INTEGER NOT NULL,
+      at TEXT NOT NULL,
+      model TEXT
+    );
+    ${appendOnly("trader_brain_triage")}
+
+    CREATE TABLE IF NOT EXISTS trader_brain_predictions (
+      prediction_id TEXT PRIMARY KEY,
+      probability REAL NOT NULL CHECK (probability >= 0 AND probability <= 1),
+      reason TEXT,
+      at TEXT NOT NULL,
+      model TEXT
+    );
+    ${appendOnly("trader_brain_predictions")}
   `);
 }
 

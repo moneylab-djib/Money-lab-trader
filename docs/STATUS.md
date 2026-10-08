@@ -231,9 +231,38 @@
   without its asset class. Checks (2026-10-08 10:28 UTC, this sandbox, Likma project check
   d777ac8b): types PASS, sonni 138/138, money-lab 110/110, build PASS, sonni-e2e PASS (563 s). Not yet
   observed on the VPS.
-- Next concrete action: owner merges the step 1 PR and runs the update block of sonni/GUIDE-VPS.fr.md; then
-  observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee) while preparing the
-  PC with sonni/GUIDE-PC.fr.md part 1; then step 2.
+- Step 3 "second brain" (branch claude/sonni-brain, after step 2): src/trader/brainstate.ts and brain.ts
+  (the owner's PC through Tailscale only: a base URL outside the tailnet is refused at config load; modes
+  off / assistant (default) / parallel / delegated set with /cerveau; a VPS-owned job queue with
+  priorities, dedupe keys, validity windows, leases, backoff, 3 attempts and every lease released at a
+  start; jobs: news triage (shadow wakes, at most 4 a day once the owner turns them on), the situation note
+  shown at wakes, the case against each open position, post-mortem facts, /question by Telegram, parallel
+  probabilities scored by code; health checked every minute, an outage over 2 hours is an incident; each
+  answer stores the model the PC serves (its /v1/models list) and the evidence (parallel score, delegation
+  gate, "confirmed" at 50 tasks with under one failure in ten) counts only that model; delegation refused
+  until 100 parallel bets within 0.01 of Claude's Brier; guard G13); the PC reads first among the readers.
+  sonni/GUIDE-PC.fr.md (26 steps: Windows power and updates, BIOS, autologon, llama.cpp Vulkan,
+  Qwen3.6-35B-A3B with gpt-oss-20b as fallback, a supervisor and a scheduled task, Tailscale grants that
+  limit the VPS to one port, `tailscale serve`, /cerveau, the nightly memory copy, troubleshooting) with
+  sonni/pc/llm-main.ps1 and backup-pull.ps1 (Windows PowerShell 5.1 syntax, ASCII). Nightly memory copy
+  (guard G14): sonni/vps/export-backup.mjs with sonni-backup-export.service and .timer, a chrooted,
+  read-only, key-only SFTP account usable from the tailnet only. Found and fixed while building it: the
+  daily backups were WAL-mode copies, G7's read-only check left -wal/-shm files beside them and the
+  rotation counted those, so the VPS kept about three days instead of seven (src/money-lab/backup.ts:
+  self-contained copies, leftovers cleaned; regression test in guards.test, which fails on the old code).
+  Tests: brain.test.ts (7), pc-scripts.test.ts (5; the PowerShell scripts run with pwsh when installed,
+  as on GitHub's Ubuntu runners), guards.test G7 rotation; e2e: a fake PC server, no call without the key,
+  triage, /question answered, /cerveau online, no Claude call, no key leak. The guide's part 6 was run as
+  written on OpenSSH 9.6 (Ubuntu 24.04, this sandbox, 2026-10-08): `sshd -t` accepts the block, a key used
+  from outside 100.64.0.0/10 is refused, `put` is refused, no shell, the chroot shows only `.ssh` and
+  `files`, backup-pull.ps1 with the real sftp fetched an identical copy. Not testable here: parts 1 to 5
+  (Windows, the AMD driver, the model's speed, Tailscale itself), to be checked on the owner's PC.
+  Checks (2026-10-08 11:42 UTC, this sandbox, Likma project check 789b457a): types PASS, sonni 151/151,
+  money-lab 110/110, build PASS, sonni-e2e PASS (79 checks, 590 s); features second-brain and
+  pc-memory-copy verified (sonni). Not yet observed on the VPS or the owner's PC.
+- Next concrete action: owner merges the step PRs in order (1, 2, 3; each contains the previous ones) and
+  runs the update block of sonni/GUIDE-VPS.fr.md; then follows sonni/GUIDE-PC.fr.md on the PC and checks
+  /cerveau; observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee, /cerveau).
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.

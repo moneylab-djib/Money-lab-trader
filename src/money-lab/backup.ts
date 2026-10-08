@@ -4,6 +4,11 @@
  * Once a day the runtime copies state.db (journal, ledger, memory) to
  * ~/.automaton/backups/state.db.backup-YYYY-MM-DD with SQLite's online backup
  * and keeps the last 7 copies. The directory is a protected runtime entry.
+ *
+ * Each copy is self-contained (rollback journal, not WAL like the live
+ * database): a WAL-mode copy opened read-only, as guard G7 and the owner's PC
+ * do, left -wal and -shm files beside it, and the rotation counted them, so
+ * only about three days were kept (found 2026-10-08).
  */
 
 import fs from "fs";
@@ -12,6 +17,8 @@ import Database from "better-sqlite3";
 
 const KEEP = 7;
 const PREFIX = "state.db.backup-";
+const COPY = /^state\.db\.backup-\d{4}-\d{2}-\d{2}$/;
+const SIDECARS = ["-wal", "-shm", "-journal"];
 
 export async function backupStateDaily(
   db: Database.Database,
@@ -28,13 +35,36 @@ export async function backupStateDaily(
   fs.rmSync(partial, { force: true });
   try {
     await db.backup(partial);
+    const copy = new Database(partial);
+    try {
+      copy.pragma("journal_mode = DELETE");
+    } finally {
+      copy.close();
+    }
     fs.renameSync(partial, file);
   } finally {
-    fs.rmSync(partial, { force: true });
+    for (const suffix of ["", ...SIDECARS]) fs.rmSync(`${partial}${suffix}`, { force: true });
   }
-  const old = fs.readdirSync(dir).filter((f) => f.startsWith(PREFIX)).sort().slice(0, -KEEP);
-  for (const f of old) fs.rmSync(path.join(dir, f), { force: true });
+  const names = fs.readdirSync(dir);
+  const kept = new Set(names.filter((f) => COPY.test(f)).sort().slice(-KEEP));
+  for (const f of names) {
+    const suffix = SIDECARS.find((s) => f.endsWith(s)) ?? "";
+    const base = f.slice(0, f.length - suffix.length);
+    if (!COPY.test(base)) continue;
+    // Older copies go with their files.
+    if (!kept.has(base)) fs.rmSync(path.join(dir, f), { force: true });
+    // A read-only check of a WAL-mode copy (before 2026-10-08) left an empty -wal and its -shm.
+    else if ((suffix === "-wal" || suffix === "-shm") && isEmptyWal(path.join(dir, `${base}-wal`))) fs.rmSync(path.join(dir, f), { force: true });
+  }
   return file;
+}
+
+function isEmptyWal(file: string): boolean {
+  try {
+    return fs.statSync(file).size === 0;
+  } catch {
+    return true; // no -wal: a lone -shm holds nothing
+  }
 }
 
 /** Tables whose row counts a backup must carry (those that exist in the live database). */

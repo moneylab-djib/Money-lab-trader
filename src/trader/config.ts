@@ -39,6 +39,10 @@ export interface ReaderConfig {
   dailyRequests: number;
   /** Send response_format json_object (most providers); false for those that reject it. */
   jsonMode: boolean;
+  /** Internal (the second brain): a longer request timeout than the hosted readers' 30 s. */
+  timeoutMs?: number;
+  /** Internal (the second brain): extra request fields, e.g. chat_template_kwargs. */
+  extraBody?: Record<string, unknown>;
 }
 
 /** Virtual portfolio rules (src/trader/portfolio.ts), decision 0003 and ARCHITECTURE.md. */
@@ -81,6 +85,25 @@ export interface TraderConfig {
   portfolio: PortfolioConfig;
   /** Evening consolidation time in the owner's time zone (step C3). */
   consolidation: ConsolidationConfig;
+  /** The owner's local model on their PC (plan of 2026-10-08 step 3); null when not configured. */
+  secondBrain: SecondBrainConfig | null;
+}
+
+/**
+ * The second brain: an OpenAI-compatible llama.cpp server on the owner's PC, reached through Tailscale
+ * only (docs/decisions/0005, sonni/GUIDE-PC.fr.md). Its key is a sealed secret like the readers' keys.
+ */
+export interface SecondBrainConfig {
+  /** Base URL up to /v1 on the owner's tailnet, e.g. http://sonni-pc:8080/v1 */
+  baseUrl: string;
+  model: string;
+  keyEnv: string;
+  /** A local model is slower than a hosted one: one request may take this long. */
+  timeoutSeconds: number;
+  /** Ask Qwen-style models to answer without their thinking phase (faster JSON). */
+  noThinking: boolean;
+  /** false: triage only records the wakes it would have asked for (shadow); true: it may wake Claude. */
+  triageWakes: boolean;
 }
 
 export const DEFAULT_TIME_ZONE = "Europe/Paris";
@@ -266,7 +289,7 @@ export class TraderConfigError extends Error {
 
 const KEYS = ["enabled", "quoteCurrency", "assets", "collectMinutes", "staleMinutes"];
 /** Keys added by later slices: absent means the default, so older configs keep working. */
-const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone", "portfolio", "consolidation"];
+const OPTIONAL_KEYS = ["curiosity", "readers", "readPagesPerDay", "timeZone", "portfolio", "consolidation", "secondBrain"];
 const CONSOLIDATION_KEYS = ["hour", "minute"];
 
 /** Local time of the evening consolidation (step C3), before the 20:00 summary. */
@@ -369,6 +392,54 @@ function parseReaders(raw: unknown): ReaderConfig[] {
   });
 }
 
+const BRAIN_KEYS = ["baseUrl", "model", "keyEnv"];
+const BRAIN_OPTIONAL_KEYS = ["timeoutSeconds", "noThinking", "triageWakes"];
+
+/** A host on the owner's tailnet: a MagicDNS machine name, a *.ts.net name or a Tailscale address (100.64.0.0/10). */
+export function isTailnetHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(h)) return true;
+  if (/^([a-z0-9-]+\.)+ts\.net$/.test(h)) return true;
+  const m = h.match(/^100\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127 && Number(m[2]) <= 255 && Number(m[3]) <= 255;
+}
+
+function parseSecondBrain(raw: unknown): SecondBrainConfig | null {
+  if (raw === undefined || raw === null) return null;
+  const where = "trader.secondBrain";
+  if (!isObject(raw)) throw new TraderConfigError(`${where} doit être un objet`);
+  checkKeys(raw, BRAIN_KEYS, where, BRAIN_OPTIONAL_KEYS);
+  let url: URL;
+  try {
+    url = new URL(String(raw.baseUrl));
+  } catch {
+    throw new TraderConfigError(`${where}.baseUrl doit être une URL (ex : http://sonni-pc:8080/v1)`);
+  }
+  const baseUrl = String(raw.baseUrl);
+  if (!["http:", "https:"].includes(url.protocol) || url.search || url.hash || baseUrl.endsWith("/") || !url.pathname.endsWith("/v1")) {
+    throw new TraderConfigError(`${where}.baseUrl doit finir par /v1, sans paramètres (ex : http://sonni-pc:8080/v1)`);
+  }
+  // The key only ever goes to the owner's private network: an edited config cannot send it to the internet.
+  if (!isTailnetHost(url.hostname)) {
+    throw new TraderConfigError(`${where}.baseUrl : ${url.hostname} n'est pas une machine de ton réseau Tailscale (nom court, *.ts.net ou adresse 100.x)`);
+  }
+  if (typeof raw.model !== "string" || raw.model.length < 1 || raw.model.length > 80) throw new TraderConfigError(`${where}.model doit être un nom de modèle`);
+  if (typeof raw.keyEnv !== "string" || !ENV_NAME.test(raw.keyEnv)) throw new TraderConfigError(`${where}.keyEnv doit être un nom de variable (ex : SECOND_BRAIN_API_KEY)`);
+  const bool = (v: unknown, d: boolean, name: string) => {
+    if (v === undefined) return d;
+    if (typeof v !== "boolean") throw new TraderConfigError(`${where}.${name} doit être true ou false`);
+    return v;
+  };
+  return {
+    baseUrl,
+    model: raw.model,
+    keyEnv: raw.keyEnv,
+    timeoutSeconds: raw.timeoutSeconds === undefined ? 240 : intInRange(raw.timeoutSeconds, 30, 900, `${where}.timeoutSeconds`),
+    noThinking: bool(raw.noThinking, true, "noThinking"),
+    triageWakes: bool(raw.triageWakes, false, "triageWakes"),
+  };
+}
+
 /** Validate a raw trader block. Returns null when the block is absent. */
 export function parseTraderConfig(raw: unknown): TraderConfig | null {
   if (raw === undefined || raw === null) return null;
@@ -421,6 +492,7 @@ export function parseTraderConfig(raw: unknown): TraderConfig | null {
     timeZone,
     portfolio: parsePortfolio(raw.portfolio),
     consolidation: parseConsolidation(raw.consolidation),
+    secondBrain: parseSecondBrain(raw.secondBrain),
   };
 }
 
