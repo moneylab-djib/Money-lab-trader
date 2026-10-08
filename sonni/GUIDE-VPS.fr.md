@@ -168,6 +168,8 @@ Envoie `/aide` à ton nouveau bot. Commandes :
 | `/lecons` / `/veto <id> [raison]` | ses leçons ; en retirer une |
 | `/reveils` | ses réveils spontanés et les déclencheurs notés |
 | `/lecteurs` | l'état des IA lectrices gratuites (voir plus bas) |
+| `/cerveau [mode]` | le second cerveau sur ton PC (état, modèle, tâches, scores) ; modes `arret`, `assistant` (par défaut), `parallele`, `delegue` (voir `sonni/GUIDE-PC.fr.md`) |
+| `/question <texte>` | demander au second cerveau ce que Sonni sait ; réponse ici en quelques minutes, sans réveiller Claude |
 | `/sources` / `/source ok\|non <id>` | ses sources de données ; accepter ou refuser une source qu'il propose |
 | `/actifs` | le socle que tu as choisi, ses places tournantes (3 au plus) et le crible de la semaine ; `/actifs non <symbole>` retire une place tournante |
 | `/sante` | rapport de santé du serveur ; chaque matin tu reçois plutôt le rapport de Sonni (veille, journée, vraies alertes) |
@@ -234,6 +236,13 @@ la Réserve fédérale de Saint-Louis (FRED) :
 4. Vérifie sur Telegram avec `/agenda` : les lignes « inflation américaine (CPI) » et « emploi
    américain » apparaissent. Sonni ne peut pas lire cette clé.
 
+## Facultatif — Le second cerveau sur ton PC
+
+Ton PC peut faire tourner un modèle d'IA local qui travaille pour Sonni 24 h/24 (tri de l'actualité,
+notes de situation, avocat du diable, réponses à `/question`) et garder chaque nuit une copie de sa
+mémoire. Tout est dans **`sonni/GUIDE-PC.fr.md`** (environ 2 heures). Sans lui, Sonni fonctionne
+exactement comme avant.
+
 ## Mettre Sonni à jour
 
 ```sh
@@ -256,6 +265,11 @@ Avec la mise à jour de l'étape 2 (univers vivant), la ligne `configure.mjs` aj
 (PAXG), le dollar (USDC), les actions américaines (SPY) et Nvidia (NVDA) : au redémarrage, le journal
 affiche « suivi (ajouté dans la configuration) » pour chacun, puis leurs prix arrivent à la collecte
 suivante et leur historique dans les 6 heures. `/actifs` les montre dans le socle.
+Avec la mise à jour de l'étape 3 (second cerveau), elle ajoute aussi le bloc `secondBrain` (ton PC,
+`http://sonni-pc:8080/v1`) : rien ne change tant que `SECOND_BRAIN_API_KEY` est vide dans
+`/etc/sonni.env` (voir `sonni/GUIDE-PC.fr.md`). La même mise à jour corrige les sauvegardes
+quotidiennes : le serveur garde maintenant vraiment les 7 dernières (avant, environ 3 jours), et les
+fichiers en trop sont nettoyés à la sauvegarde suivante.
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.
@@ -273,7 +287,8 @@ intuitions, journal et identité sont conservés. La pause (`/pause`) aussi : re
 1. Telegram : `/pause fin` (plus aucune dépense d'inférence).
 2. Serveur : `systemctl stop sonni` puis `systemctl disable sonni`.
 3. Sauvegarde (sa mémoire) : `cp /home/sonni/.automaton/state.db /root/sonni-state.db`, puis
-   télécharge-la chez toi.
+   télécharge-la chez toi (si tu as suivi la partie 6 de `sonni/GUIDE-PC.fr.md`, ton PC en garde
+   déjà une par nuit dans `C:\Sonni\sauvegardes`).
 4. **La pause n'arrête pas les factures** : supprime le VPS chez l'hébergeur quand tu n'en as plus besoin.
 
 ## Limites à connaître

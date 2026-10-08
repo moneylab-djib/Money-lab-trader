@@ -1,0 +1,11 @@
+[Unit]
+Description=Sonni: nightly export of the memory copy for the owner's PC (sonni/GUIDE-PC.fr.md)
+
+[Timer]
+# The runtime makes the day's copy within the first hour after 00:00 UTC; the PC fetches it at 05:15
+# Paris time (sonni/pc/backup-pull.ps1). A night missed while the server was off runs at boot.
+OnCalendar=*-*-* 02:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

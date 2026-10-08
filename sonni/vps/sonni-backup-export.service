@@ -1,0 +1,17 @@
+[Unit]
+Description=Sonni: export the newest verified memory copy for the owner's PC (sonni/GUIDE-PC.fr.md)
+
+[Service]
+Type=oneshot
+# Runs as Sonni's own user (it can read its backups); never as root. The export folder
+# /srv/sonni-backup/files is sonni:sonni-backup with the setgid bit, so the copies it writes
+# (mode 640) are readable by the PC's read-only SFTP account and by nobody else.
+User=sonni
+Group=sonni
+UMask=0027
+Environment=HOME=/home/sonni
+WorkingDirectory=/opt/sonni
+ExecStart=/usr/bin/node /opt/sonni/sonni/vps/export-backup.mjs
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true

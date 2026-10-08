@@ -22,7 +22,7 @@ import { availableReaders, insertObservation } from "../../trader/readers.js";
 import { brainMode, setBrainMode } from "../../trader/brainstate.js";
 import {
   askBrainFr, brainLineFr, brainStats, brainTick, briefingForWake, enqueueJob, formatBrainFr, maintainQueue, MAX_ATTEMPTS,
-  releaseAllLeases, setBrainModeFr,
+  modelConfirmed, releaseAllLeases, setBrainModeFr,
 } from "../../trader/brain.js";
 import { listIncidents } from "../../trader/incidents.js";
 import { buildMemoryPack } from "../../trader/pack.js";
@@ -52,13 +52,13 @@ const completion = (obj: unknown) => json({ choices: [{ message: { content: JSON
 
 /** A fake llama-server on the PC: `answer` builds the reply from the request; `down` makes it unreachable. */
 function fakePc(answer: (body: any) => unknown) {
-  const state = { down: false, requests: [] as any[], authHeaders: [] as string[] };
+  const state = { down: false, model: "qwen3.6-35b-a3b", requests: [] as any[], authHeaders: [] as string[] };
   const fn = vi.fn(async (input: any, init: any) => {
     const url = new URL(String(input));
     if (url.host !== "sonni-pc:8080") throw new Error(`unexpected host ${url.host}`);
     if (state.down) throw new TypeError("fetch failed: connect ECONNREFUSED");
     state.authHeaders.push(String(init?.headers?.Authorization ?? ""));
-    if (url.pathname === "/v1/models") return json({ data: [{ id: "qwen3.6-35b-a3b" }] });
+    if (url.pathname === "/v1/models") return json({ data: [{ id: state.model }] });
     const body = JSON.parse(String(init.body));
     state.requests.push(body);
     return completion(answer(body));
@@ -257,7 +257,23 @@ describe("The assistant's work", () => {
     expect(s.parallel.n).toBe(1);
     expect(s.parallel.brain).toBeCloseTo((0.55 - 1) ** 2, 6);
     expect(s.parallel.claude).toBeCloseTo((0.9 - 1) ** 2, 6);
-    expect(formatBrainFr(db.raw, TRADER, ENV, minutes(62))).toMatch(/Paris en parallèle : 1 noté\(s\) ; Brier du second cerveau 0,20[23] contre 0,010 pour Claude/);
+    expect(formatBrainFr(db.raw, TRADER, ENV, minutes(62))).toMatch(/Paris en parallèle \(qwen3\.6-35b-a3b\) : 1 noté\(s\) ; Brier du second cerveau 0,20[23] contre 0,010 pour Claude/);
+    // Every answer carries the model the PC said it serves; the evidence counts only that model's work.
+    expect(db.raw.prepare("SELECT model FROM trader_brain_predictions").all()).toEqual([{ model: "qwen3.6-35b-a3b" }]);
+    expect(s.model).toBe("qwen3.6-35b-a3b");
+    expect(s.modelDone).toBe(1);
+    expect(formatBrainFr(db.raw, TRADER, ENV, minutes(62))).toContain("Avec le modèle qwen3.6-35b-a3b depuis le début : tâches réussies 1, échouées 0 (à confirmer");
+    expect(modelConfirmed({ ...s, modelDone: 50, modelFailed: 5 })).toBe(true);
+    expect(modelConfirmed({ ...s, modelDone: 50, modelFailed: 6 })).toBe(false);
+    expect(modelConfirmed({ ...s, modelDone: 49, modelFailed: 0 })).toBe(false);
+    // The owner switches the PC to the fallback model: its evidence starts afresh, nothing is mixed.
+    pc.state.model = "gpt-oss-20b";
+    await brainTick(db.raw, TRADER, ENV, pc, () => minutes(70));
+    const after = brainStats(db.raw, minutes(70));
+    expect(after.model).toBe("gpt-oss-20b");
+    expect(after.parallel.n).toBe(0);
+    expect(after.modelDone).toBe(0);
+    expect(formatBrainFr(db.raw, TRADER, ENV, minutes(70))).toContain("(gpt-oss-20b sur sonni-pc:8080)");
     db.close();
   });
 

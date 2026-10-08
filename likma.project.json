@@ -335,7 +335,8 @@
     "history_integrity": [
       "src/__tests__/trader/guards.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
-      "sonni/e2e.mjs"
+      "sonni/e2e.mjs",
+      "src/__tests__/trader/pc-scripts.test.ts"
     ],
     "stop_reasons": [
       "src/__tests__/trader/guards.test.ts"

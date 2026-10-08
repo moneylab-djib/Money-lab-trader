@@ -650,7 +650,8 @@ function ensureAliveSchema(db: DB): void {
       lease_until TEXT,
       result TEXT,
       error TEXT,
-      finished_at TEXT
+      finished_at TEXT,
+      model TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_trader_brain_jobs_queue ON trader_brain_jobs (status, priority, created_at);
     CREATE TRIGGER IF NOT EXISTS trader_brain_jobs_no_delete BEFORE DELETE ON trader_brain_jobs
@@ -662,7 +663,8 @@ function ensureAliveSchema(db: DB): void {
       kind TEXT NOT NULL,
       subject TEXT,
       content TEXT NOT NULL,
-      at TEXT NOT NULL
+      at TEXT NOT NULL,
+      model TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_trader_brain_outputs_kind ON trader_brain_outputs (kind, subject, at);
     ${appendOnly("trader_brain_outputs")}
@@ -674,7 +676,8 @@ function ensureAliveSchema(db: DB): void {
       novelty REAL NOT NULL,
       note TEXT,
       would_wake INTEGER NOT NULL,
-      at TEXT NOT NULL
+      at TEXT NOT NULL,
+      model TEXT
     );
     ${appendOnly("trader_brain_triage")}
 
@@ -682,7 +685,8 @@ function ensureAliveSchema(db: DB): void {
       prediction_id TEXT PRIMARY KEY,
       probability REAL NOT NULL CHECK (probability >= 0 AND probability <= 1),
       reason TEXT,
-      at TEXT NOT NULL
+      at TEXT NOT NULL,
+      model TEXT
     );
     ${appendOnly("trader_brain_predictions")}
 

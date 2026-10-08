@@ -43,6 +43,8 @@ export interface BrainHealth {
   lastError: string | null;
   /** True once the incident for the current outage was recorded. */
   incidentRecorded: boolean;
+  /** The model the PC says it serves (its /models list), stored with each answer so evidence never mixes models. */
+  model?: string | null;
 }
 
 export function brainHealth(db: DB): BrainHealth | null {
