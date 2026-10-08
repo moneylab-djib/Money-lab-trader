@@ -927,6 +927,134 @@
         "at": "2026-10-08T10:29:00.296459+00:00",
         "note": "markets.ts, screen.ts, universe rules, prices/candles conversion, FX tables, example core of six assets"
       }
+    },
+    {
+      "id": "second-brain",
+      "title": "Step 3: the second brain on the owner's PC (assistant by default)",
+      "criteria": [
+        "The second brain's key goes only to the owner's tailnet; without the key or in mode off it is never called; its answers are untrusted data validated by code and it has no tool",
+        "A VPS-owned queue with priorities, dedupe keys, validity windows and leases: a PC that stops mid-task loses nothing, the first valid answer wins, Claude never waits, an outage over 2 hours is an incident",
+        "Assistant mode (default): the PC reads first among the readers, triages news (shadow wakes, capped), writes situation notes shown at wakes, argues against open positions, gathers post-mortem facts, answers /question by Telegram",
+        "Parallel mode scores the second brain's own probabilities against Claude's by code; each answer records the model the PC serves and the evidence (parallel score, delegation gate, confirmation at 50 tasks with under one failure in ten) counts only that model; delegation is refused until 100 are scored within 0.01 of Claude's Brier",
+        "On the owner's PC a supervisor runs llama-server on 127.0.0.1 with the key file, restarts it when it stops, pauses on a flag file and reads optional model and options files; sonni/GUIDE-PC.fr.md takes the owner from Windows settings to /cerveau through Tailscale serve, with a grants policy limiting the VPS to that one port"
+      ],
+      "status": "verified",
+      "paths": [
+        "src/trader/brain.ts",
+        "src/trader/brainstate.ts",
+        "src/trader/readers.ts",
+        "src/trader/config.ts",
+        "src/trader/schema.ts",
+        "src/__tests__/trader/brain.test.ts",
+        "sonni/e2e.mjs",
+        "sonni/pc/llm-main.ps1",
+        "sonni/GUIDE-PC.fr.md",
+        "src/__tests__/trader/pc-scripts.test.ts"
+      ],
+      "implementation": {
+        "at": "2026-10-08T11:37:33.688039+00:00",
+        "note": "Queue, modes, assistant jobs, parallel scoring, served-model attribution, /cerveau, /question; PC supervisor script and sonni/GUIDE-PC.fr.md (26 steps)"
+      },
+      "verification": {
+        "at": "2026-10-08T11:37:59.947413+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "b04c16a8f93e228617dd54c9519e58d24f589003fa7969b3e3ed011180b46a5c",
+        "scope": [
+          "src/trader/brain.ts",
+          "src/trader/brainstate.ts",
+          "src/trader/readers.ts",
+          "src/trader/config.ts",
+          "src/trader/schema.ts",
+          "src/__tests__/trader/brain.test.ts",
+          "sonni/e2e.mjs",
+          "sonni/pc/llm-main.ps1",
+          "sonni/GUIDE-PC.fr.md",
+          "src/__tests__/trader/pc-scripts.test.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni"
+        },
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/f759518c4d784cd89797943ee3971974.json",
+        "contract": "337dd462902e46ac352f6e648dab7fb42b1a21d51d5283415241694657842c9c",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 19.495,
+            "output_bytes": 25089,
+            "output_sha256": "55e976f62651965b3ec3d733d5b8844421f9705e7d26a64c39b2d3d38b92ef32"
+          }
+        ],
+        "integrity": {
+          "base": "7b968e80f3afa034a371ee48a118bb289a3dcce0",
+          "flags": []
+        }
+      }
+    },
+    {
+      "id": "pc-memory-copy",
+      "title": "Step 3: a verified copy of Sonni's memory on the owner's PC each night",
+      "criteria": [
+        "The runtime keeps 7 self-contained daily copies (rollback journal) with no file left beside them after the G7 check; leftovers of older WAL-mode copies are cleaned at the next backup",
+        "Each night the VPS exports the newest copy as the sonni user only after reopening it (integrity_check, Sonni's stores present), with its SHA-256, keeping only the newest in the export folder; a damaged or incomplete copy is refused and the previous one stays",
+        "The PC fetches only daily-copy names through a read-only, chrooted, key-only SFTP account usable from the tailnet range only, keeps a copy only when its SHA-256 matches, keeps 30 days and logs failures and stale copies"
+      ],
+      "status": "verified",
+      "paths": [
+        "src/money-lab/backup.ts",
+        "sonni/vps/export-backup.mjs",
+        "sonni/vps/sonni-backup-export.service",
+        "sonni/vps/sonni-backup-export.timer",
+        "sonni/pc/backup-pull.ps1",
+        "src/__tests__/trader/pc-scripts.test.ts",
+        "src/__tests__/trader/guards.test.ts"
+      ],
+      "implementation": {
+        "at": "2026-10-08T11:37:33.864902+00:00",
+        "note": "Self-contained backups with a 7-copy rotation that holds; nightly export as sonni with SHA-256; read-only chrooted SFTP from the tailnet; PC pull checks names and SHA-256, keeps 30 days"
+      },
+      "verification": {
+        "at": "2026-10-08T11:38:20.141363+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "1e84f126d7e6a0f8182311b0e3ca8f525916a82b6fc48a1e8e22adec479f615e",
+        "scope": [
+          "src/money-lab/backup.ts",
+          "sonni/vps/export-backup.mjs",
+          "sonni/vps/sonni-backup-export.service",
+          "sonni/vps/sonni-backup-export.timer",
+          "sonni/pc/backup-pull.ps1",
+          "src/__tests__/trader/pc-scripts.test.ts",
+          "src/__tests__/trader/guards.test.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni"
+        },
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/c01e3a26b34f4ba682086053fb8865df.json",
+        "contract": "61dc0349d6a8422b500a48fe41790a6a100a4cc5ee1b32bfff74b30b83a80df2",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 19.913,
+            "output_bytes": 25303,
+            "output_sha256": "f84d70769daebc8b5c206f51beb1e5aaab752f3b91c1e974789efc94da760b79"
+          }
+        ],
+        "integrity": {
+          "base": "7b968e80f3afa034a371ee48a118bb289a3dcce0",
+          "flags": []
+        }
+      }
     }
   ]
 }

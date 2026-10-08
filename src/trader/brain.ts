@@ -116,22 +116,22 @@ function leaseNext(db: DB, timeoutSeconds: number, now: Date): BrainJob | null {
 }
 
 /** Stores a valid answer once: a late duplicate (the job was re-run meanwhile) changes nothing. */
-function completeJob(db: DB, job: BrainJob, result: unknown, now: Date): boolean {
-  return db.prepare("UPDATE trader_brain_jobs SET status = 'done', result = ?, finished_at = ? WHERE id = ? AND status = 'leased'")
-    .run(JSON.stringify(result), now.toISOString(), job.id).changes === 1;
+function completeJob(db: DB, job: BrainJob, result: unknown, now: Date, model: string | null = null): boolean {
+  return db.prepare("UPDATE trader_brain_jobs SET status = 'done', result = ?, finished_at = ?, model = ? WHERE id = ? AND status = 'leased'")
+    .run(JSON.stringify(result), now.toISOString(), model, job.id).changes === 1;
 }
 
-function failAttempt(db: DB, job: BrainJob, error: string, now: Date): void {
+function failAttempt(db: DB, job: BrainJob, error: string, now: Date, model: string | null = null): void {
   const final = job.attempts >= MAX_ATTEMPTS;
   // Back off one minute per attempt before trying again.
   db.prepare(
-    `UPDATE trader_brain_jobs SET status = ?, lease_until = NULL, error = ?, not_before = ?, finished_at = ? WHERE id = ? AND status = 'leased'`,
-  ).run(final ? "failed" : "queued", error.slice(0, 200), new Date(now.getTime() + job.attempts * 60_000).toISOString(), final ? now.toISOString() : null, job.id);
+    `UPDATE trader_brain_jobs SET status = ?, lease_until = NULL, error = ?, not_before = ?, finished_at = ?, model = ? WHERE id = ? AND status = 'leased'`,
+  ).run(final ? "failed" : "queued", error.slice(0, 200), new Date(now.getTime() + job.attempts * 60_000).toISOString(), final ? now.toISOString() : null, model, job.id);
 }
 
-export function storeOutput(db: DB, jobId: string, kind: string, subject: string | null, content: string, now: Date): void {
-  db.prepare("INSERT INTO trader_brain_outputs (id, job_id, kind, subject, content, at) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(`bo_${ulid()}`, jobId, kind, subject, content, now.toISOString());
+export function storeOutput(db: DB, jobId: string, kind: string, subject: string | null, content: string, now: Date, model: string | null = null): void {
+  db.prepare("INSERT INTO trader_brain_outputs (id, job_id, kind, subject, content, at, model) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(`bo_${ulid()}`, jobId, kind, subject, content, now.toISOString(), model);
 }
 
 export function latestOutput(db: DB, kind: string, subject: string | null, since: Date): { content: string; at: string } | undefined {
@@ -294,19 +294,19 @@ export interface TickHooks {
 }
 
 /** Validates an answer and stores what it carries; false when the answer is unusable. */
-function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, hooks: TickHooks): boolean {
+function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, hooks: TickHooks, model: string | null): boolean {
   switch (job.kind) {
     case "triage": {
       const ids = new Set<string>(job.payload.observationIds ?? []);
       const items = Array.isArray(json?.items) ? json.items : [];
-      const insert = db.prepare("INSERT OR IGNORE INTO trader_brain_triage (observation_id, relevance, impact, novelty, note, would_wake, at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+      const insert = db.prepare("INSERT OR IGNORE INTO trader_brain_triage (observation_id, relevance, impact, novelty, note, would_wake, at, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
       let stored = 0;
       for (const it of items) {
         const id = String(it?.id ?? "");
         const relevance = unit(it?.relevance), impact = unit(it?.impact), novelty = unit(it?.novelty);
         if (!ids.has(id) || relevance === null || impact === null || novelty === null) continue;
         const wouldWake = impact >= WAKE_IMPACT && relevance >= WAKE_RELEVANCE;
-        stored += insert.run(id, relevance, impact, novelty, cleanSummary(it?.note, 200), wouldWake ? 1 : 0, now.toISOString()).changes;
+        stored += insert.run(id, relevance, impact, novelty, cleanSummary(it?.note, 200), wouldWake ? 1 : 0, now.toISOString(), model).changes;
         if (wouldWake && cfg.secondBrain?.triageWakes && hooks.wake && hooks.canWake?.() && triageWakeAllowed(db, now)) {
           hooks.wake("second_brain", `second cerveau : observation importante (${id})`);
         }
@@ -316,27 +316,27 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
     case "briefing": {
       const note = cleanText(json?.note, BRIEFING_MAX);
       if (!note) return false;
-      storeOutput(db, job.id, "briefing", null, note, now);
+      storeOutput(db, job.id, "briefing", null, note, now, model);
       return true;
     }
     case "counter_case": {
       const against = cleanText(json?.against, COUNTER_MAX);
       const risk = unit(json?.risk);
       if (!against) return false;
-      storeOutput(db, job.id, "counter_case", String(job.payload.asset), `${against}${risk === null ? "" : ` (risque estimé : ${Math.round(risk * 100)} %)`}`, now);
+      storeOutput(db, job.id, "counter_case", String(job.payload.asset), `${against}${risk === null ? "" : ` (risque estimé : ${Math.round(risk * 100)} %)`}`, now, model);
       return true;
     }
     case "postmortem_brief": {
       const facts = cleanText(json?.facts, 500);
       if (!facts) return false;
       const explanations = (Array.isArray(json?.explanations) ? json.explanations : []).slice(0, 3).map((e: unknown) => cleanText(e, 200)).filter(Boolean);
-      storeOutput(db, job.id, "postmortem_brief", String(job.payload.predictionId), [facts, ...explanations.map((e: string) => `- ${e}`)].join("\n"), now);
+      storeOutput(db, job.id, "postmortem_brief", String(job.payload.predictionId), [facts, ...explanations.map((e: string) => `- ${e}`)].join("\n"), now, model);
       return true;
     }
     case "question": {
       const answer = cleanText(json?.answer, ANSWER_MAX);
       if (!answer) return false;
-      storeOutput(db, job.id, "answer", null, answer, now);
+      storeOutput(db, job.id, "answer", null, answer, now, model);
       queueOwnerNotification(db, `🧠 Second cerveau — ta question « ${String(job.payload.question).slice(0, 120)} »\n\n${answer}\n\n` +
         "(Réponse du modèle local, tirée de la mémoire de Sonni ; à vérifier, ce n'est pas Claude.)");
       return true;
@@ -344,8 +344,8 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
     case "parallel_prediction": {
       const probability = unit(json?.probability);
       if (probability === null) return false;
-      return db.prepare("INSERT OR IGNORE INTO trader_brain_predictions (prediction_id, probability, reason, at) VALUES (?, ?, ?, ?)")
-        .run(String(job.payload.predictionId), probability, cleanSummary(json?.reason, 240), now.toISOString()).changes === 1;
+      return db.prepare("INSERT OR IGNORE INTO trader_brain_predictions (prediction_id, probability, reason, at, model) VALUES (?, ?, ?, ?, ?)")
+        .run(String(job.payload.predictionId), probability, cleanSummary(json?.reason, 240), now.toISOString(), model).changes === 1;
     }
   }
 }
@@ -393,15 +393,25 @@ export function planJobs(db: DB, cfg: TraderConfig, now: Date = new Date()): num
 
 // ─── The worker ─────────────────────────────────────────────────────────
 
+/** The model id the PC reports first in its /models list (llama-server: the --alias), as plain text. */
+function servedModel(body: any): string | null {
+  const id = Array.isArray(body?.data) ? body.data[0]?.id : null;
+  if (typeof id !== "string") return null;
+  const clean = id.replace(/[^\w.:\/ -]/g, "").trim().slice(0, 80);
+  return clean || null;
+}
+
 async function checkHealth(db: DB, cfg: TraderConfig, key: string, fetchFn: FetchFn, now: Date): Promise<BrainHealth> {
   const b = cfg.secondBrain!;
   const prev = brainHealth(db);
   let online = false;
   let error: string | null = null;
+  let model = prev?.model ?? null;
   try {
     const resp = await fetchFn(`${b.baseUrl}/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) });
     online = resp.ok;
     if (!resp.ok) error = resp.status === 401 || resp.status === 403 ? `HTTP ${resp.status} : clé refusée` : `HTTP ${resp.status}`;
+    else model = servedModel(await resp.json().catch(() => null)) ?? model;
   } catch (err: any) {
     error = String(err?.message ?? err).split(key).join("[clé]").slice(0, 120);
   }
@@ -413,6 +423,7 @@ async function checkHealth(db: DB, cfg: TraderConfig, key: string, fetchFn: Fetc
     lastOkAt: online ? now.toISOString() : prev?.lastOkAt ?? null,
     lastError: online ? null : error,
     incidentRecorded: changed ? false : prev!.incidentRecorded,
+    model,
   };
   if (!online && !h.incidentRecorded && now.getTime() - Date.parse(h.since) >= OUTAGE_INCIDENT_MINUTES * 60_000) {
     recordIncident(db, "brain_offline", `second cerveau injoignable depuis ${Math.round((now.getTime() - Date.parse(h.since)) / 60_000)} min (${h.lastError ?? "sans réponse"}) ; Sonni continue sans lui`, now);
@@ -457,17 +468,18 @@ export async function brainTick(
     completeJob(db, job, { skipped: "nothing left to do" }, t);
     return { ran: job.kind, ok: true, online: true, queued };
   }
+  const model = health.model ?? b.model;
   try {
     const { json } = await callReader(brainAsReader(cfg)!, key, { purpose: `brain:${job.kind}`, system: prepared.system, user: prepared.user, maxTokens: prepared.maxTokens }, fetchFn);
     const done = now();
-    if (!absorb(db, cfg, job, json, done, hooks)) {
-      failAttempt(db, job, "answer did not pass code's checks", done);
+    if (!absorb(db, cfg, job, json, done, hooks, model)) {
+      failAttempt(db, job, "answer did not pass code's checks", done, model);
       return { ran: job.kind, ok: false, online: true, queued };
     }
-    completeJob(db, job, json, done);
+    completeJob(db, job, json, done, model);
     return { ran: job.kind, ok: true, online: true, queued };
   } catch (err: any) {
-    failAttempt(db, job, String(err?.message ?? err).split(key).join("[clé]"), now());
+    failAttempt(db, job, String(err?.message ?? err).split(key).join("[clé]"), now(), model);
     // The PC stopped answering mid-task: check the link again at the next tick.
     setBrainHealth(db, { ...(brainHealth(db) ?? health), lastCheckAt: new Date(0).toISOString() });
     return { ran: job.kind, ok: false, online: true, queued };
@@ -492,15 +504,22 @@ export interface BrainStats {
   shadowWakes7d: number;
   notesUseful: number;
   notesNotUseful: number;
+  /** The model the PC serves now; the totals and the parallel score count only its work, so a model change starts afresh. */
+  model: string | null;
+  modelDone: number;
+  modelFailed: number;
   parallel: { n: number; brain: number | null; claude: number | null };
 }
 
 export function brainStats(db: DB, now: Date = new Date()): BrainStats {
   const day = `${now.toISOString().slice(0, 10)}T00:00:00.000Z`;
   const count = (status: string) => (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = ? AND finished_at >= ?").get(status, day) as { n: number }).n;
+  const model = brainHealth(db)?.model ?? null;
+  const byModel = (status: string) => (model === null ? 0 : (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = ? AND model = ?").get(status, model) as { n: number }).n);
   const rows = db.prepare(
-    `SELECT b.probability AS bp, p.probability AS cp, p.outcome AS o FROM trader_brain_predictions b JOIN trader_predictions p ON p.id = b.prediction_id WHERE p.brier IS NOT NULL`,
-  ).all() as { bp: number; cp: number; o: number }[];
+    `SELECT b.probability AS bp, p.probability AS cp, p.outcome AS o FROM trader_brain_predictions b JOIN trader_predictions p ON p.id = b.prediction_id
+     WHERE p.brier IS NOT NULL AND (@model IS NULL OR b.model = @model)`,
+  ).all({ model }) as { bp: number; cp: number; o: number }[];
   const mean = (f: (r: { bp: number; cp: number; o: number }) => number) => (rows.length ? rows.reduce((s, r) => s + f(r), 0) / rows.length : null);
   const kv = (k: string) => Number((db.prepare("SELECT value FROM kv WHERE key = ?").get(k) as { value: string } | undefined)?.value ?? 0);
   return {
@@ -511,6 +530,9 @@ export function brainStats(db: DB, now: Date = new Date()): BrainStats {
     shadowWakes7d: (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_triage WHERE would_wake = 1 AND at >= ?").get(new Date(now.getTime() - 7 * 86_400_000).toISOString()) as { n: number }).n,
     notesUseful: kv("sonni.brain_note_useful"),
     notesNotUseful: kv("sonni.brain_note_not_useful"),
+    model,
+    modelDone: byModel("done"),
+    modelFailed: byModel("failed"),
     parallel: { n: rows.length, brain: mean((r) => (r.bp - r.o) ** 2), claude: mean((r) => (r.cp - r.o) ** 2) },
   };
 }
@@ -534,7 +556,7 @@ export function formatBrainFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv,
   }
   const mode = brainMode(db);
   const h = brainHealth(db);
-  const lines = [`🧠 Second cerveau — mode ${MODE_FR[mode]} (${b.model} sur ${new URL(b.baseUrl).host})`];
+  const lines = [`🧠 Second cerveau — mode ${MODE_FR[mode]} (${h?.model ?? b.model} sur ${new URL(b.baseUrl).host})`];
   if (!env[b.keyEnv]) lines.push(`- Clé ${b.keyEnv} absente de /etc/sonni.env : il n'est jamais appelé.`);
   else if (mode === "off") lines.push("- À l'arrêt : Sonni fonctionne sans lui (lecteurs gratuits, veille du code, Claude).");
   else if (!h) lines.push("- Pas encore contacté.");
@@ -542,14 +564,25 @@ export function formatBrainFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv,
   else lines.push(`- Hors ligne depuis ${h.since.slice(0, 16).replace("T", " ")} UTC (${h.lastError ?? "sans réponse"}) : Sonni continue sans lui ; les tâches attendent ou expirent.`);
   const s = brainStats(db, now);
   lines.push(`- Tâches : ${s.queued} en attente ; aujourd'hui ${s.doneToday} faites, ${s.failedToday} échouées, ${s.expiredToday} abandonnées (devenues inutiles).`);
+  if (s.model) {
+    lines.push(`- Avec le modèle ${s.model} depuis le début : tâches réussies ${s.modelDone}, échouées ${s.modelFailed} ` +
+      `(${modelConfirmed(s) ? "modèle confirmé" : `à confirmer : ${MODEL_CONFIRM_TASKS} réussies avec moins d'un échec sur 10`}).`);
+  }
   lines.push(`- Tri de l'actualité : ${s.shadowWakes7d} réveil(s) de Claude proposé(s) en 7 jours ` +
     `(${b.triageWakes ? "il peut réveiller Claude" : "à blanc : il ne réveille pas encore Claude"}).`);
   lines.push(`- Notes de situation jugées utiles par Claude : ${s.notesUseful} oui, ${s.notesNotUseful} non.`);
   if (s.parallel.n > 0 || mode === "parallel") {
-    lines.push(`- Paris en parallèle : ${s.parallel.n} noté(s) ; Brier du second cerveau ${fmtBrier(s.parallel.brain)} contre ${fmtBrier(s.parallel.claude)} pour Claude sur les mêmes (0 = parfait).`);
+    lines.push(`- Paris en parallèle${s.model ? ` (${s.model})` : ""} : ${s.parallel.n} noté(s) ; Brier du second cerveau ${fmtBrier(s.parallel.brain)} contre ${fmtBrier(s.parallel.claude)} pour Claude sur les mêmes (0 = parfait).`);
   }
   lines.push("Modes : /cerveau arret | assistant | parallele | delegue. /question <texte> pour l'interroger sur la mémoire de Sonni.");
   return lines.join("\n");
+}
+
+/** A model is confirmed on real work: MODEL_CONFIRM_TASKS jobs done with under one failure in ten (plan of 2026-10-08). */
+export const MODEL_CONFIRM_TASKS = 50;
+
+export function modelConfirmed(s: BrainStats): boolean {
+  return s.modelDone >= MODEL_CONFIRM_TASKS && s.modelFailed * 9 < s.modelDone;
 }
 
 /** Parallel predictions scored before delegation can even be discussed. */

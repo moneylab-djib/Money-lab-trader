@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import Database from "better-sqlite3";
 import { createDatabase } from "../../state/database.js";
 import { runAgentLoop } from "../../agent/loop.js";
 import { createBuiltinTools, executeTool } from "../../agent/tools.js";
@@ -194,6 +195,29 @@ describe("G7: backups are verified before they count", () => {
     fs.writeFileSync(file, Buffer.alloc(4096, 7));
     expect(verifyBackup(file, expected).ok).toBe(false);
     expect(verifyBackup(path.join(home, "missing"), expected)).toMatchObject({ ok: false, detail: expect.stringMatching(/ENOENT|does not exist|unable to open/i) });
+    db.close();
+  });
+
+  it("keeps seven verified daily copies, self-contained, with nothing left beside them", async () => {
+    // Found 2026-10-08: the live database is in WAL mode, so was each copy; G7's read-only check left
+    // -wal and -shm files beside it, the rotation counted them and only about three days were kept.
+    const db = openDb();
+    const home = tmp();
+    const dir = path.join(home, ".automaton", "backups");
+    // A copy made before the fix, checked read-only: its empty -wal and -shm are cleaned at the next rotation.
+    fs.mkdirSync(dir, { recursive: true });
+    await db.raw.backup(path.join(dir, "state.db.backup-2026-09-30"));
+    expect(verifyBackup(path.join(dir, "state.db.backup-2026-09-30"), {}).ok).toBe(true);
+    expect(fs.readdirSync(dir).sort()).toEqual(["state.db.backup-2026-09-30", "state.db.backup-2026-09-30-shm", "state.db.backup-2026-09-30-wal"]);
+    for (let d = 1; d <= 9; d++) {
+      const expected = tableCounts(db.raw);
+      const file = (await backupStateDaily(db.raw, home, new Date(Date.UTC(2026, 9, d, 3))))!;
+      expect(verifyBackup(file, expected).ok).toBe(true);
+    }
+    expect(fs.readdirSync(dir).sort()).toEqual([3, 4, 5, 6, 7, 8, 9].map((d) => `state.db.backup-2026-10-0${d}`));
+    const copy = new Database(path.join(dir, "state.db.backup-2026-10-09"), { readonly: true });
+    expect(copy.pragma("journal_mode", { simple: true })).toBe("delete");
+    copy.close();
     db.close();
   });
 });
