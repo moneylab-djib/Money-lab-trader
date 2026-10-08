@@ -201,7 +201,9 @@
   incident times in the owner's time zone; 21 leftover automaton tools denied (measured locally: 41 -> 21
   tools, tool schemas about 6,800 -> 4,900 tokens, system 5,970 -> 5,320); history window 8 to 11 turns
   instead of 20 to 29. Tests: src/__tests__/trader/budget.test.ts (5); e2e: a restart during a sleep makes
-  no paid call. CHECKS_PLACEHOLDER
+  no paid call. Checks (2026-10-08 07:10 UTC, this sandbox, Likma project check
+  6b775e3c): types PASS, sonni 127/127, money-lab 110/110, build PASS, sonni-e2e PASS (565 s). Not yet
+  observed on the VPS.
 - Next concrete action: owner merges the budget PR and runs the update block of sonni/GUIDE-VPS.fr.md
   (that restart is the last one that wakes Sonni); then observe one day: /technique, /reveils, the
   evening post-mortems, the day's spend in /sante. Memory improvements wait for that observation (owner,
