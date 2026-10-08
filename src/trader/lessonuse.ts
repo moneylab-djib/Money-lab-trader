@@ -15,7 +15,7 @@
  */
 
 import type Database from "better-sqlite3";
-import { decisionOutcome, listDecisions } from "./decisions.js";
+import { decisionOutcome, listDecisions, type Decision } from "./decisions.js";
 import { getPrediction } from "./predictions.js";
 import { getPredictionSnapshot } from "./snapshot.js";
 
@@ -45,7 +45,7 @@ export function recordLessonUses(db: DB, lessonIds: unknown, kind: "prediction" 
   return kept;
 }
 
-function scoreUse(db: DB, kind: string, subjectId: string): "helped" | "hurt" | "pending" {
+function scoreUse(db: DB, kind: string, subjectId: string, decision: (id: string) => Decision | undefined): "helped" | "hurt" | "pending" {
   if (kind === "prediction") {
     const p = getPrediction(db, subjectId);
     const s = getPredictionSnapshot(db, subjectId);
@@ -53,7 +53,7 @@ function scoreUse(db: DB, kind: string, subjectId: string): "helped" | "hurt" | 
     const ref = (s.refProbability - p.outcome) ** 2;
     return p.brier < ref ? "helped" : p.brier > ref ? "hurt" : "pending";
   }
-  const d = listDecisions(db).find((x) => x.id === subjectId);
+  const d = decision(subjectId);
   const o = d ? decisionOutcome(db, d, 168) : null;
   return o ? (o.good ? "helped" : "hurt") : "pending";
 }
@@ -62,10 +62,13 @@ export function lessonEvidence(db: DB): Map<string, LessonEvidence> {
   const out = new Map<string, LessonEvidence>();
   const hasTable = db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'trader_lesson_uses'").get();
   if (!hasTable) return out;
+  // Decisions are read once per call, not once per use: this runs at every prompt build.
+  let decisions: Map<string, Decision> | null = null;
+  const decision = (id: string) => (decisions ??= new Map(listDecisions(db).map((d) => [d.id, d]))).get(id);
   for (const u of db.prepare("SELECT lesson_id, subject_kind, subject_id FROM trader_lesson_uses").all() as { lesson_id: string; subject_kind: string; subject_id: string }[]) {
     const e = out.get(u.lesson_id) ?? { uses: 0, helped: 0, hurt: 0, pending: 0 };
     e.uses++;
-    e[scoreUse(db, u.subject_kind, u.subject_id)]++;
+    e[scoreUse(db, u.subject_kind, u.subject_id, decision)]++;
     out.set(u.lesson_id, e);
   }
   return out;

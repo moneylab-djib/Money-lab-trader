@@ -44,7 +44,7 @@ const SOURCES: Source[] = [
   { kind: "lesson", table: "trader_lessons", sql: "SELECT rowid AS rid, id AS ref, NULL AS asset, recorded_at AS at, text FROM trader_lessons WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "reflection", table: "trader_reflections", sql: "SELECT rowid AS rid, id AS ref, NULL AS asset, recorded_at AS at, kind || ': ' || content AS text FROM trader_reflections WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "dossier", table: "trader_dossiers", sql: "SELECT rowid AS rid, asset || ' v' || version AS ref, asset, recorded_at AS at, content AS text FROM trader_dossiers WHERE rowid > ? ORDER BY rowid LIMIT 500" },
-  { kind: "hypothesis", table: "trader_hypotheses", sql: "SELECT rowid AS rid, id AS ref, NULL AS asset, recorded_at AS at, statement || COALESCE(' / ' || statement_fr, '') AS text FROM trader_hypotheses WHERE rowid > ? ORDER BY rowid LIMIT 500" },
+  { kind: "hypothesis", table: "trader_hypotheses", sql: "SELECT rowid AS rid, id AS ref, NULL AS asset, recorded_at AS at, statement AS text FROM trader_hypotheses WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "trap", table: "trader_traps", sql: "SELECT rowid AS rid, name AS ref, NULL AS asset, recorded_at AS at, name || ': ' || description || ' Signs: ' || warning_signs AS text FROM trader_traps WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "note", table: "trader_owner_notes", sql: "SELECT rowid AS rid, 'note ' || substr(at, 1, 16) AS ref, NULLIF(assets, '') AS asset, at, text FROM trader_owner_notes WHERE rowid > ? ORDER BY rowid LIMIT 500" },
   { kind: "order", table: "trader_orders", sql: "SELECT rowid AS rid, id AS ref, asset, placed_at AS at, side || ' ' || asset || ': ' || thesis AS text FROM trader_orders WHERE rowid > ? AND origin = 'model' ORDER BY rowid LIMIT 500" },
@@ -94,7 +94,36 @@ export function indexMemory(db: DB): number {
       if (rows.length < 500) break;
     }
   }
+  added += indexFrenchWordings(db, insert);
   return added;
+}
+
+const KV_FRENCH = "sonni.memory_hypothesis_fr";
+
+/**
+ * A hypothesis gets its French wording after it is written (readers translate it, src/trader/readers.ts),
+ * often after the row was indexed: each wording is indexed once it exists, as the same hypothesis.
+ */
+function indexFrenchWordings(db: DB, insert: Database.Statement): number {
+  if (!hasTable(db, "trader_hypotheses")) return 0;
+  let done: Set<string>;
+  try {
+    done = new Set(JSON.parse(getKV(db, KV_FRENCH) ?? "[]") as string[]);
+  } catch {
+    done = new Set();
+  }
+  const rows = db.prepare("SELECT id, recorded_at AS at, statement_fr AS text FROM trader_hypotheses WHERE statement_fr IS NOT NULL")
+    .all() as { id: string; at: string; text: string }[];
+  const fresh = rows.filter((r) => !done.has(r.id) && r.text);
+  if (fresh.length === 0) return 0;
+  db.transaction(() => {
+    for (const r of fresh) {
+      insert.run("hypothesis", r.id, null, r.at, r.text);
+      done.add(r.id);
+    }
+  })();
+  setKV(db, KV_FRENCH, JSON.stringify([...done]));
+  return fresh.length;
 }
 
 const STOP = new Set([
@@ -169,7 +198,14 @@ export function searchMemory(db: DB, query: string, opts: SearchOptions = {}): M
     return { kind: r.kind, ref: r.ref, asset: r.asset, at: r.at, text: r.text, score: -r.rank * weight };
   });
   hits.sort((a, b) => b.score - a.score);
-  return hits.slice(0, opts.limit ?? 8);
+  const seen = new Set<string>();
+  const unique = hits.filter((h) => {
+    const key = `${h.kind}|${h.ref}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return unique.slice(0, opts.limit ?? 8);
 }
 
 const UNTRUSTED: ReadonlySet<MemoryKind> = new Set(["observation", "brain"]);

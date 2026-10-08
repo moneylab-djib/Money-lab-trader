@@ -16,7 +16,7 @@ import type { AutomatonDatabase } from "../../types.js";
 import { parseTraderConfig, type TraderConfig } from "../../trader/config.js";
 import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
-import { addHypothesis } from "../../trader/hypotheses.js";
+import { addHypothesis, setStatementFr } from "../../trader/hypotheses.js";
 import { addLesson, retireLesson, reviseIdentity, writeReflection } from "../../trader/soul.js";
 import { addOwnerNote, updateDossier } from "../../trader/dossiers.js";
 import { addTrap } from "../../trader/portfolio.js";
@@ -149,6 +149,15 @@ describe("The memory index", () => {
     expect(indexMemory(db.raw)).toBe(0);
     addOwnerNote(db.raw, TRADER, "Regarde le rapport sur l'emploi vendredi.", T);
     expect(indexMemory(db.raw)).toBe(1);
+    // A hypothesis written in English and translated later by a reader: found in French, listed once.
+    const h = addHypothesis(db.raw, { statement: "Gold rises when real yields fall.", origin: "observation" }, T);
+    expect(indexMemory(db.raw)).toBe(1);
+    expect(searchMemory(db.raw, "rendements réels", { now: T, limit: 20 }).map((x) => x.ref)).not.toContain(h.id);
+    setStatementFr(db.raw, h.id, "L'or monte quand les rendements réels baissent.");
+    expect(indexMemory(db.raw)).toBe(1);
+    expect(indexMemory(db.raw)).toBe(0);
+    expect(searchMemory(db.raw, "rendements réels", { now: T })[0].ref).toBe(h.id);
+    expect(searchMemory(db.raw, "gold yields rendements", { now: T, kinds: ["hypothesis"] }).filter((x) => x.ref === h.id)).toHaveLength(1);
     db.close();
   });
 

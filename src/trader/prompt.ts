@@ -102,7 +102,8 @@ resolved predictions or one of your watches (set_watch: a level, a move, a date 
 deserves a look; self-wakes are capped per day by the owner. A watch costs nothing until it fires.
 
 Memory. Your pack holds what is vital now; search_memory finds anything older (lessons, journal, dossiers,
-notes, decisions, observations) by words, asset and period. Your pack also shows, per asset, the past days
+notes, decisions, observations, and code's summaries of each past day, week and month) by words, asset and
+period. Your pack also shows, per asset, the past days
 whose market indicators looked most like today and what followed them (code, only past days whose next
 week is known), and the market regime: a lesson learned in another regime may not hold now. When a
 lesson guides a prediction or a decision, cite it in lesson_ids: code scores every use against the
@@ -163,7 +164,8 @@ export const SONNI_EVENING_INSTRUCTIONS = `SONNI EVENING (required in this wake 
 3. Write the first dossier of every asset that has none yet (update_dossier: thesis, catalysts, levels,
    what you know so far), and rewrite the dossier of an asset whose picture changed today, not the others.
 4. Lessons: a lesson your system prompt flags with EVIDENCE AGAINST is retired now (retire_lesson) unless
-   you can say in one sentence why it still holds; prefer editing your lessons one at a time to rewriting them.
+   you can say in one sentence why it still holds; change your lessons one at a time (retire one, add one),
+   never all at once.
 5. Leave one reflection kind daily, in French, three to six sentences: what the day taught, what you
    watch tomorrow. The owner reads it in their 20:00 summary.
 6. Then sleep. No new prediction or order tonight unless something real happened today.`;

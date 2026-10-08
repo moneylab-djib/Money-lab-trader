@@ -98,7 +98,10 @@ A superseded belief is closed with `valid_to`, never deleted, so the agent can s
 
 | Store | Key fields | Notes |
 | --- | --- | --- |
-| `trader_lessons` (implemented) | text, evidence (prediction and hypothesis ids), status (active / retired), recorded_at, retired_at, retired_by (model / owner), retire_reason | Active lessons are in the cached part of every system prompt. A lesson needs at least one existing piece of evidence, at most 3 per day and 40 active; retired once, never deleted; the owner vetoes with /veto. |
+| `trader_lessons` (implemented) | text, evidence (prediction and hypothesis ids), status (active / retired), recorded_at, retired_at, retired_by (model / owner), retire_reason | Active lessons are in the cached part of every system prompt. A lesson needs at least one existing piece of evidence, at most 3 per day and 40 active; retired once, never deleted; the owner vetoes with /veto. Lessons change one at a time (add, retire), never rewritten as a whole (ACE, docs/RESEARCH.md 5.1). |
+| `trader_lesson_uses` (implemented, step 4) | lesson_id, subject_kind (prediction / decision), subject_id, at | The active lessons a prediction or a decision cited (`lesson_ids`, at most 5, unknown and retired ids dropped). Code scores each use once the outcome is known: a prediction helped when its Brier score beat code's reference (its snapshot), a decision helped when the next 7 days proved it right (src/trader/lessonuse.ts). The counts are in the memory pack ("Your lessons in use"); a lesson used at least 6 times that hurt twice as often as it helped is flagged EVIDENCE AGAINST in the cached prompt and in /lecons ("les faits la contredisent"), and the evening instructions ask Sonni to retire it or say why it still holds. The prompt shows each lesson's market regime when it was learned (BTC's trend and volatility, code). Append-only. |
+| `trader_summaries` (implemented, step 4) | period (day / week / month), start_day, end_day, content, sources, recorded_at | Summaries of finished UTC days, ISO weeks and months, written once by code (src/trader/summaries.ts, hourly task, no inference): each followed asset's move, predictions made and resolved with the Brier score against code's reference, decisions, orders and closed trades, the portfolio's result net of contributions, lessons added and retired, journal entries and the owner's notes; in French, with the ids it counted (`sources`, the first 12 also in the text). A period where nothing happened has none. Indexed for search. Append-only. |
+| `trader_memory` (implemented, step 4) | kind, ref, asset, at, text (FTS5, `unicode61 remove_diacritics 2`) | A derived full-text index of every store above (lessons, journal, dossiers in all versions, hypotheses, traps, the owner's notes, model orders' theses, decisions, observations, second-brain notes, identity versions, summaries), fed incrementally by rowid high-water marks before each search; a hypothesis's French wording, added later by a reader, is indexed when it arrives, and a search lists each memory once. Not a source of truth: it can be dropped and rebuilt from the stores. |
 
 ## 4. Turning Claude's knowledge into tested hypotheses
 
@@ -180,9 +183,38 @@ in this order:
 7. Observations from the last 24 h on the assets in scope.
 8. The asset dossier, truncated.
 
-The model can then search further with full-text recall (Money Lab's `recall` tool, extended to the
-memory tables). No embeddings and no vector database: structured keys plus FTS5 are enough at this
-scale and cost nothing per query.
+The model can then search further with `search_memory` (step 4, below). No embeddings and no vector
+database: structured keys plus FTS5 are enough at this scale and cost nothing per query (measured below).
+
+Memory v2 (step 4 of the plan of 2026-10-08, built): three levels.
+
+- Vital, always present: the identity, the active lessons (with the regime they were learned in and, when
+  the facts contradict one, its flag) and the rules, in the cached part of the system prompt.
+- Situational, chosen by code for this wake: the memory pack above, with since step 4 the market regime and
+  the five most similar past days per asset (src/trader/analogs.ts: standardized 1-, 7- and 30-day returns,
+  30-day volatility and distance to the 50-day average; at least a week apart; only days whose next 7 days
+  are stored, the outcome embargo; with the median move that followed) and the lessons in use with code's
+  counts.
+- Archive, searched on demand: `search_memory` (free) ranks the full-text index by BM25 × importance ×
+  recency. Importance: lessons 1.5, the owner's notes and traps 1.3, dossiers 1.2, summaries 1.1, journal,
+  hypotheses, decisions and orders 1, identity 0.8, observations 0.7, second-brain notes 0.6 (untrusted
+  text counts less). Half-life in days: observations 3, second-brain notes 7, decisions and notes 30, orders
+  60, journal 90, summaries 180, hypotheses 365, lessons, traps, dossiers and identity never fade. An older
+  dossier or identity version weighs 0.3, a retired lesson 0.4. Words are folded (accents, case, a final
+  plural "s"), matched by prefix from 4 letters, French and English filler words dropped, and passed to
+  SQLite as quoted terms only. Filters: asset, period (a bare "until" date includes its day), kinds. Every
+  hit carries its kind, id, date and asset, and observations and second-brain notes are marked UNTRUSTED.
+  The owner's `/memoire` and the second brain's `/question` context use the same index (labels in French,
+  no identifiers); Money Lab's `recall` takes Sonni's hits from it ahead of files.
+
+Recall evaluation (step 4, src/__tests__/trader/memory.test.ts): a realistic memory of 24 items and 16
+questions an owner or Claude would ask, each with the memories that answer it. The answer is in the
+first three hits for 16/16 questions with the new search, 11/16 with the keyword recall it replaced, which
+missed "baisse des taux de la Fed" (filler words outranked the active lesson), "liquidations" (plural),
+"piège FOMO" (a trap's name was not searchable), "que pense sonni du dollar" (filler words) and "bitcoin
+ETF inflows" (observations were not searchable). Three paraphrases (same meaning, other words or another
+language) score 0/3 with both: that is the gap a semantic index would close, built only if real use shows
+it matters (decision 0005).
 
 Implemented pack (step 3, src/trader/pack.ts), within 9,000 characters, in order: what happened
 since the previous session (triggers, resolutions, new headlines and observations, computed by code);
@@ -205,9 +237,9 @@ hypotheses are followed by the latest dossier per followed asset; the event cycl
 windows per asset for the event types due within 7 days, then the named cycles with code's verdicts)
 replaces the step 2 "event reactions" lines, and `sonni_memory {"section": "cycles"}` shows every type; a detail view does not move the "since the previous session" reference.
 The identity text and the active lessons are not in the pack: they sit in the cached part of the
-system prompt. `recall` searches the identity versions, reflections, lessons and hypotheses by terms
-(no FTS5 index yet), and since step C1 the dossiers, traps, the owner's notes and the theses behind
-orders; the owner searches the same stores with `/memoire <sujet>` (labels in French, no identifiers).
+system prompt. Before step 4, `recall` and `/memoire` searched the identity, reflections, lessons,
+hypotheses, dossiers, traps, notes and order theses by terms; since step 4 both use the full-text index
+above.
 
 Conversation history (2026-10-08): besides the pack, each call carries the last turns of the
 loop. Measured on the VPS on 2026-10-07, the 20 to 29 turns Money Lab keeps were about 70 % of every
@@ -271,5 +303,8 @@ stores and comes back through the pack, `sonni_memory` and `recall`.
 ## 9. Open questions
 
 - Pack token budget and ordering: tune after two weeks of measured sessions.
+- Semantic search: keyword search misses paraphrases (0/3 in the step 4 evaluation). Revisit with real
+  misses from `/memoire` and `search_memory` before adding embeddings (sqlite-vec, computed on the owner's
+  PC; decision 0005).
 - Confidence thresholds (8 instances, 0.65 / 0.35): proposal, to confirm with the owner.
 - Whether daily consolidation needs Opus or Sonnet is enough: decide on measured quality.

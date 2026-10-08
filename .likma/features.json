@@ -1055,6 +1055,33 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "memory-v2",
+      "title": "Step 4: memory v2 (search, lessons scored when applied, similar past days, summaries)",
+      "criteria": [
+        "search_memory, /memoire and recall use one full-text index of every store, fed incrementally, filtered by asset, period and kind",
+        "Words are folded (accents, case, plural) and reach SQLite as quoted terms only; each hit carries its kind, id, date and asset, untrusted kinds marked",
+        "Ranking weighs importance and recency, puts the current dossier and identity above older versions and active lessons above retired ones",
+        "On the step 4 evaluation set the answer is in the first three hits for 16/16 questions against 11/16 for the old keyword recall; paraphrases are measured (0/3)",
+        "Code scores each cited lesson from the outcome and flags one used 6 times that hurt twice as often as it helped: flag in the cached prompt, counts in the pack and /lecons",
+        "The pack shows each asset's regime and its five most similar past days, a week apart, only days whose next 7 days are stored, with what followed",
+        "Code writes one summary per finished UTC day, ISO week and month with activity, once, with its sources, searchable and labelled in French for the owner"
+      ],
+      "status": "planned",
+      "paths": [
+        "src/trader/memory.ts",
+        "src/trader/lessonuse.ts",
+        "src/trader/analogs.ts",
+        "src/trader/summaries.ts",
+        "src/trader/tools.ts",
+        "src/trader/pack.ts",
+        "src/trader/prompt.ts",
+        "src/trader/cli.ts",
+        "src/money-lab/recall.ts",
+        "src/__tests__/trader/memory.test.ts",
+        "sonni/e2e.mjs"
+      ]
     }
   ]
 }

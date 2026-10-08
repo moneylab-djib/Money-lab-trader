@@ -57,7 +57,7 @@ export const SONNI_USAGE = `Commandes Sonni :
   intuitions             liste des intuitions
   dossier [actif]        son dossier sur un actif (thèse, catalyseurs, niveaux, versions)
   note <texte>           lui laisser une note (information fiable, lue à sa prochaine séance)
-  memoire <sujet>        ce qu'il sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, notes)
+  memoire <sujet>        ce qu'il sait sur un sujet (toute sa mémoire, résumés compris)
   carnets                écrire ses carnets Markdown dans ~/carnet (aussi chaque dimanche)
   cycles                 réactions mesurées autour des événements et cycles nommés par Sonni
   portefeuille           son portefeuille virtuel : valeur, positions, ordres, résultats
@@ -146,7 +146,7 @@ export function runSonniCommand(
     case "mémoire": {
       const query = rest.join(" ").trim();
       if (!query) {
-        print("Usage : /memoire <sujet> — ce que Sonni sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres).");
+        print("Usage : /memoire <sujet> — ce que Sonni sait sur un sujet (dossiers, intuitions, journal, leçons, pièges, tes notes, ses ordres et décisions, l'actualité, les résumés).");
         return 1;
       }
       print(formatMemoireFr(db, query, searchMemory(db, query, { limit: 8 })));

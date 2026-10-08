@@ -325,7 +325,7 @@ export function formatLessonsFr(db: DB): string {
   for (const l of active) {
     const learned = regimeAt(db, "BTC", l.recordedAt.slice(0, 10));
     lines.push(`- ${l.id} (${fmtDay(l.recordedAt.slice(0, 10))}) : ${l.text}`);
-    lines.push(`  ${describeEvidenceFr(evidence.get(l.id))}${learned ? ` ; apprise quand le BTC était en ${describeRegimeFr(learned)}` : ""}`);
+    lines.push(`  ${describeEvidenceFr(evidence.get(l.id))}${learned ? ` ; marché du BTC quand il l'a apprise : ${describeRegimeFr(learned)}` : ""}`);
   }
   if (retired.length) {
     lines.push("", `Retirées (${retired.length}) :`);
