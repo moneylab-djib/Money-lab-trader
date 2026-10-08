@@ -23,5 +23,14 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Edit(.claude/**)",
+      "Edit(.git/hooks/**)",
+      "Edit(.mcp.json)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
   }
 }

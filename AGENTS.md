@@ -66,6 +66,11 @@ hypotheses and known costs, and do not invent usage or renew runs to evade budge
 Update docs/STATUS.md with real checks and blockers; never report planned work as complete.
 After substantial changes, explain to the owner (in French) outcome, reason, affected paths and how to test it.
 
+Security checks: `deps` runs `pnpm audit --prod --audit-level critical` (fails on critical advisories; highs are
+reported in its log); .github/workflows/secrets.yml scans new commits for verified credentials (TruffleHog).
+Claude Code deny rules protect .claude/, .git/hooks/, .mcp.json and .env files; agent_isolation in
+likma.project.json records why no Claude Code sandbox is configured.
+
 <!-- likma:begin -->
 ## Likma routine
 Managed by Likma `project upgrade`; edit project rules outside the likma markers.
@@ -75,14 +80,17 @@ Run the CLI as `likma project <action> --path .` (install: `pipx install --edita
 
 - Start: run `likma project brief` (status, features, audit findings, last handoff); read docs/STATUS.md.
 - Plan: record features with numbered acceptance criteria and scope paths (`project feature add`); split
-  multi-file work into tasks (`project feature task ID add`) and `project feature plan ID`.
+  multi-file work into tasks (`project feature task ID add`) and `project feature plan ID`. Size it with
+  `--track quick|standard|deep` (`--bug` for fixes); run `project feature lint ID` and `analyze ID` before coding.
   Verify the first usable slice (docs/FIRST-SLICE.md) before expanding.
 - Work: use `project setup|start|check` with the configured commands; never guess commands. Parallel agents
   work in `project worktree add NAME`. On failure read `project diagnostics` before rerunning; record
   hypotheses with `project attempt`. Search `project knowledge find` before repeating research.
 - Verify: `project feature verify ID --criterion-check N:CHECK`; after merges or broad edits `project feature reverify`
-  runs each check once for all stale features. Inspect rendered UI for visual changes.
-- Finish: run `project audit`, update docs/STATUS.md, end an active run with `project runtime end --summary`
+  runs each check once for all stale features. Explain test-integrity flags or restore the tests; get an
+  independent `project feature review ID` for deep or risky work. Inspect rendered UI for visual changes.
+- Finish: run `project audit` and `project ready [ID]` (`project conflicts` before pushing), update
+  docs/STATUS.md, end an active run with `project runtime end --summary`
   (import measured usage first with `project runtime import-usage`). Propose reusable lessons with
   `project lesson propose`. Report outcome, evidence, affected paths and how to test; never report unrun
   checks or mocks as done.
@@ -90,7 +98,7 @@ Run the CLI as `likma project <action> --path .` (install: `pipx install --edita
 - Load only skills relevant to the task: read `<likma checkout>/skills/<area>/<name>/SKILL.md` from the index
   below (installed copies are prefixed `likma-`; plugins namespace them as `likma:<name>`).
 
-### Skill index (profile bot, Likma 0.10.1)
+### Skill index (profile bot, Likma 0.12.0)
 - agents/autonomous-agents: building, auditing or running an unattended LLM agent with tools, shell, spend or an owner channel; produces…
 - agents/llm-evaluation: measuring an LLM feature, RAG or agent (eval sets, graders, judges, baselines, CI gates, drift); produces a v…
 - agents/mcp-servers: designing, building or reviewing a Model Context Protocol server or its tools (naming, schemas, pagination, e…

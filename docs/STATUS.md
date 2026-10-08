@@ -1,5 +1,5 @@
 # Working status
-- Updated: 2026-10-07
+- Updated: 2026-10-08
 - Branch / commit: claude/sonni-evening (step C3, stacked on claude/sonni-cycles = PR #14, #13, #12; main after PRs #1 to #11)
 - Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
   profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
@@ -17,6 +17,13 @@
     fingerprint v3 evidence. `likma project check --only types`: pass. `likma project audit`: 0 failures.
   - Feature scopes are still broad (src, sonni): any source change makes every feature stale; reverify keeps
     that cheap, narrowing scopes per feature is a follow-up.
+- Security hardening (2026-10-08, Likma 0.12.0): removed the unused direct dependency simple-git (critical
+  advisories fixed only in 4.x; nothing in the repository imports it); new `deps` check (`pnpm audit --prod
+  --audit-level critical`: 0 critical, 9 high and 17 moderate remain, all transitive); TruffleHog secret scan in CI
+  (.github/workflows/secrets.yml, pinned v3.97.0); Claude Code deny rules for .claude/, .git/hooks/, .mcp.json,
+  .env*; `agent_isolation` records that the Claude Code sandbox cannot run in cloud containers (no bubblewrap,
+  tested) or on Windows. After the change: deps, types, build pass; `feature reverify` re-verified the 8 features
+  whose scope includes package.json (build, sonni-e2e PASS in 556 s, sonni pass).
 - Current goal: step 3 "Sonni alive" built on the owner's request of 2026-10-06 ("as alive as possible:
   consciousness, finds its own tools, free AIs for information, all of A to D"). First slice live on the
   owner's VPS since 2026-10-06 22:12 UTC (steps 1 and 2 not deployed there yet: see "Next concrete action").
