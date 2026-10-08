@@ -904,6 +904,29 @@
         "at": "2026-10-08T10:15:57.069976+00:00",
         "note": "decisions.ts, snapshot.ts, strong.ts, tools market_odds/record_decision/place_order hold, loop hooks, scoreboard in soul.ts, pack sections"
       }
+    },
+    {
+      "id": "living-universe",
+      "title": "Step 2: living universe (core of six assets, tokenized USD stocks in EUR, satellites, weekly screen)",
+      "criteria": [
+        "The example core holds BTC, ETH, PAXG, USDC, SPY (SPYxUSD) and NVDA (NVDAxUSD); tokenized pairs are queried with their asset class and their prices and daily candles are stored in EUR at Kraken's EUR/USD rate, never in dollars",
+        "Sonni rotates at most 3 satellites under code's rules (core removed only by the owner, 250,000 EUR a day minimum, 3-day hold, 7-day cooldown) and the owner can veto a satellite with /actifs non for 30 days",
+        "A weekly code screen measures liquid Kraken pairs Sonni does not follow, ranks the most different first, and shows them in the pack and /actifs"
+      ],
+      "status": "built",
+      "paths": [
+        "src/trader/markets.ts",
+        "src/trader/screen.ts",
+        "src/trader/universe.ts",
+        "src/trader/prices.ts",
+        "src/trader/candles.ts",
+        "src/__tests__/trader/universe.test.ts",
+        "sonni/e2e.mjs"
+      ],
+      "implementation": {
+        "at": "2026-10-08T10:29:00.296459+00:00",
+        "note": "markets.ts, screen.ts, universe rules, prices/candles conversion, FX tables, example core of six assets"
+      }
     }
   ]
 }

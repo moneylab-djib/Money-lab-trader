@@ -13,17 +13,23 @@ rester en cash ne lui coûtait rien), il a écrit « marge ~27 % » au lieu de 2
 presque ensemble (il apprend deux fois la même chose). Quatre étapes, une PR chacune, avec observation
 sur le VPS entre deux étapes :
 
-1. **Décider vraiment** (en cours) : une décision par actif suivi au moins toutes les 8 heures
+1. **Décider vraiment** (construit, PR #20 en attente de ta fusion) : une décision par actif suivi au moins toutes les 8 heures
    (acheter, renforcer, garder, alléger, vendre ou rester en dehors, avec sa raison) que le code note à
    24 h et à 7 jours, rester en dehors compris, sans achat forcé ; avant chaque pari, la « fiche » du
    code (écart au seuil en % et en volatilité, probabilité de référence) gardée avec le pari ; un achat
    de 20 % du portefeuille ou plus est réexaminé par Opus avant d'être passé (tant qu'Opus n'a pas
    déjà dépensé la moitié du plafond du jour ; sinon l'ordre passe avec une mention) ; dans `/bilan`, le tableau « Est-ce qu'il apprend ? » (justesse face à
    la référence, tendance, décisions, leçons) et ton rituel de 5 minutes par semaine.
-2. **Univers vivant** : en plus de BTC et ETH, l'or (PAXG), les actions américaines (SPYx), le dollar
-   face à l'euro (USDC/EUR) et Nvidia (NVDAx) ; le code passe chaque semaine les paires Kraken au crible
-   (tendance, élan, volume, corrélation, événements) et Sonni fait tourner quelques places avec une
-   raison écrite ; tu gardes le socle et le veto (`/actifs`).
+2. **Univers vivant** (construit, en attente de ta fusion) : ton socle passe à six actifs, BTC, ETH, l'or
+   (PAXG), le dollar face à l'euro (USDC), les actions américaines (SPY, via l'action tokenisée SPYx de
+   Kraken) et Nvidia (NVDA, via NVDAx) ; ces deux dernières sont cotées en dollars et le code convertit
+   tout en euros avec le taux EUR/USD de Kraken. Sonni ajoute au plus 3 « places tournantes » (une paire
+   Kraken en euros ou une autre action tokenisée, au moins 250 000 € échangés par jour, gardée 3 jours au
+   moins, pas reprise dans les 7 jours après l'avoir lâchée). Chaque semaine, le code passe au crible
+   les paires Kraken liquides qu'il ne suit pas (tendance, élan, volatilité, corrélation avec ce qu'il
+   suit) et lui montre d'abord les plus différentes. Toi : `/actifs` (socle, places tournantes, crible)
+   et `/actifs non <symbole>` pour retirer une place tournante (il ne pourra pas la reprendre pendant
+   30 jours). Le socle ne se retire que par la configuration.
 3. **Second cerveau sur ton PC** (RX 9070 XT) : un modèle local (Qwen3.6-35B-A3B, confirmé sur 50 vraies
    tâches avant d'être figé ; gpt-oss-20b en secours) joint par le VPS via Tailscale, sans port ouvert.
    Modes commandés par toi (`/cerveau`) : arrêt, **assistant (par défaut)**, parallèle, délégué (seulement
