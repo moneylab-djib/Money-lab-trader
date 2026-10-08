@@ -1195,7 +1195,7 @@
         "/cerveau recompter makes the confirmation counter count only jobs finished from that moment; /cerveau shows the start date, the answer names the done and failed jobs set aside",
         "Each restart is a brain_recount incident, no job row is deleted, the parallel score is untouched, and an unknown /cerveau word names recompter"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "src/trader/brain.ts",
         "src/trader/brainstate.ts",
@@ -1207,6 +1207,39 @@
       "implementation": {
         "at": "2026-10-08T15:54:52.689294+00:00",
         "note": "KV sonni.brain_evidence_since filters modelDone and modelFailed; resetBrainEvidenceFr records a brain_recount incident; /cerveau shows the start; help, guide, MEMORY, PLAN.fr and STATUS updated"
+      },
+      "verification": {
+        "at": "2026-10-08T16:07:27.359066+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "eb0d4d144012728947cfcd9f4a1c46c28e69f93f6e3413e6e9910c68dfa4fd2b",
+        "scope": [
+          "src/trader/brain.ts",
+          "src/trader/brainstate.ts",
+          "src/trader/incidents.ts",
+          "src/money-lab/telegram.ts",
+          "src/__tests__/trader/brain.test.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni"
+        },
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/6bfd2610e0f742d4ae320a0e30a7dc00.json",
+        "contract": "83230475630bc0e45250e0f9e7b2555b3e18d8a15514c97398634a93158e0171",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 21.192,
+            "output_bytes": 25010,
+            "output_sha256": "28c45e10b787f34745fd87bffa1e860e3185f735d04d82e3a32ac3bd5bacd139"
+          }
+        ],
+        "integrity": {
+          "base": "44881644c7428ebd228da5b142a10b70b8230103",
+          "flags": []
+        }
       }
     }
   ]
