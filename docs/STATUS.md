@@ -1,6 +1,6 @@
 # Working status
 - Updated: 2026-10-08
-- Branch / commit: claude/sonni-memory (step 4 of the plan of 2026-10-08, PR #23; steps 1 to 3 merged in main: PRs #20, #21, #22)
+- Branch / commit: main after PRs #20 to #23 (plan of 2026-10-08, steps 1 to 4, merged 2026-10-08 10:52 to 12:11 UTC); claude/sonni-likma-reverify records the re-verification below
 - Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
   profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
   `build`; setup `install`; budget 240 min; `bot_guards` maps the 8 Likma guard classes to guards.test, the
@@ -278,10 +278,14 @@
   `/memoire Catalyseurs` (case and plural folded). Checks (2026-10-08 12:08 UTC, this sandbox, Likma project check
   c0fabd90): types PASS, sonni 163/163, money-lab 110/110, build PASS, sonni-e2e PASS (80
   checks, 591 s); feature memory-v2 verified (sonni). Not yet observed on the VPS.
-- Next concrete action: owner merges PR #23 (step 4; steps 1 to 3 are in main since 2026-10-08 11:58 UTC)
-  and runs the update block of sonni/GUIDE-VPS.fr.md; then follows sonni/GUIDE-PC.fr.md on the PC and checks
-  /cerveau; observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee, /cerveau,
-  /memoire, /lecons).
+- Re-verification after the four steps (Likma `project feature reverify`, report f5dcd98f, 2026-10-08 12:25 UTC,
+  this sandbox, on the tree merged in main): build PASS, sonni PASS, money-lab PASS, sonni-e2e PASS (591 s); the
+  15 stale features re-verified, second-brain, pc-memory-copy and memory-v2 verified the same day: every feature
+  verified.
+- Next concrete action: owner runs the update block of sonni/GUIDE-VPS.fr.md (main has steps 1 to 4 since
+  2026-10-08 12:11 UTC) and checks /actifs, /memoire, /lecons and /bilan; then follows sonni/GUIDE-PC.fr.md on
+  the PC and checks /cerveau; observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in
+  /journee, /cerveau).
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.
