@@ -50,6 +50,7 @@ import { MONEY_LAB_WAKE_REASON_KEY } from "./money-lab/journal.js";
 import { isReviewDue } from "./money-lab/review.js";
 import { recordHealthEvent } from "./money-lab/health.js";
 import { recordIncident } from "./trader/incidents.js";
+import { fmtTime } from "./trader/format.js";
 import {
   createSelfHostedClient,
   environmentProtected,
@@ -681,7 +682,10 @@ async function run(): Promise<void> {
     every(60_000, "Sonni soirée", async () => {
       // Step C3: one paid turn in the owner's evening; the wake is delivered once per local day.
       const cfg = live();
-      if (!consolidationDue(db.raw, cfg) || consolidationPending(db.raw, cfg) || !canWake()) return;
+      // Unlike curiosity, the evening turn may end a no-progress sleep (it is a scheduled duty), not a cap.
+      const reason = String(db.getKV("sleep_reason") ?? "");
+      const free = db.getAgentState() === "sleeping" && sonniLoopSlept && !getPauseState(db.raw) && !reason.startsWith("plafond");
+      if (!consolidationDue(db.raw, cfg) || consolidationPending(db.raw, cfg) || !free) return;
       markConsolidationPending(db.raw, cfg);
       insertWakeEvent(db.raw, CONSOLIDATION_WAKE_SOURCE, CONSOLIDATION_WAKE_REASON);
       logger.info("[SONNI] Autopsie du soir : réveil.");
@@ -764,6 +768,19 @@ async function run(): Promise<void> {
   // The automaton alternates between running and sleeping.
   // The heartbeat can wake it up.
 
+  // Sonni: a restart while asleep keeps the sleep instead of starting a paid cycle (on 2026-10-07 thirteen
+  // restarts for updates and settings cost about 1 USD of a 1.95 USD day). A message from the owner, a
+  // due sleep or an interrupted cycle start one as before.
+  let resumeSleep = false;
+  if (config.trader && moneyLab) {
+    const until = Date.parse(db.getKV("sleep_until") ?? "");
+    const ownerWaiting = (db.raw.prepare("SELECT COUNT(*) AS n FROM inbox_messages WHERE processed_at IS NULL").get() as { n: number }).n > 0;
+    if (db.getAgentState() === "sleeping" && Number.isFinite(until) && until > Date.now() + 60_000 && !ownerWaiting) {
+      resumeSleep = true;
+      logger.info(`[SONNI] Redémarrage pendant le sommeil : pas de réveil payé, sommeil jusqu'à ${new Date(until).toISOString()}.`);
+    }
+  }
+
   while (true) {
     try {
       // Reload skills (may have changed since last loop)
@@ -782,8 +799,8 @@ async function run(): Promise<void> {
       const fingerprintBefore = moneyLab ? journalFingerprint(db.raw) : "";
       const inferenceCallsBefore = moneyLab ? inferenceCallCount(db.raw) : 0;
 
-      // Run the agent loop
-      await runAgentLoop({
+      // Run the agent loop (skipped once after a restart that keeps a sleep)
+      if (!resumeSleep) await runAgentLoop({
         identity,
         config,
         db,
@@ -804,16 +821,17 @@ async function run(): Promise<void> {
         },
       });
 
-      if (moneyLab) {
+      if (moneyLab && !resumeSleep) {
         const cycle = afterWakeCycle(db.raw, moneyLab, fingerprintBefore, Date.now(), inferenceCallsBefore);
         if (cycle.longSleepUntil) {
           logger.info(
             `[MONEY LAB] ${cycle.noProgressCycles} cycles sans progrès du journal : sommeil jusqu'à ${cycle.longSleepUntil}.`,
           );
-          if (config.trader) recordIncident(db.raw, "no_progress", `${cycle.noProgressCycles} cycles payés sans progrès : sommeil jusqu'à ${cycle.longSleepUntil}`);
+          if (config.trader) recordIncident(db.raw, "no_progress", `${cycle.noProgressCycles} cycles payés sans progrès : sommeil jusqu'à ${fmtTime(cycle.longSleepUntil, config.trader.timeZone)}`);
         }
       }
 
+      resumeSleep = false;
       // Agent loop exited (sleeping or dead)
       const state = db.getAgentState();
 

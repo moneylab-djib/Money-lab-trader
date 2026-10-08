@@ -16,6 +16,12 @@ import type { TraderConfig } from "./config.js";
 type DB = Database.Database;
 
 export const CONSOLIDATION_WAKE_SOURCE = "sonni_evening";
+/**
+ * Kept for the evening turn: until it has run, a day-time paid call is not
+ * started once the UTC day's spend reaches the daily cap minus this (owner
+ * messages excepted). The turn itself usually costs 15 to 30 cents.
+ */
+export const CONSOLIDATION_RESERVE_CENTS = 40;
 export const CONSOLIDATION_WAKE_REASON = "evening consolidation due: the day's post-mortems, trap hits, dossiers and a daily note";
 const KV_DONE_DAY = "sonni.consolidation_done_day";
 const KV_PENDING_DAY = "sonni.consolidation_pending_day";
@@ -55,6 +61,25 @@ export function markConsolidationDone(db: DB, cfg: TraderConfig, now: Date = new
 
 export function consolidationDoneToday(db: DB, cfg: TraderConfig, now: Date = new Date()): boolean {
   return getKV(db, KV_DONE_DAY) === localDay(now, cfg.timeZone);
+}
+
+/** Today's consolidation time as an instant, or null once it has passed (local day). */
+export function consolidationTimeToday(cfg: TraderConfig, now: Date = new Date()): Date | null {
+  const diff = cfg.consolidation.hour * 60 + cfg.consolidation.minute - localMinutes(now, cfg.timeZone);
+  if (diff <= 0) return null;
+  const at = new Date(now.getTime() + diff * 60_000);
+  at.setUTCSeconds(0, 0);
+  return at;
+}
+
+/**
+ * True when a day-time paid call must not start: the evening turn of the
+ * local day has not run and the day's spend already eats into its reserve.
+ */
+export function reserveBlocks(db: DB, cfg: TraderConfig, dailyCapCents: number | null, spentTodayCents: number, now: Date = new Date()): boolean {
+  if (dailyCapCents === null || dailyCapCents <= CONSOLIDATION_RESERVE_CENTS * 2) return false;
+  if (consolidationDoneToday(db, cfg, now)) return false;
+  return spentTodayCents >= dailyCapCents - CONSOLIDATION_RESERVE_CENTS;
 }
 
 /** For /journee: "faite", "prévue à 19:30" or "pas faite" in French. */

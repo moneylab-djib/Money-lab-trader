@@ -228,6 +228,30 @@ export const SONNI_DENIED_TOOLS: ReadonlySet<string> = new Set([
   "check_reputation",
   "send_message",
   "check_usdc_balance",
+  // Automaton leftovers measured on 2026-10-08 (about 2,500 tokens of schemas in every call): children,
+  // model switching (the model would change its own runtime setting), domains and paid fetches, goals and
+  // the orchestrator. Sonni has none of these; its owner channel, recall and sleep stay.
+  "list_children",
+  "check_child_status",
+  "start_child",
+  "message_child",
+  "verify_child_constitution",
+  "prune_dead_children",
+  "fund_child",
+  "list_models",
+  "switch_model",
+  "check_inference_spending",
+  "search_domains",
+  "register_domain",
+  "manage_dns",
+  "x402_fetch",
+  "create_goal",
+  "list_goals",
+  "cancel_goal",
+  "get_plan",
+  "complete_task",
+  "orchestrator_status",
+  "system_synopsis",
 ]);
 
 export class TraderConfigError extends Error {

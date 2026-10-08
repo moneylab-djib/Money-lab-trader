@@ -1,7 +1,7 @@
 # Sonni guard map
 
 Method: Likma `agents/autonomous-agents` (envelope, then guard → threat → code → test). Owner's
-decision of 2026-10-07: build G1 to G9. Status column: `verified` means the named test passed in the
+decision of 2026-10-07: build G1 to G9; G10 added on 2026-10-08. Status column: `verified` means the named test passed in the
 configured check (`sonni`, `money-lab` or `sonni-e2e`) on the commit named in docs/STATUS.md; a guard
 without a passing test is `unverified`.
 
@@ -32,6 +32,7 @@ without a passing test is `unverified`.
 | G7 | A daily backup counts only once opened read-only, `integrity_check` = ok and row counts at least those of the live database before the copy; a failing copy is a health event and an incident | A corrupt or partial backup discovered when it is needed | `tableCounts`, `verifyBackup` in src/money-lab/backup.ts; hourly task in src/index.ts | guards.test "G7" (sound copy, rows added after, short copy, corrupt file, missing file) | verified |
 | G8 | Chaos scenario in the e2e: three API 529s, Telegram and Kraken down for 40 s while the owner writes; the process survives, collection resumes, the message is handled exactly once after the outage (retried with the same input), /sante names the failed task | Real outages on the VPS | sonni/e2e.mjs (chaos block), retry logic in src/agent/loop.ts, health events | e2e "process alive after 40 s…", "price collection resumed…", "the owner's message… exactly once" | verified (sonni-e2e) |
 | G9 | Incident log: automatic pauses, caps, unknown cost, error streaks, cut answers, unknown stop reasons, no-progress sleeps, disabled sources, refused readers, failed backups, forced sleeps; append-only, keys scrubbed; shown by /technique (7 days) and counted in the morning report (24 h) | Silent drift: the runtime protecting itself without the owner knowing | src/trader/incidents.ts; hooks in src/agent/loop.ts, src/money-lab/journal.ts (`pause`), src/index.ts, src/trader/sources.ts, src/trader/readers.ts | guards.test "G9" | verified |
+| G10 | Budget guards (2026-10-08, from the VPS costs of 2026-10-07): a restart while Sonni sleeps resumes the sleep with no paid call unless an owner message waits; day-time calls stop `CONSOLIDATION_RESERVE_CENTS` (40c) short of the daily cap until the evening turn has run, owner messages excepted, with one `cap` incident a day; the evening turn may end a no-progress sleep; 21 leftover automaton tools (children, models, domains, goals, planner) denied; history 8 to 11 turns | Spend without learning: 13 restarts cost about 0.96 $ in one day, the cap left nothing for the evening post-mortems, unused tool schemas and old turns were most of each call | src/index.ts (`resumeSleep`), `reserveBlocks` in src/trader/consolidation.ts, src/agent/loop.ts (reserve, `SONNI_WINDOW`), `SONNI_DENIED_TOOLS` in src/trader/config.ts | budget.test (reserve, owner and evening exceptions, incident once a day, denied tools, history window); e2e "a restart during a sleep makes no paid call" | verified |
 
 Guards that existed before this map and stay verified by their own tests: identical-call detection
 (name and arguments, warn then forced sleep: src/agent/loop.ts, money-lab tests), sleep clamp 6 h

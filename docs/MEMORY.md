@@ -130,7 +130,7 @@ Implemented in step 1 ("Sonni already knows things", src/trader/intake.ts, rules
 | Measure | Every few minutes | Code | Prices, events | reactions, pattern stats |
 | Decide | ~3 sessions/day + triggers | Sonnet 5.5 | Memory pack (section 6) | predictions, virtual orders, theses |
 | Resolve | Continuous (every price collection) | Code | Prices, horizons, pending orders, invalidation levels | outcomes, Brier scores, fills, stops, expiries, trades with P&L, daily snapshot, hypothesis evidence |
-| Consolidate (implemented, step C3: src/trader/consolidation.ts) | Daily, one paid turn from `trader.consolidation` (19:30 in the owner's time zone) delivered as a wake while the agent sleeps unpaused and under its caps; marked done only after a paid turn | Sonnet 5.5 | The day's resolutions, closed trades, observations and the owner's notes | post-mortems still due, trap hits, the dossiers that changed, one `daily` reflection shown in the owner's 20:00 summary |
+| Consolidate (implemented, step C3: src/trader/consolidation.ts) | Daily, one paid turn from `trader.consolidation` (19:30 in the owner's time zone) delivered as a wake while the agent sleeps unpaused and under its caps (a no-progress sleep does not hold it back); any wake after that time is the evening turn until it is done; 40c of the daily cap are reserved for it (2026-10-08); marked done only after a paid turn | Sonnet 5.5 | The day's resolutions, closed trades, observations and the owner's notes | post-mortems still due, trap hits, the dossiers that changed, one `daily` reflection shown in the owner's 20:00 summary |
 | Review | Weekly | Opus 5.5 | The week, hypothesis table, traps, rules | merged and retired hypotheses, lessons, new patterns to test, the owner's report |
 
 Triggers for an extra decision session (implemented in step 3, src/trader/curiosity.ts, evaluated by
@@ -197,6 +197,12 @@ The identity text and the active lessons are not in the pack: they sit in the ca
 system prompt. `recall` searches the identity versions, reflections, lessons and hypotheses by terms
 (no FTS5 index yet), and since step C1 the dossiers, traps, the owner's notes and the theses behind
 orders; the owner searches the same stores with `/memoire <sujet>` (labels in French, no identifiers).
+
+Conversation history (2026-10-08): besides the pack, each call carries the last turns of the
+loop. Measured on the VPS on 2026-10-07, the 20 to 29 turns Money Lab keeps were about 70 % of every
+call (38k to 49k tokens) and mostly repeated the pack. Sonni keeps 8 to 11 turns (window 8, dropped 4
+at a time so the prefix stays cacheable 3 turns out of 4); what matters beyond them is already in the
+stores and comes back through the pack, `sonni_memory` and `recall`.
 
 ## 7. Integrity
 

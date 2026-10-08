@@ -193,6 +193,7 @@ const chaos = { anthropic: 0, telegramUntil: 0, krakenUntil: 0 };
 let ownerHelloSeen = 0;
 /** Step C3: the evening consolidation, scheduled 7 minutes after the start (Paris time) in this run. */
 let eveningSeen = false;
+let anthropicCalls = 0;
 
 const server = http.createServer(async (req, res) => {
   let raw = "";
@@ -205,6 +206,7 @@ const server = http.createServer(async (req, res) => {
       return send(529, { type: "error", error: { type: "overloaded_error", message: "Overloaded" } });
     }
     const body = JSON.parse(raw);
+    anthropicCalls++;
     if (/es-tu toujours là/.test(JSON.stringify([...body.messages].reverse().find((m) => m.role === "user") ?? ""))) ownerHelloSeen++;
     const errs = validate(body);
     if (errs.length) {
@@ -523,11 +525,15 @@ const afterStop = pricesStored();
   ? ok("prices and prediction kept after the process stopped")
   : fail("state lost after stopping the process");
 const callsBefore = krakenCalls.length;
+const paidBefore = anthropicCalls;
 start();
 await until(() => krakenCalls.length > callsBefore, 20000)
   ? ok("collection resumes after a restart")
   : fail("no collection after restart");
 await wait(3000);
+// A restart while Sonni sleeps resumes the sleep instead of paying for a wake (2026-10-08: 13 restarts cost ~0.96 $).
+anthropicCalls === paidBefore && /\[SONNI\] Redémarrage pendant le sommeil : pas de réveil payé/.test(out)
+  ? ok("a restart during a sleep makes no paid call") : fail(`restart made ${anthropicCalls - paidBefore} paid call(s)`);
 child.kill("SIGTERM");
 await wait(1500);
 

@@ -54,6 +54,13 @@ Ce sont des estimations, à corriger après deux semaines de mesures. Il peut to
 rythme lissé sur le mois. Garde-fou : une clé API Anthropic dédiée, avec une limite de dépense
 mensuelle que tu fixes dans la console Anthropic.
 
+**Mesuré le 7 octobre, corrigé le 8** : treize redémarrages ont coûté environ 0,96 $ (chacun
+réveillait Sonni), et le plafond du jour, atteint l'après-midi, a empêché l'autopsie du soir. Depuis :
+un redémarrage pendant son sommeil ne le réveille plus (sauf si tu lui as écrit) ; 0,40 $ du plafond
+sont gardés pour l'autopsie du soir (tes messages passent quand même) ; tout réveil après 19 h 30
+devient l'autopsie si elle n'est pas faite ; il ne reçoit plus les outils inutiles hérités de Money
+Lab et n'emporte plus que ses 8 à 11 derniers tours (l'historique faisait 70 % de chaque appel).
+
 **Données** (ta réponse du 6 octobre) : il utilise d'abord les sources gratuites. S'il juge qu'une
 source payante vaut le coup, il te la propose avec son coût et son usage prévu ; c'est toi qui
 t'abonnes (il ne crée jamais de compte), et l'abonnement est pris sur ses 50 €. Il doit donc choisir
