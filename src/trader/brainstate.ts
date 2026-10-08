@@ -20,6 +20,17 @@ export const BRAIN_READER_ID = "second_brain";
 
 const KV_MODE = "sonni.brain_mode";
 const KV_HEALTH = "sonni.brain_health";
+const KV_EVIDENCE_SINCE = "sonni.brain_evidence_since";
+
+/** When the owner last restarted the confirmation counter (/cerveau recompter); null: from the first job. */
+export function evidenceSince(db: DB): string | null {
+  const v = getKV(db, KV_EVIDENCE_SINCE);
+  return v && !Number.isNaN(Date.parse(v)) ? v : null;
+}
+
+export function setEvidenceSince(db: DB, at: string): void {
+  setKV(db, KV_EVIDENCE_SINCE, at);
+}
 
 export const MODE_FR: Record<BrainMode, string> = {
   off: "arrêt", assistant: "assistant", parallel: "parallèle", delegated: "délégué",

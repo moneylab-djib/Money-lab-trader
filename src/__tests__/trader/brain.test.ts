@@ -338,6 +338,36 @@ describe("The assistant's work", () => {
     db.close();
   });
 
+  it("restarts the confirmation counter on the owner's word, visibly, without deleting anything", async () => {
+    // Owner's decision, 2026-10-08: the first day's 9 failures came from the triage budget bug, not from the model.
+    const db = openDb();
+    let fail = true;
+    const pc = fakePc(() => (fail ? { note: "" } : { note: "Marché calme." }));
+    for (let i = 0; i < 3; i++) enqueueJob(db.raw, "briefing", `briefing:${i}`, {}, 600, T0);
+    for (let i = 0; i < MAX_ATTEMPTS * 3; i++) await brainTick(db.raw, TRADER, ENV, pc, () => minutes(i * 5));
+    fail = false;
+    enqueueJob(db.raw, "briefing", "briefing:ok", {}, 600, minutes(60));
+    await brainTick(db.raw, TRADER, ENV, pc, () => minutes(60));
+    expect(brainStats(db.raw, minutes(61))).toMatchObject({ since: null, modelDone: 1, modelFailed: 3 });
+    // The owner restarts the count: the answer names what is set aside, and an incident records it.
+    const answer = setBrainModeFr(db.raw, "recompter", minutes(62));
+    expect(answer).toContain("Compteur du second cerveau remis à zéro : il compte les tâches finies depuis le 2026-10-08 11:02 UTC");
+    expect(answer).toContain("Avant : 1 réussie(s), 3 échouée(s) avec qwen3.6-35b-a3b");
+    expect(listIncidents(db.raw).filter((i) => i.kind === "brain_recount").map((i) => i.message)).toEqual([
+      "compteur de confirmation remis à zéro par toi ; avant : 1 réussie(s), 3 échouée(s) (qwen3.6-35b-a3b), gardées dans l'historique",
+    ]);
+    expect(brainStats(db.raw, minutes(62))).toMatchObject({ since: minutes(62).toISOString(), modelDone: 0, modelFailed: 0 });
+    // Nothing is deleted, and the count goes on from the new start.
+    expect((db.raw.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs").get() as any).n).toBe(4);
+    enqueueJob(db.raw, "briefing", "briefing:after", {}, 600, minutes(70));
+    await brainTick(db.raw, TRADER, ENV, pc, () => minutes(70));
+    expect(brainStats(db.raw, minutes(71))).toMatchObject({ modelDone: 1, modelFailed: 0 });
+    expect(formatBrainFr(db.raw, TRADER, ENV, minutes(71))).toContain(
+      "Avec le modèle qwen3.6-35b-a3b depuis le 2026-10-08 11:02 UTC (compteur remis à zéro) : tâches réussies 1, échouées 0");
+    expect(setBrainModeFr(db.raw, "turbo")).toContain("ou recompter pour remettre le compteur à zéro");
+    db.close();
+  });
+
   it("answers the owner's /question by Telegram, or says why it cannot", async () => {
     const db = openDb();
     expect(askBrainFr(db.raw, { ...TRADER, secondBrain: null }, ENV, "Que sait-il ?", "")).toContain("pas configuré");

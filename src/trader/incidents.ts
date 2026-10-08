@@ -15,7 +15,7 @@ type DB = Database.Database;
 
 export const INCIDENT_KINDS = [
   "pause", "cap", "unknown_cost", "errors", "truncated", "unknown_stop", "no_progress",
-  "source_disabled", "reader_refused", "backup", "loop", "brain_offline",
+  "source_disabled", "reader_refused", "backup", "loop", "brain_offline", "brain_recount",
 ] as const;
 export type IncidentKind = (typeof INCIDENT_KINDS)[number];
 
@@ -32,6 +32,7 @@ export const INCIDENT_LABEL_FR: Record<IncidentKind, string> = {
   backup: "sauvegarde",
   loop: "boucle",
   brain_offline: "second cerveau injoignable",
+  brain_recount: "compteur du second cerveau remis à zéro",
 };
 
 export interface Incident {
