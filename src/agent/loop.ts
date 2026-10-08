@@ -515,7 +515,7 @@ export async function runAgentLoop(
     }
     // Second brain (2026-10-08): its night proposals about the lessons, only on the wakes that already change them.
     if (trader && !intakePending && (consolidationTurn || reviewPending)) {
-      const upkeep = upkeepForWake(db.raw, new Date());
+      const upkeep = upkeepForWake(db.raw, activeConfig(db.raw, trader), new Date());
       if (upkeep) wakeupInput += `\n\n${upkeep}`;
     }
   }

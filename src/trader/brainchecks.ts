@@ -38,6 +38,7 @@ import { isoSeconds, priceAtOrBefore } from "./prices.js";
 import { loadDaily } from "./candles.js";
 import { localDay, localMinutes } from "./consolidation.js";
 import { cleanSummary } from "./readers.js";
+import { brainMode } from "./brainstate.js";
 
 type DB = Database.Database;
 
@@ -56,9 +57,12 @@ export const CONSISTENCY_PACK_LINES = 3;
 export const CONSISTENCY_PACK_HOURS = 48;
 export const PLAN_PER_TICK = 10;
 export const PAST_PER_NIGHT = 40;
-export const LIVE_PRIORITY = 7;
-export const UPKEEP_PRIORITY = 8;
+/** The once-a-night upkeep has a deadline (19:00 by default): it runs before the live checks, which wait 36 hours. */
+export const UPKEEP_PRIORITY = 7;
+export const LIVE_PRIORITY = 8;
 export const PAST_PRIORITY = 9;
+/** A text whose check expired (PC off) is offered again at night, at most this many times in all. */
+export const MAX_CHECK_TRIES = 3;
 /** Night tasks start at 01:00 local and stay valid until this many minutes before the evening consolidation. */
 export const UPKEEP_FROM_MINUTES = 60;
 export const UPKEEP_MARGIN_MINUTES = 30;
@@ -155,15 +159,18 @@ class Sheet {
 }
 
 /** Move over `days` ending at the text: stored prices when they reach that far back, else closed daily candles. */
+/**
+ * Move over `days` ending at the text. 1 and 7 days come from stored prices only, the same window as the pack's
+ * "change 24 h, 7 d"; 30 days (dossiers) from closed daily candles, as no 30-day price window is shown.
+ */
 function changeOver(db: DB, asset: string, atIso: string, days: number): number | null {
-  const now = priceAtOrBefore(db, asset, at2s(atIso));
-  if (now && Date.parse(now.ts) >= Date.parse(atIso) - 2 * HOUR) {
+  if (days <= 7) {
+    const now = priceAtOrBefore(db, asset, at2s(atIso));
+    if (!now || Date.parse(now.ts) < Date.parse(atIso) - 2 * HOUR) return null;
     const target = Date.parse(now.ts) - days * DAY;
     const past = priceAtOrBefore(db, asset, isoSeconds(new Date(target)));
-    if (past && Date.parse(past.ts) >= target - 2 * HOUR) return pct(past.price, now.price);
-    if (days === 1) return null;
+    return past && Date.parse(past.ts) >= target - 2 * HOUR ? pct(past.price, now.price) : null;
   }
-  if (days === 1) return null;
   // Closed days only (before the text's UTC day), so the sheet does not change once written.
   const textDay = atIso.slice(0, 10);
   const closes = loadDaily(db, asset).filter((c) => c.volume > 0 && c.day < textDay);
@@ -181,7 +188,7 @@ function marketFacts(db: DB, sheet: Sheet, asset: string, atIso: string, withPri
   }
   sheet.add("change_24h", `${asset} change over the 24 hours before`, `variation du ${asset} sur les 24 h d'avant`, changeOver(db, asset, atIso, 1), "pct", true);
   sheet.add("change_7d", `${asset} change over the 7 days before`, `variation du ${asset} sur les 7 jours d'avant`, changeOver(db, asset, atIso, 7), "pct", true);
-  if (longer) sheet.add("change_30d", `${asset} change over the 30 days before`, `variation du ${asset} sur les 30 jours d'avant`, changeOver(db, asset, atIso, 30), "pct", true);
+  if (longer) sheet.add("change_30d", `${asset} change over the 30 closed days before`, `variation du ${asset} sur les 30 jours clos d'avant`, changeOver(db, asset, atIso, 30), "pct", true);
 }
 
 function predictionFacts(db: DB, sheet: Sheet, p: Prediction, atIso: string): void {
@@ -322,33 +329,37 @@ export function consistencyPrompt(subject: CheckSubject & { facts: Fact[] }): { 
 
 // ─── Code is the judge ──────────────────────────────────────────────────
 
-/** Lower case, unified spaces, quotes and minus signs: how quotes are compared with the text. */
-export function normalizeForQuote(s: string): string {
+/** Unified spaces, quotes and minus signs, whitespace flattened (case kept): the form shown and stored. */
+export function displayForm(s: string): string {
   return s.normalize("NFKC")
     .replace(/[   ]/g, " ")
-    .replace(/−/g, "-")
+    .replace(/[−–]/g, "-")
     .replace(/[’‘`´]/g, "'")
     .replace(/[«»“”]/g, '"')
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+    .replace(/[\u0000-\u001f\u007f\s]+/g, " ")
+    .trim();
 }
 
-export interface NumberReading { value: number; explicitSign: boolean; scaled?: boolean }
+/** The display form in lower case: how quotes are compared with the text. */
+export function normalizeForQuote(s: string): string {
+  return displayForm(s).toLowerCase();
+}
+
+/** One number in a quote: its readings (an ambiguous "61,650" has two), where it sits, and an attached sign. */
+export interface NumberToken { readings: number[]; explicitSign: boolean; start: number; end: number; decimal: boolean }
 
 /**
- * Every reading of the numbers in a quote: French "61 650,50" (space, NBSP or narrow space thousands, comma
- * decimal), "2,7", "~27", English "61,650.5", a "k" suffix (×1000) and signs + - −. An ambiguous "61,650" or
- * "61.650" gives both readings.
+ * The numbers of a quote (in display form): French "61 650,50" (spaces as thousands, comma decimal), "2,7", "~27",
+ * English "61,650.5", a "k" suffix (×1000). A sign counts only when it is attached to the digits ("-3 %", not the
+ * dash of a list item "- 3 %"). An ambiguous "61,650" or "61.650" gives both readings.
  */
-export function parseNumbers(quote: string): NumberReading[] {
-  const text = quote.replace(/[   ]/g, " ").replace(/−/g, "-");
-  const out: NumberReading[] = [];
-  const re = /(^|[^\d\w.,])([+-]?)\s?(\d{1,3}(?: \d{3})+(?:,\d+)?|\d+(?:[.,]\d+)*)(\s?k\b)?/gi;
-  for (const m of text.matchAll(re)) {
-    const sign = m[2] === "-" ? -1 : 1;
-    const explicitSign = m[2] === "+" || m[2] === "-";
+export function parseTokens(quote: string): NumberToken[] {
+  const out: NumberToken[] = [];
+  const re = /(^|[^\d\p{L}.,])([+-]?)(\d{1,3}(?: \d{3})+(?:,\d+)?|\d+(?:[.,]\d+)*)(\s?k\b)?/giu;
+  for (const m of quote.matchAll(re)) {
     const body = m[3];
+    const start = (m.index ?? 0) + m[1].length + m[2].length;
+    const sign = m[2] === "-" ? -1 : 1;
     const k = m[4] ? 1000 : 1;
     const readings = new Set<number>();
     if (body.includes(" ")) readings.add(Number(body.replace(/ /g, "").replace(",", ".")));
@@ -365,17 +376,24 @@ export function parseNumbers(quote: string): NumberReading[] {
         readings.add(Number(body.replace(/[.,]/g, "")));
       } else readings.add(Number(body));
     }
-    for (const r of readings) if (Number.isFinite(r)) out.push({ value: sign * r * k, explicitSign });
+    const values = [...readings].filter(Number.isFinite).map((r) => sign * r * k);
+    if (values.length) out.push({ readings: values, explicitSign: m[2] !== "", start: start - m[2].length, end: start + body.length + (m[4]?.length ?? 0), decimal: /[.,]/.test(body) && !body.includes(" ") });
   }
   return out;
 }
 
-const UNIT_MARK: Record<FactUnit, RegExp> = {
-  pct: /%|pour ?cent/i,
-  prob: /%|pour ?cent/i,
-  eur: /€|\beur\b|euros?\b/i,
-  sigma: /σ|sigma|écart-type|ecart-type/i,
-  brier: /brier/i,
+/** All readings of all numbers, for callers that only need the values. */
+export function parseNumbers(quote: string): { value: number; explicitSign: boolean }[] {
+  return parseTokens(displayForm(quote)).flatMap((t) => t.readings.map((value) => ({ value, explicitSign: t.explicitSign })));
+}
+
+/** A unit marker written right after the number (or € right before it). */
+const UNIT_AFTER: Record<FactUnit, RegExp> = {
+  pct: /^\s?(%|pour ?cent)/i,
+  prob: /^\s?(%|pour ?cent)/i,
+  eur: /^\s?(€|eur\b|euros?\b)/i,
+  sigma: /^\s?(σ|sigmas?\b|écarts?-types?|ecarts?-types?)/i,
+  brier: /^/,
 };
 
 const PRICE_WORDS = "prix|cours|coté|cote|vaut|valait|price";
@@ -406,14 +424,21 @@ const ANCHOR: Record<Role, RegExp> = {
   amount: /montant|ordre|achat|investi/i,
 };
 const PRICE_ROLES = new Set<Role>(["price", "resolution_price", "entry", "exit"]);
+/** Only moves have a direction of their own; a distance's sign depends on which side Sonni counts from. */
+const SIGNED_ROLES = new Set<Role>(["change_24h", "change_7d", "change_30d", "move", "pnl"]);
 /** Price facts are labelled "<SYMBOL> …": a quote naming that symbol anchors them. */
-const assetNamed = (f: Fact, quote: string) => {
+const assetNamed = (f: Fact, text: string) => {
   const symbol = f.labelEn.split(" ")[0].replace(/[^A-Za-z0-9]/g, "");
-  return symbol.length >= 2 && new RegExp(`(^|[^a-z0-9])\\$?${symbol.toLowerCase()}(?![a-z0-9])`).test(quote);
+  return symbol.length >= 2 && new RegExp(`(^|[^a-z0-9])\\$?${symbol.toLowerCase()}(?![a-z0-9])`).test(text);
 };
-const TARGET_WORDS = /objectif|cible|vis[eé]|target|support|résistance|resistance|niveau|stop|invalidation|seuil|\bsi\b/i;
-const LOWER_BOUND = /plus de|au moins|supérieur|superieur|dépass|depass|plus que|>|≥/i;
-const UPPER_BOUND = /moins de|au plus|inférieur|inferieur|moins que|<|≤/i;
+/** Levels and plans Sonni chose, and forward-looking wording: never a statement of code's past figures. */
+const FORECAST_WORDS = /objectif|cible|vis[eé]|target|support|résistance|resistance|niveau|\bsi\b|scénario|scenario|pourrai|devrai|potentiel|attend|prévoi|prevoi|prévu|prevu|espèr|esper|d'ici|prochain|jusqu'[àa]/i;
+const PRICE_TARGET_WORDS = /stop|invalidation|seuil/i;
+const NEGATED_BOUND = /\b(pas|jamais|ne|n')\s*(plus|moins)\s*(de|que|d')/i;
+const LOWER_BOUND = /(plus de|plus d'|au moins|supérieur|superieur|dépass|depass|plus que|>|≥)\s*$/i;
+const UPPER_BOUND = /(moins de|moins d'|au plus|inférieur|inferieur|moins que|sous les|<|≤)\s*$/i;
+/** Words of the quote close to the number: the anchor, comparators and forecasts must be about this number. */
+const WINDOW = 40;
 
 function tolerance(unit: FactUnit, f: number): number {
   const a = Math.abs(f);
@@ -428,66 +453,90 @@ function tolerance(unit: FactUnit, f: number): number {
 
 type Bound = "exact" | "lower" | "upper";
 
-/** "mismatch", "sign" (only the explicit sign is wrong) or null when the claim agrees with the figure. */
-function compare(claimed: NumberReading, f: Fact, bound: Bound): "mismatch" | "sign" | null {
-  const c = Math.abs(claimed.value);
+/** "mismatch", "sign" (only the attached sign of a move is wrong) or null when the reading agrees with the figure. */
+function compare(value: number, explicitSign: boolean, f: Fact, bound: Bound): "mismatch" | "sign" | null {
+  const c = Math.abs(value);
   const v = Math.abs(f.value);
   const tol = tolerance(f.unit, f.value);
   const off = bound === "lower" ? v < c - tol : bound === "upper" ? v > c + tol : Math.abs(c - v) > tol;
   if (off) return "mismatch";
-  if (claimed.explicitSign && f.signed && v >= 0.1 && Math.sign(claimed.value) !== Math.sign(f.value)) return "sign";
+  if (explicitSign && SIGNED_ROLES.has(f.role) && v >= 0.1 && Math.sign(value) !== Math.sign(f.value)) return "sign";
   return null;
 }
+
+/** Percentages and probabilities are both written with "%": a claim matching either clears a mis-pairing. */
+const sameFamily = (a: FactUnit, b: FactUnit) => a === b || (a !== "eur" && a !== "sigma" && a !== "brier" && b !== "eur" && b !== "sigma" && b !== "brier");
 
 const markersOk = (s: string) => !RUNTIME_MARKERS.test(s) && !/SECOND BRAIN/i.test(s);
 
 export interface ConsistencyFlag { factKey: string; quote: string; claimed: number; fact: Fact; relError: number; note: string }
 
 /**
- * Code's verdict on the second brain's claims: the flags that survive every rule (at most 3) and how many
- * claims named one of code's figures in the text (cited). Null when the answer has no claims array.
+ * Code's verdict on the second brain's claims: the flags that survive every rule (at most 3), how many distinct
+ * claims named one of code's figures in the text (cited) and how many the PC proposed. Null when the answer has
+ * no claims array. The PC only chooses a passage and a figure; code finds the number next to the figure's unit,
+ * reads it, and checks the anchor, comparators and forecasts around it.
  */
 export function verifyClaims(subject: CheckSubject & { facts: Fact[] }, json: any): { flags: ConsistencyFlag[]; cited: number; proposed: number } | null {
   const claims = json?.claims;
   if (!Array.isArray(claims)) return null;
-  const text = normalizeForQuote(subject.text);
+  const shown = displayForm(subject.text);
+  const lower = shown.toLowerCase();
   const byKey = new Map(subject.facts.map((f) => [f.key, f]));
   const flags: ConsistencyFlag[] = [];
-  let cited = 0;
+  const cited = new Set<string>();
   for (const claim of claims.slice(0, CLAIMS_READ_MAX)) {
     const fact = byKey.get(String(claim?.fact ?? ""));
     if (!fact) continue;
-    const quoteRaw = typeof claim?.quote === "string" ? claim.quote : "";
-    const quote = normalizeForQuote(quoteRaw);
-    if (quote.length < 3 || quote.length > 160 || !text.includes(quote)) continue;
-    if (!cleanSummary(quoteRaw, 160) || !markersOk(quoteRaw)) continue;
     const said = Number(claim?.value);
     if (!Number.isFinite(said)) continue;
-    const same = (a: number, b: number) => Math.abs(Math.abs(a) - Math.abs(b)) <= 1e-6 * Math.max(1, Math.abs(b));
-    let readings = parseNumbers(quote);
-    // "proba 0,31" states 31 %: a probability written as a fraction is read in percent.
-    if (fact.unit === "prob" && !UNIT_MARK.prob.test(quote) && /proba/i.test(quote)) {
-      readings = readings.map((r) => (Math.abs(r.value) <= 1 ? { ...r, value: r.value * 100, scaled: true } : r));
+    // The quote must be a passage of Claude's text that starts and ends on word boundaries; what is kept is
+    // Claude's own wording (flattened), never the PC's string.
+    const q = normalizeForQuote(typeof claim?.quote === "string" ? claim.quote : "");
+    if (q.length < 3 || q.length > 160) continue;
+    const at = lower.indexOf(q);
+    if (at < 0) continue;
+    // A cut inside a word or a number ("7 %" out of "27 %", "2,7" out of "2,75") is refused.
+    const glued = (c: string | undefined, next: string | undefined) => /[\d\p{L}]/u.test(c ?? "") || (/[.,]/.test(c ?? "") && /\d/.test(next ?? ""));
+    if (/[\d\p{L}]/u.test(q[0]) && glued(lower[at - 1], lower[at - 2])) continue;
+    if (/[\d\p{L}]/u.test(q[q.length - 1]) && glued(lower[at + q.length], lower[at + q.length + 1])) continue;
+    const quote = shown.slice(at, at + q.length);
+    if (!cleanSummary(quote, 160) || !markersOk(quote)) continue;
+    // The number the claim is about: a reading equal to the value the PC gave, with the fact's unit right after it.
+    const tokens = parseTokens(q);
+    const unitOf = (t: NumberToken) => UNIT_AFTER[fact.unit].test(q.slice(t.end)) || (fact.unit === "eur" && /€\s?$/.test(q.slice(0, t.start)));
+    let token: NumberToken | undefined;
+    let scaled = false;
+    for (const t of tokens) {
+      if (t.readings.some((r) => Math.abs(Math.abs(r) - Math.abs(said)) <= 1e-6 * Math.max(1, Math.abs(said)))) {
+        if (fact.unit === "brier" ? /brier/i.test(q) : unitOf(t)) { token = t; break; }
+      }
+      // "proba 0,31" states 31 %: a probability written as a decimal fraction.
+      const fraction = fact.unit === "prob" && t.decimal && t.readings.every((r) => Math.abs(r) < 1) && !/^\s?(sur|\/)/i.test(q.slice(t.end))
+        && /proba/i.test(q) && t.readings.some((r) => Math.abs(Math.abs(r) - Math.abs(said)) <= 1e-6 || Math.abs(Math.abs(r) * 100 - Math.abs(said)) <= 1e-6);
+      if (fraction) { token = t; scaled = true; break; }
     }
-    const reading = readings.find((r) => same(r.value, said) || (r.scaled === true && same(r.value, said * 100)));
-    if (!reading) continue;
-    if (!UNIT_MARK[fact.unit].test(quote) && !reading.scaled) continue;
-    if (!ANCHOR[fact.role].test(quote) && !(PRICE_ROLES.has(fact.role) && assetNamed(fact, quote))) continue;
-    cited++;
-    if (PRICE_ROLES.has(fact.role) && TARGET_WORDS.test(quote)) continue;
-    const lower = LOWER_BOUND.test(quote);
-    const upper = UPPER_BOUND.test(quote);
-    if (lower && upper) continue;
-    const bound: Bound = lower ? "lower" : upper ? "upper" : "exact";
-    const verdict = compare(reading, fact, bound);
-    if (!verdict) continue;
-    // The second brain may have paired the words with the wrong figure: any figure of the same unit that
-    // the claim agrees with clears it.
-    if (subject.facts.some((g) => g.key !== fact.key && g.unit === fact.unit && compare(reading, g, bound) === null)) continue;
-    const ratio = Math.abs(reading.value) / Math.max(Math.abs(fact.value), 1e-9);
+    if (!token) continue;
+    const near = q.slice(Math.max(0, token.start - WINDOW), Math.min(q.length, token.end + WINDOW));
+    if (!ANCHOR[fact.role].test(near) && !(PRICE_ROLES.has(fact.role) && assetNamed(fact, near))) continue;
+    cited.add(`${fact.key}|${q}`);
+    if (FORECAST_WORDS.test(near) || (PRICE_ROLES.has(fact.role) && PRICE_TARGET_WORDS.test(near))) continue;
+    const lead = q.slice(Math.max(0, token.start - 25), token.start);
+    if (NEGATED_BOUND.test(lead)) continue;
+    const isLower = LOWER_BOUND.test(lead);
+    const isUpper = UPPER_BOUND.test(lead);
+    if (isLower && isUpper) continue;
+    const bound: Bound = isLower ? "lower" : isUpper ? "upper" : "exact";
+    const readings = token.readings.map((r) => (scaled ? r * 100 : r));
+    // Flag only when no reading of that number agrees with the fact, nor with any figure of the same family.
+    const verdicts = readings.map((r) => compare(r, token!.explicitSign, fact, bound));
+    if (verdicts.some((v) => v === null)) continue;
+    if (subject.facts.some((g) => g.key !== fact.key && sameFamily(g.unit, fact.unit) && readings.some((r) => compare(r, token!.explicitSign, g, bound) === null))) continue;
+    const claimed = readings.find((r, i) => verdicts[i] !== null)!;
+    const ratio = Math.abs(claimed) / Math.max(Math.abs(fact.value), 1e-9);
     const slip = (ratio >= 8.5 && ratio <= 11.5) || (ratio >= 1 / 11.5 && ratio <= 1 / 8.5);
-    const note = verdict === "sign" ? " (sens contraire)" : slip ? " (une virgule décalée ?)" : "";
-    flags.push({ factKey: fact.key, quote: quoteRaw.trim(), claimed: reading.value, fact, relError: Math.abs(Math.abs(reading.value) - Math.abs(fact.value)) / Math.max(Math.abs(fact.value), 1e-9), note });
+    const note = verdicts.every((v) => v === "sign") ? " (sens contraire)" : slip ? " (une virgule décalée ?)" : "";
+    flags.push({ factKey: fact.key, quote, claimed, fact, relError: Math.abs(Math.abs(claimed) - Math.abs(fact.value)) / Math.max(Math.abs(fact.value), 1e-9), note });
   }
   const seen = new Set<string>();
   const unique = flags.filter((f) => {
@@ -496,7 +545,7 @@ export function verifyClaims(subject: CheckSubject & { facts: Fact[] }, json: an
     seen.add(k);
     return true;
   }).sort((a, b) => b.relError - a.relError).slice(0, CONSISTENCY_MAX_FLAGS);
-  return { flags: unique, cited, proposed: Math.min(claims.length, CLAIMS_READ_MAX) };
+  return { flags: unique, cited: cited.size, proposed: Math.min(claims.length, CLAIMS_READ_MAX) };
 }
 
 const frNumber = (v: number, digits: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace(/ /g, " ");
@@ -563,7 +612,8 @@ export function upkeepPrompt(db: DB): { user: string; maxTokens: number } | null
     user: `${UPKEEP_FIRST_LINE}\n${data}` +
       `Find at most ${UPKEEP_MAX_PROPOSALS} clear cases: merge = 2 or 3 lessons that state the same rule in other words or overlap so much ` +
       `that one would do; conflict = 2 lessons that cannot both hold; refuted_basis = a lesson that rests on one of the refuted hypotheses ` +
-      `above (ids: the lesson, then the hypothesis). Use only the ids above. why: one sentence in French, at most 200 characters. ` +
+      `above (ids: the lesson, then the hypothesis). Use only the ids above. why: one sentence in French, at most 200 characters, ` +
+      `plain words only: no figures, no ids, no quotes. ` +
       `Do not judge whether a lesson is true (code's counts do that) and do not write new lessons. Nothing clear: {"proposals":[]}.\n` +
       `Answer: {"proposals":[{"type":"merge","ids":["l_...","l_..."],"why":"..."}]}`,
     maxTokens: UPKEEP_MAX_TOKENS,
@@ -601,9 +651,11 @@ export function verifyUpkeep(db: DB, json: any, now: Date): { kept: UpkeepPropos
     if (type === "refuted_basis") {
       if (!activeLesson(db, ids[0]) || !ids[1].startsWith("h_") || !stillRefuted(db, ids[1])) continue;
     } else if (!ids.every((id) => activeLesson(db, id))) continue;
-    const stripped = String(p?.why ?? "").replace(/\*\*|__|`/g, "");
+    // The reason is the PC's own words: plain text only. Quotes and brackets could fake code's text, and figures
+    // or other ids would claim what code did not check.
+    const stripped = String(p?.why ?? "").replace(/\*\*|__|`|[«»"“”()[\]{}<>]/g, " ");
     const why = cleanSummary(stripped, 200);
-    if (!why || why.length < 10 || !markersOk(why)) continue;
+    if (!why || why.length < 10 || !markersOk(why) || /\d/.test(why) || /\bcode\b/i.test(why) || /\b[a-z]_[0-9a-z]{6,}/i.test(why)) continue;
     const ordered = type === "refuted_basis" ? ids : [...ids].sort();
     const subject = `${type}:${ordered.join(",")}`;
     if (kept.some((k) => k.subject === subject) || recent.get(subject, since)) continue;
@@ -638,25 +690,39 @@ const SOURCE_QUERY: Record<CheckSource, string> = {
   dossier: "SELECT id, recorded_at AS at, content AS text FROM trader_dossiers WHERE source = 'model'",
 };
 const AT_COLUMN: Record<CheckSource, string> = { reflection: "recorded_at", prediction: "made_at", decision: "made_at", order: "placed_at", dossier: "recorded_at" };
-/** A cheap SQL prefilter (exact test: CHECKABLE); "eur" alone would match "leur" or "valeur". */
-const PREFILTER = "(text LIKE '%\\%%' ESCAPE '\\' OR text LIKE '%€%' OR text LIKE '% eur%' OR text LIKE '%σ%' OR text LIKE '%sigma%' OR text LIKE '%brier%')";
+/** A cheap SQL prefilter (exact test: CHECKABLE); "eur" alone would match "leur", "euro" or "Europe". */
+const PREFILTER = "(t.text LIKE '%\\%%' ESCAPE '\\' OR t.text LIKE '%€%' OR t.text LIKE '% eur %' OR t.text LIKE '% eur.%' OR t.text LIKE '% eur,%' " +
+  "OR t.text LIKE '% euros%' OR t.text LIKE '%pour cent%' OR t.text LIKE '%σ%' OR t.text LIKE '%sigma%' OR t.text LIKE '%brier%')";
 
-function unchecked(db: DB, source: CheckSource, live: boolean, boundary: string, limit: number): { source: CheckSource; id: string; at: string }[] {
+interface Candidate { source: CheckSource; id: string; at: string; tries: number }
+
+/**
+ * Checkable texts with no job, and (at night) texts whose only jobs expired while the PC was off, fewer than
+ * MAX_CHECK_TRIES times. A queued, leased, done or failed job keeps a text out. The SQL prefilter is loose and
+ * CHECKABLE decides; the scan is not limited before that test, so non-checkable rows never hide older texts.
+ */
+function unchecked(db: DB, source: CheckSource, live: boolean, boundary: string): Candidate[] {
   const base = SOURCE_QUERY[source];
   const where = `${base.includes(" WHERE ") ? " AND" : " WHERE"} ${AT_COLUMN[source]} ${live ? ">=" : "<"} ?`;
+  // t.id, never a bare id: inside the subqueries it would name the job's own id column.
+  const key = `'consistency:${source}:' || t.id`;
+  const mine = `(j.dedupe_key = ${key} OR j.dedupe_key LIKE ${key} || ':%')`;
   try {
     return (db.prepare(
-      // t.id, not id: inside the subquery a bare id would name the job's own id column.
-      `SELECT t.id, t.at, t.text FROM (${base}${where}) t WHERE ${PREFILTER.replace(/\btext\b/g, "t.text")}
-       AND NOT EXISTS (SELECT 1 FROM trader_brain_jobs j WHERE j.dedupe_key = 'consistency:${source}:' || t.id)
-       ORDER BY t.at ${live ? "ASC" : "DESC"} LIMIT ?`,
-    ).all(boundary, limit) as { id: string; at: string; text: string }[])
-      .filter((r) => CHECKABLE.test(r.text))
-      .map((r) => ({ source, id: r.id, at: r.at }));
+      `SELECT t.id, t.at, t.text,
+              (SELECT COUNT(*) FROM trader_brain_jobs j WHERE ${mine}) AS tries
+       FROM (${base}${where}) t WHERE ${PREFILTER}
+       AND NOT EXISTS (SELECT 1 FROM trader_brain_jobs j WHERE ${mine} AND j.status != 'expired')
+       ORDER BY t.at ${live ? "ASC" : "DESC"}`,
+    ).all(boundary) as { id: string; at: string; text: string; tries: number }[])
+      .filter((r) => (live ? r.tries === 0 : r.tries < MAX_CHECK_TRIES) && CHECKABLE.test(r.text))
+      .map((r) => ({ source, id: r.id, at: r.at, tries: r.tries }));
   } catch {
     return [];
   }
 }
+
+const checkKey = (c: Candidate) => `consistency:${c.source}:${c.id}${c.tries ? `:${c.tries + 1}` : ""}`;
 
 const hasTable = (db: DB, name: string) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
 
@@ -666,29 +732,31 @@ export function plannedChecks(db: DB, cfg: TraderConfig, now: Date = new Date())
   const jobs: PlannedJob[] = [];
   // Live: every checkable text of the last 24 hours, once each, oldest first.
   const boundary = new Date(now.getTime() - CONSISTENCY_LOOKBACK_HOURS * HOUR).toISOString();
-  const live = CHECK_SOURCES.flatMap((s) => unchecked(db, s, true, boundary, 200)).sort((a, b) => a.at.localeCompare(b.at)).slice(0, PLAN_PER_TICK);
+  const live = CHECK_SOURCES.flatMap((s) => unchecked(db, s, true, boundary)).sort((a, b) => a.at.localeCompare(b.at)).slice(0, PLAN_PER_TICK);
   for (const t of live) {
-    jobs.push({ kind: "consistency_check", dedupeKey: `consistency:${t.source}:${t.id}`, payload: { source: t.source, id: t.id, past: false }, validMinutes: CONSISTENCY_VALID_HOURS * 60, priority: LIVE_PRIORITY });
+    jobs.push({ kind: "consistency_check", dedupeKey: checkKey(t), payload: { source: t.source, id: t.id, past: false }, validMinutes: CONSISTENCY_VALID_HOURS * 60, priority: LIVE_PRIORITY });
   }
   const until = upkeepUntilMinutes(cfg);
   const minutes = localMinutes(now, cfg.timeZone);
   if (until !== null && minutes >= UPKEEP_FROM_MINUTES && minutes < until) {
     const left = until - minutes;
-    // Night re-check of older texts never checked, newest first, at most PAST_PER_NIGHT a night.
+    // Night re-check of older texts never checked (or whose check expired), newest first, at most PAST_PER_NIGHT
+    // a local night: counted by the night's date in the payload, so seconds and a change of clock time cannot
+    // stretch it.
+    const day = localDay(now, cfg.timeZone);
     if (minutes < 300) {
-      const nightStart = new Date(now.getTime() - (minutes - UPKEEP_FROM_MINUTES) * 60_000).toISOString();
-      const done = (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE kind = 'consistency_check' AND priority = ? AND created_at >= ?")
-        .get(PAST_PRIORITY, nightStart) as { n: number }).n;
+      const done = (db.prepare(
+        "SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE kind = 'consistency_check' AND priority = ? AND json_extract(payload, '$.night') = ?",
+      ).get(PAST_PRIORITY, day) as { n: number }).n;
       const room = Math.min(PLAN_PER_TICK - live.length, PAST_PER_NIGHT - done);
       if (room > 0) {
-        const past = CHECK_SOURCES.flatMap((s) => unchecked(db, s, false, boundary, 400)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, room);
+        const past = CHECK_SOURCES.flatMap((s) => unchecked(db, s, false, boundary)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, room);
         for (const t of past) {
-          jobs.push({ kind: "consistency_check", dedupeKey: `consistency:${t.source}:${t.id}`, payload: { source: t.source, id: t.id, past: true }, validMinutes: left, priority: PAST_PRIORITY });
+          jobs.push({ kind: "consistency_check", dedupeKey: checkKey(t), payload: { source: t.source, id: t.id, past: true, night: day }, validMinutes: left, priority: PAST_PRIORITY });
         }
       }
     }
     // Night upkeep of the lessons, once per local night.
-    const day = localDay(now, cfg.timeZone);
     const lessons = (db.prepare("SELECT COUNT(*) AS n FROM trader_lessons WHERE status = 'active'").get() as { n: number }).n;
     if (lessons > 0 && !db.prepare("SELECT 1 FROM trader_brain_jobs WHERE dedupe_key = ?").get(`upkeep:${day}`)) {
       jobs.push({ kind: "upkeep", dedupeKey: `upkeep:${day}`, payload: { day }, validMinutes: left, priority: UPKEEP_PRIORITY });
@@ -701,12 +769,15 @@ export function plannedChecks(db: DB, cfg: TraderConfig, now: Date = new Date())
 
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/** Whether anything of the second brain may reach Claude: configured and not switched off by the owner. */
+const brainShown = (db: DB, cfg: TraderConfig) => !!cfg.secondBrain && brainMode(db) !== "off";
+
 /** The pack's "Numbers to correct" lines: live flags of the last 48 hours, newest first. */
-export function numbersToCorrect(db: DB, now: Date = new Date()): string[] {
-  if (!hasTable(db, "trader_brain_outputs")) return [];
+export function numbersToCorrect(db: DB, cfg: TraderConfig, now: Date = new Date()): string[] {
+  if (!hasTable(db, "trader_brain_outputs") || !brainShown(db, cfg)) return [];
   const since = new Date(now.getTime() - CONSISTENCY_PACK_HOURS * HOUR).toISOString();
   return (db.prepare("SELECT content FROM trader_brain_outputs WHERE kind = 'consistency' AND at >= ? ORDER BY at DESC, id DESC LIMIT ?")
-    .all(since, CONSISTENCY_PACK_LINES) as { content: string }[]).map((r) => `- ${short(r.content, 320)}`);
+    .all(since, CONSISTENCY_PACK_LINES) as { content: string }[]).map((r) => `- ${short(displayForm(r.content), 320)}`);
 }
 
 export const NUMBERS_TO_CORRECT_TITLE =
@@ -714,8 +785,14 @@ export const NUMBERS_TO_CORRECT_TITLE =
   "the passage, an untrusted pairing that can be wrong; code's figure is the true one: give it in your next note, never repeat the wrong one):";
 
 /** The block added to the evening and weekly wakes: night proposals still valid, and old wrong figures. Null when empty. */
-export function upkeepForWake(db: DB, now: Date = new Date()): string | null {
-  if (!hasTable(db, "trader_brain_outputs")) return null;
+export function upkeepForWake(db: DB, cfg: TraderConfig, now: Date = new Date()): string | null {
+  if (!hasTable(db, "trader_brain_outputs") || !brainShown(db, cfg)) return null;
+  const evidence = lessonEvidence(db);
+  // Code's own counts for each lesson named, before the PC's words: the counts Claude is told to weigh.
+  const counts = (ids: string[]) => ids.filter((id) => id.startsWith("l_")).map((id) => {
+    const e = evidence.get(id);
+    return e && e.uses > 0 ? `${id} used ${e.uses}: helped ${e.helped}, hurt ${e.hurt}` : `${id} not used yet`;
+  }).join("; ");
   const since = new Date(now.getTime() - UPKEEP_SHOW_HOURS * HOUR).toISOString();
   const proposals = (db.prepare("SELECT subject, content FROM trader_brain_outputs WHERE kind = 'upkeep' AND at >= ? ORDER BY at DESC, id DESC")
     .all(since) as { subject: string; content: string }[])
@@ -726,9 +803,9 @@ export function upkeepForWake(db: DB, now: Date = new Date()): string | null {
       return ids.length >= 2 && ids.every((id) => activeLesson(db, id));
     })
     .slice(0, UPKEEP_SHOW_LINES)
-    .map((r) => `- ${short(r.content, 360)}`);
+    .map((r) => `- [code: ${counts((r.subject.split(":")[1] ?? "").split(","))}] ${short(displayForm(r.content), 360)}`);
   const past = (db.prepare("SELECT content FROM trader_brain_outputs WHERE kind = 'consistency_past' AND at >= ? ORDER BY at DESC, id DESC LIMIT 2")
-    .all(since) as { content: string }[]).map((r) => `- ${short(r.content, 320)}`);
+    .all(since) as { content: string }[]).map((r) => `- ${short(displayForm(r.content), 320)}`);
   if (!proposals.length && !past.length) return null;
   const parts = [
     "SECOND BRAIN UPKEEP (untrusted: suggestions the owner's local model made at night about your lessons; code only checked that the ids " +
@@ -800,7 +877,7 @@ export function checksLinesFr(db: DB, cfg: TraderConfig, now: Date = new Date())
     `${s.flagged7d} faux selon le code ; 7 jours d'avant : ${s.flaggedPrev} faux sur ${s.citedPrev}.`;
   if (s.pastTexts > 0) check += ` Anciens textes revérifiés la nuit : ${s.pastTexts}, ${s.pastFlags} chiffre(s) faux.`;
   lines.push(check);
-  if (s.lastFlag) lines.push(`  Dernier : ${short(s.lastFlag, 220)}`);
+  if (s.lastFlag) lines.push(`  Dernier : ${short(displayForm(s.lastFlag), 220)}`);
   const until = upkeepUntilMinutes(cfg);
   const limit = until === null ? "le soir" : hhmm(until);
   lines.push(s.upkeepEver === 0

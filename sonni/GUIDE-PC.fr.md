@@ -434,7 +434,8 @@ de sa configuration (`triageWakes`).
 ### Étape 22 — Confirmer le modèle sur 50 vraies tâches
 
 `/cerveau` affiche « Avec le modèle qwen3.6-35b-a3b depuis le début : tâches réussies N, échouées M »,
-puis **« modèle confirmé »** quand il a réussi 50 vraies tâches avec moins d'un échec sur 10 (calculé
+puis **« modèle confirmé »** quand il a réussi 50 vraies tâches avec moins d'un échec sur 10 (le contrôle des
+chiffres et l'entretien de nuit n'y comptent pas : une réponse vide y est valable ; calculé
 par le code). Compte quelques jours en mode assistant. Seules les mauvaises réponses du modèle comptent
 comme échecs : un PC éteint, redémarré ou injoignable, ou une clé refusée, ne pèse pas contre lui.
 `/cerveau recompter` fait repartir ce compteur de zéro (par exemple après une correction du code) : les

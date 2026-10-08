@@ -255,8 +255,8 @@ function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
 }
 
 /** Second brain (2026-10-08): wrong figures code found in Claude's recent texts; nothing when there are none. */
-function consistencySection(db: DB, now: Date): Section | null {
-  const lines = numbersToCorrect(db, now);
+function consistencySection(db: DB, cfg: TraderConfig, now: Date): Section | null {
+  const lines = numbersToCorrect(db, cfg, now);
   return lines.length ? { title: NUMBERS_TO_CORRECT_TITLE, lines } : null;
 }
 
@@ -505,7 +505,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     lessonUseSection(db),
     openSection(db, PACK_OPEN),
     resolvedSection(db, PACK_RESOLVED),
-    consistencySection(db, now),
+    consistencySection(db, cfg, now),
     watchesSection(db, now),
     selfSection(db, cfg, dailyCapCents, now),
     upcomingSection(db, now, 14),

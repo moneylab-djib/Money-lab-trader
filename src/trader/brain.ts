@@ -46,8 +46,13 @@ export const JOB_KINDS = ["question", "triage", "parallel_prediction", "briefing
 export type JobKind = (typeof JOB_KINDS)[number];
 /** Lower runs first: the owner's questions, then fresh news, then the rest; checks of Sonni's own memory last (9: night re-check). */
 const PRIORITY: Record<JobKind, number> = {
-  question: 1, triage: 2, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, consistency_check: 7, upkeep: 8,
+  question: 1, triage: 2, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, upkeep: 7, consistency_check: 8,
 };
+/**
+ * The checks of Sonni's own memory are judged by code and an empty answer is a valid one, so they say little about
+ * the model: the 50-task confirmation counts only the other kinds (brainchecks.ts keeps their own counts).
+ */
+const CONFIRMATION_EXCLUDED = ["consistency_check", "upkeep"];
 export const MAX_ATTEMPTS = 3;
 /** Health is checked at most this often; an outage longer than OUTAGE_INCIDENT_MINUTES is an incident. */
 export const HEALTH_EVERY_SECONDS = 60;
@@ -380,7 +385,7 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
     }
     case "consistency_check": {
       // The PC only points at passages; code judges every claim. A well-formed answer is a done job even when
-      // code keeps nothing, so the model's confirmation counter stays fair.
+      // code keeps nothing. The stored answer carries code's counts; a "skipped" key is code's alone.
       const subject = consistencySubject(db, cfg, String(job.payload.source) as CheckSource, String(job.payload.id));
       if (!subject) return false;
       const verdict = verifyClaims(subject, json);
@@ -392,6 +397,7 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
         const content = flagContentFr(subject, flag);
         if (!exists.get(kind, ref, content)) storeOutput(db, job.id, kind, ref, content, now, model);
       }
+      delete json.skipped;
       json.code = { cited: verdict.cited, flagged: verdict.flags.length };
       return true;
     }
@@ -399,6 +405,7 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
       const verdict = verifyUpkeep(db, json, now);
       if (!verdict) return false;
       for (const p of verdict.kept) storeOutput(db, job.id, "upkeep", p.subject, p.content, now, model);
+      delete json.skipped;
       json.code = { kept: verdict.kept.length };
       return true;
     }
@@ -406,6 +413,9 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
 }
 
 // ─── Producers: what the second brain should do next ────────────────────
+
+const CHECKS_PLAN_EVERY_MS = 60_000;
+const checksPlannedAt = new WeakMap<DB, number>();
 
 /** Queues the assistant's work (and the parallel predictions in parallel mode); idempotent by dedupe key. */
 export function planJobs(db: DB, cfg: TraderConfig, now: Date = new Date()): number {
@@ -444,8 +454,13 @@ export function planJobs(db: DB, cfg: TraderConfig, now: Date = new Date()): num
       queued += enqueueJob(db, "parallel_prediction", `parallel:${p.id}`, { predictionId: p.id }, left, now) ? 1 : 0;
     }
   }
-  // Sonni's own memory: the figures of each new text, older texts and the lessons at night (brainchecks.ts).
-  for (const j of plannedChecks(db, cfg, now)) queued += enqueueJob(db, j.kind, j.dedupeKey, j.payload, j.validMinutes, now, j.priority) ? 1 : 0;
+  // Sonni's own memory: the figures of each new text, older texts and the lessons at night (brainchecks.ts),
+  // planned at most once a minute: it scans the text stores.
+  const planned = checksPlannedAt.get(db);
+  if (planned === undefined || now.getTime() - planned >= CHECKS_PLAN_EVERY_MS || now.getTime() < planned) {
+    checksPlannedAt.set(db, now.getTime());
+    for (const j of plannedChecks(db, cfg, now)) queued += enqueueJob(db, j.kind, j.dedupeKey, j.payload, j.validMinutes, now, j.priority) ? 1 : 0;
+  }
   return queued;
 }
 
@@ -580,7 +595,8 @@ export function brainStats(db: DB, now: Date = new Date()): BrainStats {
   const model = brainHealth(db)?.model ?? null;
   const since = evidenceSince(db);
   const byModel = (status: string) => (model === null ? 0 : (db.prepare(
-    "SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = @status AND model = @model AND (@since IS NULL OR finished_at >= @since)",
+    `SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE status = @status AND model = @model AND (@since IS NULL OR finished_at >= @since)
+       AND kind NOT IN (${CONFIRMATION_EXCLUDED.map((k) => `'${k}'`).join(", ")})`,
   ).get({ status, model, since }) as { n: number }).n);
   const rows = db.prepare(
     `SELECT b.probability AS bp, p.probability AS cp, p.outcome AS o FROM trader_brain_predictions b JOIN trader_predictions p ON p.id = b.prediction_id
