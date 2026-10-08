@@ -21,6 +21,7 @@ import { activeConfig } from "./universe.js";
 import { agentStateFr, describePredictionFr, describeResolutionFr, orderNoteFr } from "./status.js";
 import { fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, plural } from "./format.js";
 import { listTrades, recentOrders, snapshots, valuation } from "./portfolio.js";
+import { checksYesterdayFr } from "./brainchecks.js";
 
 type DB = Database.Database;
 const DAY_MS = 86_400_000;
@@ -91,6 +92,10 @@ export function buildSonniDailyReport(
   const spentYesterday = inferenceGetDailyCost(db, new Date(nowMs - DAY_MS).toISOString().slice(0, 10));
   const spentToday = inferenceGetDailyCost(db, now.toISOString().slice(0, 10));
   const cap = lab?.inference.dailyCents ?? null;
+  if (cfg.secondBrain) {
+    const brainLine = checksYesterdayFr(db, now);
+    if (brainLine) yesterday.push(brainLine);
+  }
   yesterday.push(`IA : ${fmtUsdCents(spentYesterday)} hier${cap !== null ? ` (plafond ${fmtUsdCents(cap)} par jour)` : ""}`);
 
   // ── Today ──

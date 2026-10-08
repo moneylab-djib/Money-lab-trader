@@ -28,6 +28,7 @@ import { isBigOrder, readPendingBigOrder, STRONG_DAILY_SHARE, strongBudgetLeft }
 import { formatSelfReport, formatSelfReportFr, selfReport } from "../../trader/soul.js";
 import { buildMemoryPack } from "../../trader/pack.js";
 import { createTestConfig, createTestIdentity, MockConwayClient, MockInferenceClient, toolCallResponse } from "../mocks.js";
+import { markConsolidationDone } from "../../trader/consolidation.js";
 
 const EXAMPLE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "sonni", "automaton.sonni.example.json"), "utf-8"));
 /** These tests exercise BTC and ETH; the owner's other core assets (gold, USD, tokenized stocks) are covered in universe.test. */
@@ -164,6 +165,9 @@ describe("The loop and the pack", () => {
     storePrice(db, "ETH", now, 2_000);
     brokerTick(db.raw, TRADER, now);
     addLedgerEntry(db.raw, { kind: "owner_funding", amountCents: 5800, source: "operator", reference: "budget" });
+    // The loop runs on the real clock: after the evening consolidation time (19:30 Paris) the evening turn would
+    // take this wake and the decision request would wait for the next one. This test is about day-time wakes.
+    markConsolidationDone(db.raw, TRADER, now);
     const before = journalFingerprint(db.raw);
     const inference = new MockInferenceClient([
       toolCallResponse([{ name: "record_decision", arguments: { decisions: [

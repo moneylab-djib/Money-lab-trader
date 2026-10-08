@@ -57,6 +57,11 @@ function rowToDecision(r: any): Decision {
   };
 }
 
+export function getDecision(db: DB, id: string): Decision | undefined {
+  const row = db.prepare("SELECT * FROM trader_decisions WHERE id = ?").get(id);
+  return row ? rowToDecision(row) : undefined;
+}
+
 /** Exposure the decision leaves: long after buy, add, hold of a held position; flat otherwise. */
 export function isLong(d: Pick<Decision, "action" | "positionEur">): boolean {
   return d.action === "buy" || d.action === "add" || (d.action === "hold" && d.positionEur > 0);

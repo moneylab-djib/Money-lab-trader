@@ -37,6 +37,7 @@ import { latestOutput } from "./brain.js";
 import { analogLine, similarSituations } from "./analogs.js";
 import { describeEvidence, lessonEvidence } from "./lessonuse.js";
 import { MAX_SATELLITES, recordedCore } from "./universe.js";
+import { NUMBERS_TO_CORRECT_TITLE, numbersToCorrect } from "./brainchecks.js";
 
 type DB = Database.Database;
 
@@ -251,6 +252,12 @@ function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
     title: `Your decisions per asset (record_decision; one is due every ${DECISION_HOURS} h; code scores each, staying out included):`,
     lines: decisionsPackLines(db, cfg, now),
   };
+}
+
+/** Second brain (2026-10-08): wrong figures code found in Claude's recent texts; nothing when there are none. */
+function consistencySection(db: DB, now: Date): Section | null {
+  const lines = numbersToCorrect(db, now);
+  return lines.length ? { title: NUMBERS_TO_CORRECT_TITLE, lines } : null;
 }
 
 function resolvedSection(db: DB, limit: number): Section {
@@ -498,6 +505,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     lessonUseSection(db),
     openSection(db, PACK_OPEN),
     resolvedSection(db, PACK_RESOLVED),
+    consistencySection(db, now),
     watchesSection(db, now),
     selfSection(db, cfg, dailyCapCents, now),
     upcomingSection(db, now, 14),

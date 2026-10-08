@@ -30,7 +30,7 @@ export function localDay(now: Date, tz: string): string {
   return now.toLocaleDateString("en-CA", { timeZone: tz });
 }
 
-function localMinutes(now: Date, tz: string): number {
+export function localMinutes(now: Date, tz: string): number {
   const parts = now.toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
   const [h, m] = parts.split(":").map(Number);
   return h * 60 + m;

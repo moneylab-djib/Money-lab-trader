@@ -75,6 +75,7 @@ import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
 import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS, sonniDecisionInstructions } from "../trader/prompt.js";
 import { decisionsDue } from "../trader/decisions.js";
 import { briefingForWake } from "../trader/brain.js";
+import { upkeepForWake } from "../trader/brainchecks.js";
 import { bigOrderInstructions, clearBigOrder, readPendingBigOrder, setStrongTurn } from "../trader/strong.js";
 import {
   CONSOLIDATION_RESERVE_CENTS, consolidationDue, consolidationPending, consolidationTimeToday, markConsolidationDone, reserveBlocks,
@@ -511,6 +512,11 @@ export async function runAgentLoop(
       // A review due on an intake wake does not cut the intake's longer run on the stronger model.
       reviewModelTurns = Math.max(reviewModelTurns, REVIEW_MODEL_TURNS);
       wakeupInput += `\n\n${trader ? SONNI_REVIEW_INSTRUCTIONS : REVIEW_INSTRUCTIONS}`;
+    }
+    // Second brain (2026-10-08): its night proposals about the lessons, only on the wakes that already change them.
+    if (trader && !intakePending && (consolidationTurn || reviewPending)) {
+      const upkeep = upkeepForWake(db.raw, new Date());
+      if (upkeep) wakeupInput += `\n\n${upkeep}`;
     }
   }
 

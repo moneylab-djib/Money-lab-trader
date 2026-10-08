@@ -11,7 +11,9 @@
  * valid answer wins. Claude never waits for the PC: whatever is ready is
  * shown, the rest is skipped. Everything the second brain writes is
  * untrusted data, shown with that label; it never places an order, never
- * writes a statistic and never changes a setting.
+ * writes a statistic and never changes a setting. Two more assistant jobs look after Sonni's own memory
+ * (src/trader/brainchecks.ts): the consistency check of the figures in Claude's texts, judged by code, and
+ * the night upkeep proposals about its lessons, applied by nobody but Claude or the owner.
  */
 
 import type Database from "better-sqlite3";
@@ -32,14 +34,20 @@ import { predictionsAwaitingPostmortem } from "./soul.js";
 import { valuation } from "./portfolio.js";
 import { currentDossier } from "./dossiers.js";
 import { upcomingEvents } from "./events.js";
+import {
+  checksLinesFr, consistencyPrompt, consistencySubject, flagContentFr, plannedChecks, upkeepPrompt, verifyClaims, verifyUpkeep,
+  type CheckSource,
+} from "./brainchecks.js";
 
 type DB = Database.Database;
 type FetchFn = typeof fetch;
 
-export const JOB_KINDS = ["question", "triage", "parallel_prediction", "briefing", "counter_case", "postmortem_brief"] as const;
+export const JOB_KINDS = ["question", "triage", "parallel_prediction", "briefing", "counter_case", "postmortem_brief", "consistency_check", "upkeep"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
-/** Lower runs first: the owner's questions, then fresh news, then the rest. */
-const PRIORITY: Record<JobKind, number> = { question: 1, triage: 2, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6 };
+/** Lower runs first: the owner's questions, then fresh news, then the rest; checks of Sonni's own memory last (9: night re-check). */
+const PRIORITY: Record<JobKind, number> = {
+  question: 1, triage: 2, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, consistency_check: 7, upkeep: 8,
+};
 export const MAX_ATTEMPTS = 3;
 /** Health is checked at most this often; an outage longer than OUTAGE_INCIDENT_MINUTES is an incident. */
 export const HEALTH_EVERY_SECONDS = 60;
@@ -83,12 +91,14 @@ function rowToJob(r: any): BrainJob {
 }
 
 /** Queues a job unless the same dedupe key was ever queued; returns the job id or null. */
-export function enqueueJob(db: DB, kind: JobKind, dedupeKey: string, payload: unknown, validMinutes: number, now: Date = new Date()): string | null {
+export function enqueueJob(
+  db: DB, kind: JobKind, dedupeKey: string, payload: unknown, validMinutes: number, now: Date = new Date(), priority: number = PRIORITY[kind],
+): string | null {
   const id = `j_${ulid()}`;
   const changes = db.prepare(
     `INSERT OR IGNORE INTO trader_brain_jobs (id, kind, priority, dedupe_key, payload, created_at, not_before, not_after, status, attempts)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0)`,
-  ).run(id, kind, PRIORITY[kind], dedupeKey, JSON.stringify(payload ?? {}), now.toISOString(), now.toISOString(),
+  ).run(id, kind, priority, dedupeKey, JSON.stringify(payload ?? {}), now.toISOString(), now.toISOString(),
     new Date(now.getTime() + validMinutes * 60_000).toISOString()).changes;
   return changes ? id : null;
 }
@@ -269,6 +279,14 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
         maxTokens: 1200,
       };
     }
+    case "consistency_check": {
+      const subject = consistencySubject(db, cfg, String(job.payload.source) as CheckSource, String(job.payload.id));
+      return subject ? { system: SYSTEM, ...consistencyPrompt(subject) } : null;
+    }
+    case "upkeep": {
+      const prompt = upkeepPrompt(db);
+      return prompt ? { system: SYSTEM, ...prompt } : null;
+    }
     case "parallel_prediction": {
       const pred = getPrediction(db, String(job.payload.predictionId));
       if (!pred) return null;
@@ -360,6 +378,30 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
       return db.prepare("INSERT OR IGNORE INTO trader_brain_predictions (prediction_id, probability, reason, at, model) VALUES (?, ?, ?, ?, ?)")
         .run(String(job.payload.predictionId), probability, cleanSummary(json?.reason, 240), now.toISOString(), model).changes === 1;
     }
+    case "consistency_check": {
+      // The PC only points at passages; code judges every claim. A well-formed answer is a done job even when
+      // code keeps nothing, so the model's confirmation counter stays fair.
+      const subject = consistencySubject(db, cfg, String(job.payload.source) as CheckSource, String(job.payload.id));
+      if (!subject) return false;
+      const verdict = verifyClaims(subject, json);
+      if (!verdict) return false;
+      const kind = job.payload.past === true ? "consistency_past" : "consistency";
+      const ref = `${subject.source}:${subject.id}`;
+      const exists = db.prepare("SELECT 1 FROM trader_brain_outputs WHERE kind = ? AND subject = ? AND content = ?");
+      for (const flag of verdict.flags) {
+        const content = flagContentFr(subject, flag);
+        if (!exists.get(kind, ref, content)) storeOutput(db, job.id, kind, ref, content, now, model);
+      }
+      json.code = { cited: verdict.cited, flagged: verdict.flags.length };
+      return true;
+    }
+    case "upkeep": {
+      const verdict = verifyUpkeep(db, json, now);
+      if (!verdict) return false;
+      for (const p of verdict.kept) storeOutput(db, job.id, "upkeep", p.subject, p.content, now, model);
+      json.code = { kept: verdict.kept.length };
+      return true;
+    }
   }
 }
 
@@ -402,6 +444,8 @@ export function planJobs(db: DB, cfg: TraderConfig, now: Date = new Date()): num
       queued += enqueueJob(db, "parallel_prediction", `parallel:${p.id}`, { predictionId: p.id }, left, now) ? 1 : 0;
     }
   }
+  // Sonni's own memory: the figures of each new text, older texts and the lessons at night (brainchecks.ts).
+  for (const j of plannedChecks(db, cfg, now)) queued += enqueueJob(db, j.kind, j.dedupeKey, j.payload, j.validMinutes, now, j.priority) ? 1 : 0;
   return queued;
 }
 
@@ -598,6 +642,7 @@ export function formatBrainFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv,
   if (s.parallel.n > 0 || mode === "parallel") {
     lines.push(`- Paris en parallèle${s.model ? ` (${s.model})` : ""} : ${s.parallel.n} noté(s) ; Brier du second cerveau ${fmtBrier(s.parallel.brain)} contre ${fmtBrier(s.parallel.claude)} pour Claude sur les mêmes (0 = parfait).`);
   }
+  lines.push(...checksLinesFr(db, cfg, now));
   lines.push("Modes : /cerveau arret | assistant | parallele | delegue. /question <texte> pour l'interroger sur la mémoire de Sonni. " +
     "/cerveau recompter remet le compteur de confirmation à zéro.");
   return lines.join("\n");
