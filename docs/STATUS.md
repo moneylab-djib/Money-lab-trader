@@ -301,8 +301,11 @@
   still allow confirmation (27 < 50). Checks (2026-10-08 15:15 UTC, this sandbox, Likma project check 03fd0bce):
   types PASS, sonni 164/164, money-lab PASS, build PASS, sonni-e2e PASS (591 s); feature brain-field-fixes verified
   (sonni, d7d53956). The new brain test fails on the old code (batch block and outage blame both reproduced).
+  Merged as PR #25 (2026-10-08 15:23 UTC, GitHub CI green). Re-verification after it (Likma `project feature
+  reverify`, report f2dd6a7e, this sandbox): build PASS, sonni PASS, money-lab PASS, sonni-e2e PASS (590 s); the 15
+  features made stale by the shared brain and reader sources re-verified: every feature verified.
   Not yet observed on the VPS or the PC.
-- Next concrete action: owner merges the field-fix PR and updates the VPS (update block of
+- Next concrete action: owner updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
   (/cerveau toward 50 tasks, /bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee). The VPS
   shows "System restart required" (kernel update): reboot it at a quiet time, Sonni restarts by itself.
