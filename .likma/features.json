@@ -1192,7 +1192,7 @@
         "The PC supervisor starts llama-server with --no-ui and --load-mode none (still reading options.txt), and the guide's manual command matches it",
         "The confirmation rule (50 successful tasks with under one failure in ten, per model), the queue's leases, attempts and validity windows"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "src/trader/brain.ts",
         "src/trader/readers.ts",
@@ -1210,6 +1210,42 @@
       "implementation": {
         "at": "2026-10-08T15:01:16.830160+00:00",
         "note": "Triage batch 8 with 200 + 160 tokens per observation; cut answers named; a failed batch is not retried (it blocked later triage through its dedupe key); only parse failures blame the model (outages and lost leases do not); Markdown marks removed from second-brain texts; supervisor uses --no-ui and --load-mode none; guide step 10 updated"
+      },
+      "verification": {
+        "at": "2026-10-08T15:14:08.667669+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "2bef8b8a10869e7a016243ae0e493878f7d44a2ec1b4bc1a34bd07aa4ff80db2",
+        "scope": [
+          "src/trader/brain.ts",
+          "src/trader/readers.ts",
+          "sonni/pc/llm-main.ps1",
+          "sonni/GUIDE-PC.fr.md",
+          "src/__tests__/trader/brain.test.ts",
+          "src/__tests__/trader/pc-scripts.test.ts"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni"
+        },
+        "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
+        "report": ".likma/checks/d7d5395679f14284b98f23154e91dc06.json",
+        "contract": "608916725e5743673b74f9010f19627200e958cf3c63abacae2ad55cfc3ee1f3",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 20.706,
+            "output_bytes": 24931,
+            "output_sha256": "b4e136723aa935b1001e849f7f7e313ee83b725fa58b752dbf192e1e3ebc268c"
+          }
+        ],
+        "integrity": {
+          "base": "361dd8d9de1b27fb67419ccb0d190a69258046fe",
+          "flags": []
+        }
       }
     }
   ]

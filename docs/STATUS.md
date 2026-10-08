@@ -298,7 +298,10 @@
   count against the model (outages and lost leases no longer do), Markdown marks are removed from the second
   brain's texts (seen as ** on Telegram), and the supervisor starts llama-server with --no-ui (--no-webui is
   deprecated) and --load-mode none. The 3 failures already recorded stay (append-only): with 50 done they
-  still allow confirmation (27 < 50).
+  still allow confirmation (27 < 50). Checks (2026-10-08 15:15 UTC, this sandbox, Likma project check 03fd0bce):
+  types PASS, sonni 164/164, money-lab PASS, build PASS, sonni-e2e PASS (591 s); feature brain-field-fixes verified
+  (sonni, d7d53956). The new brain test fails on the old code (batch block and outage blame both reproduced).
+  Not yet observed on the VPS or the PC.
 - Next concrete action: owner merges the field-fix PR and updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
   (/cerveau toward 50 tasks, /bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee). The VPS
