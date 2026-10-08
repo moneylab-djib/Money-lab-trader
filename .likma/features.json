@@ -879,6 +879,31 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "decisions-snapshot",
+      "title": "Step 1: explicit decisions per asset, code's odds, big buys on the stronger model, learning scoreboard",
+      "criteria": [
+        "Each followed asset gets an explicit decision (buy, add, hold, reduce, sell, stay_out) with a reason when none was recorded in the last 8 hours; code stores the market snapshot, append-only, and scores it at 24 h and 7 d",
+        "Every prediction stores code's odds: price, distance to the threshold in % and in volatility units, a reference probability; market_odds gives them before; the skill score against the reference is computed after resolution",
+        "A buy of bigOrderPct of the portfolio or more is validated, held and confirmed by the stronger model on the next turn, unless the stronger model already used half of the daily cap",
+        "/bilan and the self-report show whether Sonni learns: skill against the reference, its trend, decision outcomes, lessons added and retired"
+      ],
+      "status": "built",
+      "paths": [
+        "src/trader/decisions.ts",
+        "src/trader/snapshot.ts",
+        "src/trader/strong.ts",
+        "src/trader/tools.ts",
+        "src/trader/soul.ts",
+        "src/agent/loop.ts",
+        "src/__tests__/trader/decisions.test.ts",
+        "sonni/e2e.mjs"
+      ],
+      "implementation": {
+        "at": "2026-10-08T10:15:57.069976+00:00",
+        "note": "decisions.ts, snapshot.ts, strong.ts, tools market_odds/record_decision/place_order hold, loop hooks, scoreboard in soul.ts, pack sections"
+      }
     }
   ]
 }
