@@ -310,7 +310,10 @@
   under the old code (8 triage answers cut by the 1500-token budget, 1 timeout during the PC's reboot), none after
   the update at 15:46 UTC. `/cerveau recompter` makes the confirmation counter count jobs finished from that moment
   (KV sonni.brain_evidence_since); /cerveau shows the start date, each restart is a `brain_recount` incident, no
-  row is deleted, the parallel score is untouched.
+  row is deleted, the parallel score is untouched. Checks (2026-10-08, this sandbox, Likma project check 644cb442):
+  types PASS, sonni 165/165, money-lab PASS, build PASS, sonni-e2e PASS (591 s); feature brain-recount verified;
+  the four features sharing brain.ts re-verified (report 996cd774: build, sonni, money-lab, sonni-e2e PASS).
+  Not yet observed on the VPS.
 - Next concrete action: owner updates the VPS (update block of
   sonni/GUIDE-VPS.fr.md) and the PC script (step 11 of sonni/GUIDE-PC.fr.md); then observe a few days
   (/cerveau toward 50 tasks, /bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee). The VPS
