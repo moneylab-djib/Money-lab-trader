@@ -249,6 +249,9 @@ systemctl restart sonni
 Ton identifiant Telegram est repris de la configuration précédente : `--chat-id` ne sert qu'à la
 première installation. Tape ou colle ces lignes une par une plutôt qu'en bloc. Le taux `--eur-usd`
 sert aussi à convertir ce que coûte l'IA pour la mesure d'autofinancement du portefeuille.
+Depuis le 8 octobre, `systemctl restart sonni` pendant que Sonni dort ne le réveille plus : il reprend
+son sommeil sans appel payé (le journal affiche « Redémarrage pendant le sommeil : pas de réveil
+payé »). S'il ne dormait pas, ou si un de tes messages attend, il se réveille normalement.
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.

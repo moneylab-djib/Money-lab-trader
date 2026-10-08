@@ -6,7 +6,7 @@
  * network, no inference.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -46,7 +46,7 @@ function openDb(): AutomatonDatabase {
   return db;
 }
 beforeEach(() => { tmpDirs = []; });
-afterEach(() => { for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => { vi.useRealTimers(); for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true }); });
 
 describe("When the evening consolidation is due", () => {
   it("defaults to 19:30 in the owner's time zone, validates the setting, fires once per local day", () => {
@@ -99,7 +99,9 @@ describe("The evening turn", () => {
     const summary = buildSonniEveningSummary(db.raw, TRADER, null, now);
     expect(summary).toContain("autopsie du soir : faite");
     expect(summary).toContain("Sa note du soir : Journée calme : une prédiction prudente");
-    // Without a wake delivered today the loop adds nothing.
+    // Before 19:30 and without a wake delivered today the loop adds nothing (10:00 UTC is noon in Paris).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-08T10:00:00Z"));
     const quiet = openDb();
     const second = new MockInferenceClient([toolCallResponse([{ name: "sleep", arguments: { duration_seconds: 3600, reason: "done" } }])]);
     await runAgentLoop({
@@ -107,7 +109,8 @@ describe("The evening turn", () => {
       policyEngine: new PolicyEngine(quiet.raw, createDefaultRules()), spendTracker: new SpendTracker(quiet.raw),
     });
     expect(JSON.stringify(second.calls[0].messages)).not.toContain("SONNI EVENING");
-    expect(consolidationDoneToday(quiet.raw, TRADER, now)).toBe(false);
+    expect(consolidationDoneToday(quiet.raw, TRADER)).toBe(false);
+    vi.useRealTimers();
     db.close();
     quiet.close();
   });

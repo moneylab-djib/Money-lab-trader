@@ -308,13 +308,15 @@
     "spend_caps": [
       "src/__tests__/money-lab/money-lab.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
-      "src/__tests__/trader/guards.test.ts"
+      "src/__tests__/trader/guards.test.ts",
+      "src/__tests__/trader/budget.test.ts"
     ],
     "unknown_cost": "src/__tests__/money-lab/money-lab.test.ts",
     "loop_guard": [
       "src/__tests__/trader/guards.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
-      "src/__tests__/money-lab/money-lab.test.ts"
+      "src/__tests__/money-lab/money-lab.test.ts",
+      "src/__tests__/trader/budget.test.ts"
     ],
     "pause_switch": [
       "src/__tests__/money-lab/money-lab.test.ts",

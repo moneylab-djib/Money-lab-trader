@@ -812,6 +812,25 @@
           }
         ]
       }
+    },
+    {
+      "id": "budget-guards",
+      "title": "Budget guards G10: free restarts, evening reserve, leaner prompt",
+      "criteria": [
+        "A restart while Sonni sleeps resumes the sleep with no paid call unless an owner message waits",
+        "Day-time calls stop 40c short of the daily cap until the evening turn has run; owner messages and the evening turn pass; one incident a day",
+        "Any wake after the consolidation time is the evening turn until done; incident times shown in the owner's time zone",
+        "Leftover automaton tools are denied to Sonni and its history window is 8 to 11 turns"
+      ],
+      "status": "planned",
+      "paths": [
+        "src/index.ts",
+        "src/agent/loop.ts",
+        "src/trader/consolidation.ts",
+        "src/trader/config.ts",
+        "src/__tests__/trader/budget.test.ts",
+        "sonni/e2e.mjs"
+      ]
     }
   ]
 }

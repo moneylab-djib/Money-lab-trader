@@ -44,6 +44,7 @@ import {
   releaseInboxClaims,
   resetInboxToReceived,
   consumeNextWakeEvent,
+  inferenceGetDailyCost,
 } from "../state/database.js";
 import type { InboxMessageRow } from "../state/database.js";
 import { ulid } from "ulid";
@@ -72,7 +73,10 @@ import { createMoneyLabTools } from "../money-lab/tools.js";
 import { SONNI_DENIED_TOOLS } from "../trader/config.js";
 import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
 import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS } from "../trader/prompt.js";
-import { consolidationPending, markConsolidationDone } from "../trader/consolidation.js";
+import {
+  CONSOLIDATION_RESERVE_CENTS, consolidationDue, consolidationPending, consolidationTimeToday, markConsolidationDone, reserveBlocks,
+} from "../trader/consolidation.js";
+import { fmtTime } from "../trader/format.js";
 import { markReflectionDone, reflectionDue, startReflection } from "../trader/soul.js";
 import { activeConfig } from "../trader/universe.js";
 import { closeIntakeWake, INTAKE_MODEL_TURNS, intakeDue, recordIntakeAttempt, SONNI_INTAKE_INSTRUCTIONS, startIntake } from "../trader/intake.js";
@@ -93,6 +97,12 @@ const MAX_REPETITIVE_TURNS = 3;
 const MONEY_LAB_IDLE_SLEEP_MS = 15 * 60_000;
 const MONEY_LAB_WINDOW = 20;
 const MONEY_LAB_WINDOW_STEP = 10;
+/**
+ * Sonni re-reads its memory pack each session, so older turns mostly repeat it: on 2026-10-08 the 20 to 29
+ * carried turns were about 70 % of every call (38k to 49k tokens). Its window keeps 8 to 11 turns.
+ */
+const SONNI_WINDOW = 8;
+const SONNI_WINDOW_STEP = 4;
 const MONEY_LAB_STORED_RESULT_CHARS = 20_000;
 /** Tool names the Anthropic API accepts. */
 const VALID_TOOL_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -472,8 +482,10 @@ export async function runAgentLoop(
         reflectionPending = true;
         wakeupInput += `\n\n${SONNI_REFLECTION_INSTRUCTIONS}`;
       }
-      // Step C3: the evening consolidation, when its wake was delivered today and it is not done.
-      if (consolidationPending(db.raw, activeConfig(db.raw, trader))) {
+      // Step C3: the evening consolidation, when its wake was delivered today or any wake comes after
+      // its time (a capped or no-progress sleep may have held the scheduled wake back), until done.
+      const evening = activeConfig(db.raw, trader);
+      if (consolidationPending(db.raw, evening) || consolidationDue(db.raw, evening)) {
         consolidationTurn = true;
         wakeupInput += `\n\n${SONNI_EVENING_INSTRUCTIONS}`;
       }
@@ -630,9 +642,10 @@ export async function runAgentLoop(
       // Money Lab: the window grows by one turn per turn and only drops its
       // oldest 10 turns every 10 turns, so the history stays a stable,
       // cacheable prefix 9 turns out of 10 (a sliding window changes it every turn).
+      const window = trader ? SONNI_WINDOW : MONEY_LAB_WINDOW;
+      const step = trader ? SONNI_WINDOW_STEP : MONEY_LAB_WINDOW_STEP;
       const allTurns = moneyLab
-        ? db.getRecentTurns(MONEY_LAB_WINDOW + MONEY_LAB_WINDOW_STEP - 1)
-          .slice(-(MONEY_LAB_WINDOW + (db.getTurnCount() % MONEY_LAB_WINDOW_STEP)))
+        ? db.getRecentTurns(window + step - 1).slice(-(window + (db.getTurnCount() % step)))
         : db.getRecentTurns(20);
       const meaningfulTurns = allTurns.filter((t) => {
         if (t.toolCalls.length === 0) return true; // text-only turns are meaningful
@@ -778,6 +791,32 @@ export async function runAgentLoop(
           running = false;
           break;
         }
+        // Sonni: the evening turn's reserve. Day-time calls stop short of the cap until it has run;
+        // the owner's messages are still answered (the router's own cap stays the hard limit).
+        if (trader && !consolidationTurn && !claimedMessages.some((m) => m.fromAddress === OWNER_TELEGRAM_SENDER)) {
+          const cfgNow = activeConfig(db.raw, trader);
+          const now = new Date();
+          if (reserveBlocks(db.raw, cfgNow, moneyLab.inference.dailyCents, inferenceGetDailyCost(db.raw), now)) {
+            // Until the evening turn, or the UTC day's reset if sooner (after the owner's midnight the next evening is far).
+            const reset = new Date(now);
+            reset.setUTCHours(24, 0, 0, 0);
+            const evening = consolidationTimeToday(cfgNow, now);
+            const until = evening && evening < reset ? evening : reset;
+            log(config, `[SONNI] Day-time budget used up; ${CONSOLIDATION_RESERVE_CENTS}c kept for the evening turn. Sleeping until ${until.toISOString()}.`);
+            const day = now.toISOString().slice(0, 10);
+            if (db.getKV("sonni.reserve_incident_day") !== day) {
+              db.setKV("sonni.reserve_incident_day", day);
+              recordIncident(db.raw, "cap", `budget de la journée épuisé : ${(CONSOLIDATION_RESERVE_CENTS / 100).toFixed(2).replace(".", ",")} $ gardés pour l'autopsie du soir ; sommeil jusqu'à ${fmtTime(until.toISOString(), cfgNow.timeZone)}`);
+            }
+            releaseInboxClaims(db.raw, claimedMessages.map((m) => m.id));
+            db.setKV("sleep_until", until.toISOString());
+            db.setKV("sleep_reason", "plafond de la journée atteint : réserve gardée pour l'autopsie du soir");
+            db.setAgentState("sleeping");
+            onStateChange?.("sleeping");
+            running = false;
+            break;
+          }
+        }
       }
 
       // ── Inference Call (via router when available) ──
@@ -822,7 +861,7 @@ export async function runAgentLoop(
             log(config, `[MONEY LAB] ${routerResult.content}. Sleeping until ${reset.toISOString()}.`);
             db.setKV("sleep_until", reset.toISOString());
             db.setKV("sleep_reason", `plafond ${limit === "daily" ? "journalier" : "horaire"} atteint`);
-            if (trader) recordIncident(db.raw, "cap", `plafond ${limit === "daily" ? "journalier" : "horaire"} atteint ; sommeil jusqu'à ${reset.toISOString().slice(11, 16)} UTC`);
+            if (trader) recordIncident(db.raw, "cap", `plafond ${limit === "daily" ? "journalier" : "horaire"} atteint ; sommeil jusqu'à ${fmtTime(reset.toISOString(), trader.timeZone)}`);
           } else {
             pauseMoneyLab(db.raw, `limite ${limit ?? "inconnue"} : ${routerResult.content}`, "runtime");
             log(config, `[MONEY LAB] ${routerResult.content}. Paused for operator review.`);

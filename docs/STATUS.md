@@ -1,5 +1,5 @@
 # Working status
-- Updated: 2026-10-07
+- Updated: 2026-10-08
 - Branch / commit: claude/sonni-evening (step C3, stacked on claude/sonni-cycles = PR #14, #13, #12; main after PRs #1 to #11)
 - Likma migration (2026-10-07, branch claude/affectionate-bohr-nyhhv3 from main eb71a19): Likma 0.7.0 -> 0.10.1,
   profile `bot` (was the snapshot's `ai-product`); checks in object form with timeouts, `sonni-e2e` requires
@@ -192,10 +192,20 @@
   dropped after midnight, done only after a paid turn), SONNI_EVENING_INSTRUCTIONS in prompt.ts, loop
   hooks, the evening summary line and the day's note. Tests: src/__tests__/trader/consolidation.test.ts
   (2); e2e: the consolidation scheduled 7 min into the run, delivered as a wake, /journee shows it.
-- Next concrete action: owner merges PRs #12, #13, #14 and the step C3 PR, runs the update block of
-  sonni/GUIDE-VPS.fr.md (git pull, install, build, configure.mjs, restart); the portfolio opens at the
-  first collected price; checks /statut, /portefeuille, and the evening summary at 20:00. Proposed next engineering task: a guard map for Sonni per the
-  Likma autonomous-agents skill (guard -> threat -> code -> test), covering the step 3 surfaces.
+- Budget guards G10 (owner's agreement of 2026-10-08 after the VPS costs of 2026-10-07: 13 restarts
+  about 0.96 $, the productive session about 0.49 $, idle wakes about 0.33 $; calls of 38k to 49k tokens;
+  the evening wake held back by the daily cap): a restart while Sonni sleeps resumes the sleep without a
+  paid call unless an owner message waits (src/index.ts); 40c of the daily cap reserved for the evening
+  turn, owner messages excepted, one incident a day (src/trader/consolidation.ts, src/agent/loop.ts); any
+  wake after 19:30 is the evening turn until done, and the evening timer may end a no-progress sleep;
+  incident times in the owner's time zone; 21 leftover automaton tools denied (measured locally: 41 -> 21
+  tools, tool schemas about 6,800 -> 4,900 tokens, system 5,970 -> 5,320); history window 8 to 11 turns
+  instead of 20 to 29. Tests: src/__tests__/trader/budget.test.ts (5); e2e: a restart during a sleep makes
+  no paid call. CHECKS_PLACEHOLDER
+- Next concrete action: owner merges the budget PR and runs the update block of sonni/GUIDE-VPS.fr.md
+  (that restart is the last one that wakes Sonni); then observe one day: /technique, /reveils, the
+  evening post-mortems, the day's spend in /sante. Memory improvements wait for that observation (owner,
+  2026-10-08).
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.
