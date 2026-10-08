@@ -204,10 +204,21 @@
   no paid call. Checks (2026-10-08 07:10 UTC, this sandbox, Likma project check
   6b775e3c): types PASS, sonni 127/127, money-lab 110/110, build PASS, sonni-e2e PASS (565 s). Not yet
   observed on the VPS.
-- Next concrete action: owner merges the budget PR and runs the update block of sonni/GUIDE-VPS.fr.md
-  (that restart is the last one that wakes Sonni); then observe one day: /technique, /reveils, the
-  evening post-mortems, the day's spend in /sante. Memory improvements wait for that observation (owner,
-  2026-10-08).
+- Plan of 2026-10-08 (docs/decisions/0005, owner's agreement): four steps, one PR each, observed on the
+  VPS between steps: 1 decide for real, 2 living universe (PAXG, SPYx, USDC/EUR, NVDAx), 3 second brain on
+  the owner's PC (assistant mode by default), 4 memory v2. Research of the day: docs/RESEARCH.md section 5.
+- Step 1 "decide for real" (branch claude/sonni-decisions): src/trader/decisions.ts (a stated decision per
+  followed asset every 8 hours, scored by code at 24 h and 7 d, staying out included), src/trader/snapshot.ts
+  (code's odds: distance in % and in volatility units, random-walk reference, historical share; stored with
+  every prediction; `market_odds` tool; skill score against the reference), src/trader/strong.ts (a buy of
+  20 % of the portfolio or more is validated, held and confirmed on the stronger model within half of the
+  daily cap; guard G11), the "is it learning?" scoreboard in /bilan and the self-report, decisions in the
+  pack and in the G3 fingerprint, the readers test no longer depends on the real date. Tests:
+  src/__tests__/trader/decisions.test.ts (7); e2e: decision instructions in the wake, market_odds, one
+  decision per asset, the scoreboard in /bilan. CHECKS_PLACEHOLDER
+- Next concrete action: owner merges the step 1 PR and runs the update block of sonni/GUIDE-VPS.fr.md; then
+  observe a day (/bilan "Est-ce qu'il apprend ?", /portefeuille, decisions in /journee) while preparing the
+  PC with sonni/GUIDE-PC.fr.md part 1; then step 2.
 - Files to read first: AGENTS.md, PROJECT.md, ARCHITECTURE.md, docs/MEMORY.md, docs/FIRST-SLICE.md,
   src/trader/, sonni/automaton.sonni.example.json.
 Never store secrets or report planned work as complete.

@@ -60,6 +60,8 @@ export interface PortfolioConfig {
   eurUsd: number;
   /** Orders the model may place per UTC day, cancelled ones included (guard G4). */
   maxOrdersPerDay: number;
+  /** A buy of at least this share of the portfolio's value is a big decision: the stronger model confirms it. */
+  bigOrderPct: number;
 }
 
 export interface TraderConfig {
@@ -93,9 +95,9 @@ function validTimeZone(tz: string): boolean {
 }
 
 export const DEFAULT_PORTFOLIO: PortfolioConfig = {
-  startEur: 1000, monthlyEur: 50, maxPositionPct: 30, takerFeePct: 0.8, makerFeePct: 0.4, slippageBps: 5, minOrderEur: 10, eurUsd: 1.16, maxOrdersPerDay: 10,
+  startEur: 1000, monthlyEur: 50, maxPositionPct: 30, takerFeePct: 0.8, makerFeePct: 0.4, slippageBps: 5, minOrderEur: 10, eurUsd: 1.16, maxOrdersPerDay: 10, bigOrderPct: 20,
 };
-const PORTFOLIO_KEYS = ["startEur", "monthlyEur", "maxPositionPct", "takerFeePct", "makerFeePct", "slippageBps", "minOrderEur", "eurUsd", "maxOrdersPerDay"];
+const PORTFOLIO_KEYS = ["startEur", "monthlyEur", "maxPositionPct", "takerFeePct", "makerFeePct", "slippageBps", "minOrderEur", "eurUsd", "maxOrdersPerDay", "bigOrderPct"];
 
 function numInRange(value: unknown, min: number, max: number, name: string): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
@@ -121,6 +123,7 @@ function parsePortfolio(raw: unknown): PortfolioConfig {
     minOrderEur: pick("minOrderEur", 1, 10_000),
     eurUsd: pick("eurUsd", 0.5, 2),
     maxOrdersPerDay: pick("maxOrdersPerDay", 1, 100),
+    bigOrderPct: pick("bigOrderPct", 1, 100),
   };
 }
 

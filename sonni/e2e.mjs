@@ -108,7 +108,7 @@ function model(body) {
       const rulesAt = system.indexOf("--- SONNI RULES");
       rulesAt > 0 && system.indexOf("--- AVAILABLE TOOLS ---") < rulesAt ? ok("rules block after the tool list (cached prefix)") : fail("rules block not last in the system prompt");
       const offered = new Set(body.tools.map((t) => t.name));
-      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap"]) {
+      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap", "market_odds", "record_decision"]) {
         if (!offered.has(t)) fail(`tool ${t} not offered`);
       }
       for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal",
@@ -116,6 +116,8 @@ function model(body) {
         if (offered.has(t)) fail(`tool ${t} offered`);
       }
       offered.has("sonni_memory") && !offered.has("exec") ? ok("no shell, file, installer or git tool offered to Sonni (guard G1)") : fail("guard G1 not in effect");
+      /SONNI DECISIONS \(required in this wake cycle\): no decision recorded in the last hours for BTC, ETH/.test(JSON.stringify(body.messages))
+        ? ok("the wake asks for one decision per followed asset") : fail("decision instructions missing from the wake");
       step++;
       return reply([use("sonni_memory", {})]);
     }
@@ -152,6 +154,11 @@ function model(body) {
         use("place_order", { asset: "BTC", side: "buy", amount_eur: 100, invalidation: 55000, horizon_hours: 72, probability: 0.6,
           thesis: "Marché calme et BTC au-dessus de 59 000 : une petite position de test, stop à 55 000 si je me trompe." }),
         use("name_pattern", { name: "Fed : BTC monte le jour", event_type: "fomc", asset: "BTC", window: "day", direction: "up", note: "La Fed rassure et le BTC suit le jour même." }),
+        use("market_odds", { asset: "BTC", direction: "above", thresholds: [62000, 65000], horizon_hours: 24 }),
+        use("record_decision", { decisions: [
+          { asset: "BTC", action: "buy", reason: "Marché calme au-dessus de 59 000 : petite position d'essai, stop à 55 000." },
+          { asset: "ETH", action: "stay_out", reason: "Pas de signal propre sur l'ETH, qui suit le BTC : je reste en dehors pour l'instant." },
+        ] }),
         use("update_dossier", { asset: "BTC", reason: "Premier dossier après la première séance.",
           content: "Thèse : le BTC tient au-dessus de 59 000 EUR dans un marché calme. Catalyseur : décision de la Fed dans 9 jours. Niveaux : 55 000 (invalidation), 70 000 (à revoir)." }),
       ]);
@@ -161,6 +168,9 @@ function model(body) {
       results.some((r) => /Reflection r_\w+ \(session\) recorded/.test(r)) ? ok("reflection written through the agent loop") : fail(`reflection not written: ${results.at(-1)}`);
       results.some((r) => /Order o_\w+ pending: market buy 100 EUR of BTC, stop at 55000 EUR/.test(r)) ? ok("virtual order placed through the agent loop, pending until the next price") : fail(`order not placed: ${results.at(-1)}`);
       results.some((r) => /Dossier BTC version 1 recorded\./.test(r)) ? ok("asset dossier written through the agent loop") : fail(`dossier not written: ${results.at(-1)}`);
+      results.some((r) => /Code's odds \(data, not advice\):/.test(r)) ? ok("market_odds answers with code's odds") : fail(`market_odds gave no odds: ${results.at(-1)}`);
+      results.some((r) => /- BTC: buy recorded \(d_\w+\)/.test(r) && /- ETH: stay_out recorded \(d_\w+\)/.test(r))
+        ? ok("one decision per asset recorded through the agent loop, staying out included") : fail(`decisions not recorded: ${results.at(-1)}`);
       results.some((r) => /Cycle « Fed : BTC monte le jour » recorded: \d\/1 = \d+ % vs \d+ % on all days/.test(r)) ? ok("cycle named through the agent loop, counted by code against the measured Fed day") : fail(`cycle not named or not counted: ${results.at(-1)}`);
       step++;
       return reply([use("sleep", { duration_seconds: 3600, reason: "next session" })]);
@@ -477,6 +487,8 @@ await until(() => tgOutbox.some((m) => /Première séance : marché calme/.test(
   ? ok("/journal shows the reflection written by the model") : fail("/journal lacks the reflection");
 tgSend("/bilan");
 await until(() => tgOutbox.some((m) => /BILAN DE SONNI/.test(m.text)), 30000) ? ok("/bilan answers in French") : fail("/bilan got no answer");
+tgOutbox.some((m) => /Est-ce qu'il apprend \? \(calculé par le code\)/.test(m.text) && /Décisions par actif \(7 derniers jours\) : 2 ;/.test(m.text))
+  ? ok("/bilan shows the learning scoreboard with the two decisions") : fail("/bilan lacks the learning scoreboard");
 tgSend("/note Le BTC me semble fragile cette semaine, prudence.");
 await until(() => tgOutbox.some((m) => /Note enregistrée \(BTC\)/.test(m.text)), 30000) ? ok("/note stores the owner's note with the asset it mentions") : fail("/note got no confirmation");
 tgSend("/dossier BTC");

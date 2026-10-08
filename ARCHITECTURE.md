@@ -31,7 +31,7 @@ consolidation is still a proposal.
 | Sources (implemented, step 3) | None | Poll the enabled catalog entries (Fear & Greed, market cap, Kraken order book, Bitcoin fees, FRED series with a key) and model-proposed endpoints the owner approved, into metrics for the pack. |
 | Identity and journal (implemented, step 3) | Decision model | Versioned identity, append-only reflections and post-mortems, lessons with evidence; the self-report they rely on is computed by code. |
 | Statistics | None | Measure event reactions, pattern statistics, hypothesis confidence, and the indicators the model reads (returns, volatility, drawdown, moving-average position, volume ratios); the model never reads raw candles (docs/RESEARCH.md). |
-| Decision agent | Sonnet 5.5 | Read the memory pack, record predictions, place virtual orders with a thesis. |
+| Decision agent | Sonnet 5.5; Opus 5.5 confirms a buy of 20 % of the portfolio or more (decision 0005) | Read the memory pack and code's odds (market_odds), record predictions, state a decision per followed asset (staying out included, scored by code), place virtual orders with a thesis. |
 | Paper broker | None | Fill virtual orders realistically, track positions, cash, fees, contributions. |
 | Resolver | None | Resolve predictions and positions at their horizon; append evidence. |
 | Consolidation and review | Sonnet 5.5 daily, Opus 5.5 weekly | Post-mortems, hypotheses, traps, lessons, weekly report. |

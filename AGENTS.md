@@ -48,7 +48,7 @@ features. Bot guards are mapped to their tests in likma.project.json (`bot_guard
 ## Code layout
 Sonni lives in src/trader/ (config, schema, prices, candles, rules, historical, hypotheses,
 predictions, intake, events, news, readers, pages, sources + catalog, universe, soul, curiosity,
-portfolio (paper broker), dossiers, notebooks, cycles, consolidation, incidents, pack, prompt, tools, status, report, format, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
+portfolio (paper broker), dossiers, notebooks, cycles, consolidation, incidents, decisions, snapshot (code's odds), strong (big orders on the stronger model), pack, prompt, tools, status, report, format, cli, runtime) with small hooks in src/index.ts, src/agent/loop.ts,
 src/agent/system-prompt.ts, src/money-lab/guard.ts, src/money-lab/telegram.ts, src/money-lab/journal.ts,
 src/money-lab/recall.ts and src/conway/inference.ts. The rest is the Money Lab runtime imported at a
 pinned commit (docs/upstream/): prefer changes under src/trader/ over edits to imported modules.

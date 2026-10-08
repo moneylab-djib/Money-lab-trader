@@ -28,7 +28,7 @@ patterns and dossiers are still the proposed design.
 | --- | --- | --- |
 | Code (collectors, resolver, statistics) | Prices, event outcomes, measured reactions, prediction and trade resolutions, hypothesis confidence | Free-text judgement |
 | Reader models (free, OpenAI-compatible: Gemini, Groq...; implemented) | Observations extracted from headlines and pages, validated field by field by code | Hypotheses, lessons, anything about its own reliability; they never decide |
-| Decision model (Sonnet 5.5) | Predictions, virtual orders, theses, links to hypotheses and traps; its identity (new versions), journal entries, lessons with evidence, watches, asset and source choices with reasons | Resolutions, confidence values, scores, the self-report, retired rules of the owner |
+| Decision model (Sonnet 5.5; a buy of 20 % of the portfolio or more is confirmed on Opus 5.5) | Predictions, virtual orders, theses, decisions per asset with reasons, links to hypotheses and traps; its identity (new versions), journal entries, lessons with evidence, watches, asset and source choices with reasons | Resolutions, confidence values, scores, the self-report, retired rules of the owner |
 | Consolidation and review (Sonnet 5.5 daily, Opus 5.5 weekly) | Post-mortems, hypotheses, traps, patterns, lessons, dossier notes, status proposals | Past predictions, past trades, measured numbers |
 | Owner (Telegram) | Notes, ideas, corrections, lesson vetoes (/veto), source approvals (/source ok|non), identity corrections | Nothing is off-limits to the owner |
 
@@ -58,6 +58,8 @@ Markdown notebooks are exported from them for the owner (section 8).
 | `trader_trades` (implemented, step 4 B) | asset, opened_at, closed_at, quantity, entry_price, exit_price, fees_eur, pnl_eur, pnl_pct, open_order_id, close_order_id, close_reason (model / stop), thesis | One per sale, P&L after fees computed by code; append-only. The model writes one `trade` reflection per closed trade. |
 | `trader_position_updates` (implemented, step 4 B) | asset, at, field (invalidation / horizon_until), old_value, new_value, reason, by (model / code) | Every change to a position's levels, with the model's reason or code's (a stop clears the level); append-only. |
 | `trader_portfolio_days` (implemented, step 4 B) | day, at, cash_eur, positions_eur, equity_eur, contributed_eur | One equity snapshot per UTC day (first tick), for returns, drawdown and the evening summary's daily change; append-only. |
+| `trader_decisions` (implemented, plan of 2026-10-08 step 1) | made_at, asset, action (buy / add / hold / reduce / sell / stay_out), reason, price, position_eur, equity_eur, order_id | The model's stated decision per followed asset (`record_decision`), due when none was recorded in the last 8 hours (the loop adds the instructions; not on the evening turn), at most one per asset per hour, reason in French checked for prompt-boundary patterns. Code stores the market snapshot; outcomes at 24 h and 7 d are computed by code from stored prices (right side of the move or not; staying out is scored like the others). Append-only; counts as progress for guard G3. |
+| `trader_prediction_snapshots` (implemented, plan of 2026-10-08 step 1) | prediction_id, price, distance_pct, daily_vol_pct, sigmas, ref_probability, historical_share, historical_windows | Code's odds when a prediction is recorded (src/trader/snapshot.ts): distance to the threshold in % and in units of the 30-day daily volatility over the horizon, a reference probability from a driftless random walk at that volatility, and the share of past windows of the same length (up to two years of daily closes) that moved that far. The same odds are readable before a prediction with `market_odds`. Shown with each resolution in the pack (post-mortems quote them) and used for the skill score (1 − Brier / reference Brier) in the self-report and `/bilan`. Append-only. |
 | `trader_wakes` (implemented) | source, key, reason, at, delivered | Code-only log of curiosity triggers (section 5), delivered as a wake or only noted; append-only. |
 | `trader_metrics` (implemented) | source_id, metric, ts, value | Numbers polled by code from the enabled data sources (90-day retention). |
 | `trader_reader_calls` (implemented) | reader_id, at, purpose, ok, ms, status, error | Every reader call, for the daily caps and /lecteurs; keys never appear; error texts are written by code (never a provider's body); append-only. |
@@ -180,8 +182,11 @@ Implemented pack (step 3, src/trader/pack.ts), within 9,000 characters, in order
 since the previous session (triggers, resolutions, new headlines and observations, computed by code);
 prices and changes; the owner's notes of the last 7 days (trusted); the virtual portfolio (step 4 B: cash, positions with stop, horizon and thesis,
 pending orders, the last 24 h of settled orders, closed trades waiting for a post-mortem, the names of
-the traps); open predictions (15); recent resolutions (6), with the ids still waiting for a
-post-mortem; open watches; the self-report (calibration, Brier by asset, horizon and direction,
+the traps; since 2026-10-08 the big-order threshold); the latest decision per followed asset with code's
+24 h score and the assets due a decision; open predictions (15); recent resolutions (6, each with code's
+odds at the time and the reference's Brier), with the ids still waiting for a post-mortem; open watches;
+the self-report (calibration, Brier by asset, horizon and direction, skill against code's reference for
+all, the last 7 days and the 7 days before, decisions of the last 7 days, lessons added and retired,
 counts, spend); upcoming events (14 days); ranked hypotheses (12, statements shortened); indicators
 from the enabled sources with 24 h and 7 d references; past reactions to events; observations of the
 last 24 h per asset with code-averaged sentiment, dated items and the pages the model read; the last

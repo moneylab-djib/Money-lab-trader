@@ -23,6 +23,8 @@ import type { TraderConfig } from "./config.js";
 import { getHypothesis, listHypotheses } from "./hypotheses.js";
 import { getTrade, type Performance, performance } from "./portfolio.js";
 import { getPrediction, type Prediction } from "./predictions.js";
+import { decisionStats, type DecisionStats } from "./decisions.js";
+import { skillBetween, type SkillWindow } from "./snapshot.js";
 
 type DB = Database.Database;
 
@@ -397,6 +399,13 @@ export interface SelfReport {
   dailyCapCents: number | null;
   /** Virtual portfolio results, computed by code (decision 0003's proof metrics). */
   portfolio: Performance;
+  /** Brier against code's reference probability on the same predictions (step 1, 2026-10-08). */
+  skill: { all: SkillWindow; last7d: SkillWindow; prev7d: SkillWindow };
+  /** Decisions per asset, scored by code from stored prices. */
+  decisions7d: DecisionStats;
+  decisions30d: DecisionStats;
+  lessonsAdded7d: number;
+  lessonsRetired7d: number;
 }
 
 const BUCKETS = [
@@ -467,7 +476,50 @@ export function selfReport(db: DB, cfg: TraderConfig, dailyCapCents: number | nu
     spentTodayCents: inferenceGetDailyCost(db, now.toISOString().slice(0, 10)),
     dailyCapCents,
     portfolio: performance(db, cfg, summarizeFinances(db).inferenceConsumedCents, now),
+    skill: { all: skillBetween(db, null, null), last7d: skillBetween(db, since(7), null), prev7d: skillBetween(db, since(14), since(7)) },
+    decisions7d: decisionStats(db, since(7)),
+    decisions30d: decisionStats(db, since(30)),
+    lessonsAdded7d: (db.prepare("SELECT COUNT(*) AS n FROM trader_lessons WHERE recorded_at >= ?").get(since(7)) as { n: number }).n,
+    lessonsRetired7d: (db.prepare("SELECT COUNT(*) AS n FROM trader_lessons WHERE retired_at >= ?").get(since(7)) as { n: number }).n,
   };
+}
+
+function skillEn(w: SkillWindow): string {
+  if (w.n === 0 || w.brier === null || w.refBrier === null) return "no scored prediction with code's odds";
+  return `n=${w.n}, Brier ${w.brier.toFixed(3)} vs reference ${w.refBrier.toFixed(3)}, skill ${w.skill === null ? "n/a" : `${w.skill >= 0 ? "+" : ""}${w.skill.toFixed(2)}`}`;
+}
+
+function decisionsEn(d: DecisionStats): string {
+  if (d.total === 0) return "none";
+  const actions = Object.entries(d.byAction).map(([k, v]) => `${k} ${v}`).join(", ");
+  return `${d.total} (${actions}); right side at 24 h ${d.good24h}/${d.scored24h}, at 7 d ${d.good7d}/${d.scored7d}; ` +
+    `staying out at 7 d: ${d.flatAvoided} loss(es) avoided, ${d.flatMissed} gain(s) missed`;
+}
+
+const f2fr = (v: number) => v.toFixed(3).replace(".", ",");
+
+function skillFr(w: SkillWindow): string {
+  if (w.n === 0 || w.brier === null || w.refBrier === null || w.skill === null) return "pas encore de prédiction notée avec la fiche du code";
+  const pctv = Math.round(Math.abs(w.skill) * 100);
+  const verdict = Math.abs(w.skill) < 0.02 ? "au niveau de la référence" : w.skill > 0 ? `mieux que la référence (+${pctv} %)` : `moins bien que la référence (−${pctv} %)`;
+  return `Brier ${f2fr(w.brier)} contre ${f2fr(w.refBrier)} sur ${w.n} prédiction${w.n > 1 ? "s" : ""} : ${verdict}`;
+}
+
+/** For the owner (/bilan), in French: is Sonni learning? Every figure is computed by code. */
+export function learningScoreboardFr(r: SelfReport): string[] {
+  const d = r.decisions7d;
+  const lines = [
+    "Est-ce qu'il apprend ? (calculé par le code)",
+    `- Justesse face à la référence (le hasard, à la volatilité récente) : ${skillFr(r.skill.all)}.`,
+    `- Tendance : 7 derniers jours — ${skillFr(r.skill.last7d)} ; 7 jours d'avant — ${skillFr(r.skill.prev7d)}.`,
+    d.total === 0
+      ? "- Décisions par actif (7 derniers jours) : aucune encore."
+      : `- Décisions par actif (7 derniers jours) : ${d.total} ; du bon côté à 24 h : ${d.good24h} sur ${d.scored24h} ; à 7 jours : ${d.good7d} sur ${d.scored7d} ; ` +
+        `rester en dehors : ${d.flatAvoided} perte${d.flatAvoided > 1 ? "s" : ""} évitée${d.flatAvoided > 1 ? "s" : ""}, ${d.flatMissed} gain${d.flatMissed > 1 ? "s" : ""} manqué${d.flatMissed > 1 ? "s" : ""}.`,
+    `- Leçons cette semaine : ${r.lessonsAdded7d} ajoutée${r.lessonsAdded7d > 1 ? "s" : ""}, ${r.lessonsRetired7d} retirée${r.lessonsRetired7d > 1 ? "s" : ""} (${r.lessonsActive} active${r.lessonsActive > 1 ? "s" : ""}).`,
+    "Ton rituel : lis ce bilan une fois par semaine et laisse une /note si quelque chose te frappe ; tes notes pèsent dans ce qu'il apprend.",
+  ];
+  return lines;
 }
 
 const pctSigned = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)} %`;
@@ -503,6 +555,9 @@ export function formatSelfReport(r: SelfReport): string {
   group("direction", r.byDirection);
   const hyp = Object.entries(r.hypotheses).map(([k, v]) => `${v} ${k}`).join(", ") || "none";
   lines.push(`- Hypotheses: ${hyp}. Active lessons: ${r.lessonsActive}. Reflections written: ${r.reflections}. Identity version ${r.identityVersion}.`);
+  lines.push(`- Skill vs code's reference (random walk at recent volatility; above 0 = you beat it): all ${skillEn(r.skill.all)}; ` +
+    `last 7 d ${skillEn(r.skill.last7d)}; previous 7 d ${skillEn(r.skill.prev7d)}.`);
+  lines.push(`- Decisions, last 7 d: ${decisionsEn(r.decisions7d)}. Lessons last 7 d: +${r.lessonsAdded7d} added, ${r.lessonsRetired7d} retired.`);
   lines.push(`- Spend today: $${(r.spentTodayCents / 100).toFixed(2)}${r.dailyCapCents !== null ? ` of $${(r.dailyCapCents / 100).toFixed(2)}` : ""}.`);
   const p = r.portfolio;
   if (p.contributedEur === 0) {
@@ -522,6 +577,8 @@ export function formatSelfReport(r: SelfReport): string {
 export function formatSelfReportFr(r: SelfReport): string {
   const lines = [
     "=== BILAN DE SONNI (calculé par le code) ===",
+    ...learningScoreboardFr(r),
+    "",
     `Prédictions notées : ${r.scored.all} (30 derniers jours ${r.scored.last30d}, 7 derniers jours ${r.scored.last7d}) ; ouvertes ${r.open} ; annulées ${r.voided}.`,
     `Score de Brier moyen : ${f3(r.meanBrier.all)} (30 j ${f3(r.meanBrier.last30d)}, 7 j ${f3(r.meanBrier.last7d)}) — 0 = parfait, 0,25 = toujours 50 %.`,
   ];

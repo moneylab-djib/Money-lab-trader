@@ -576,6 +576,34 @@ function ensureAliveSchema(db: DB): void {
       recorded_at TEXT NOT NULL
     );
     ${appendOnly("trader_universe")}
+
+    -- Step 1 of the 2026-10-08 plan: explicit decisions per asset and the odds code computed for each prediction.
+    CREATE TABLE IF NOT EXISTS trader_decisions (
+      id TEXT PRIMARY KEY,
+      made_at TEXT NOT NULL,
+      asset TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('buy', 'add', 'hold', 'reduce', 'sell', 'stay_out')),
+      reason TEXT NOT NULL,
+      price REAL NOT NULL CHECK (price > 0),
+      position_eur REAL NOT NULL,
+      equity_eur REAL NOT NULL,
+      order_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_decisions_asset ON trader_decisions (asset, made_at);
+    ${appendOnly("trader_decisions")}
+
+    CREATE TABLE IF NOT EXISTS trader_prediction_snapshots (
+      prediction_id TEXT PRIMARY KEY REFERENCES trader_predictions(id),
+      price REAL NOT NULL,
+      distance_pct REAL NOT NULL,
+      daily_vol_pct REAL NOT NULL,
+      sigmas REAL,
+      ref_probability REAL NOT NULL CHECK (ref_probability >= 0 AND ref_probability <= 1),
+      historical_share REAL,
+      historical_windows INTEGER NOT NULL,
+      computed_at TEXT NOT NULL
+    );
+    ${appendOnly("trader_prediction_snapshots")}
   `);
 }
 
