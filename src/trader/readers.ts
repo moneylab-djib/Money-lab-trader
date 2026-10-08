@@ -186,6 +186,9 @@ export async function callReader(
     throw new ReaderError("parse", `answer is not JSON (${text.length} bytes)`, resp.status);
   }
   const message = data?.choices?.[0]?.message?.content;
+  // An answer stopped by max_tokens ("length") ends mid-JSON: named as such, a budget too small for the task
+  // is told apart from a confused model in the job's error.
+  const cut = data?.choices?.[0]?.finish_reason === "length";
   const content = typeof message === "string"
     ? message
     : Array.isArray(message) ? message.map((p: any) => (typeof p?.text === "string" ? p.text : "")).join("") : "";
@@ -193,7 +196,7 @@ export async function callReader(
   try {
     return { json: extractJson(content), status: resp.status };
   } catch {
-    throw new ReaderError("parse", `answer carries no JSON object (${content.length} chars)`, resp.status);
+    throw new ReaderError("parse", `${cut ? "answer cut at the token limit" : "answer carries no JSON object"} (${content.length} chars)`, resp.status);
   }
 }
 

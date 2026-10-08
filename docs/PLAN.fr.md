@@ -41,7 +41,8 @@ sur le VPS entre deux étapes :
    données non fiables. Coupé en plein travail : rien n'est perdu (file d'attente sur le VPS, tâches
    reprises, réponses incomplètes jetées, Claude n'attend jamais) et Sonni continue sans lui. Son coût
    (électricité) n'est pas compté dans les 50 € (ton choix). `/cerveau` montre le modèle que ton PC fait
-   vraiment tourner et le déclare « confirmé » après 50 tâches réussies avec moins d'un échec sur 10 ;
+   vraiment tourner et le déclare « confirmé » après 50 tâches réussies avec moins d'un échec sur 10
+   (seules ses mauvaises réponses comptent ; une coupure du PC ne compte pas) ;
    si tu changes de modèle, ses scores repartent de zéro (jamais de mélange). La copie de chaque nuit
    passe par un compte en lecture seule sur le serveur, joignable seulement par Tailscale, et ton PC
    vérifie son empreinte avant de la garder (30 jours).

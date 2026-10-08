@@ -207,11 +207,11 @@ serveur (étape 19) : ni dans une discussion, ni dans un e-mail.
 
 1. Lance le modèle dans le terminal :
    ```powershell
-   C:\Sonni\llama\llama-server.exe -m C:\Sonni\modeles\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf --alias qwen3.6-35b-a3b --host 127.0.0.1 --port 8080 --api-key-file C:\Sonni\cle.txt -c 32768 --no-webui --no-slots
+   C:\Sonni\llama\llama-server.exe -m C:\Sonni\modeles\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf --alias qwen3.6-35b-a3b --host 127.0.0.1 --port 8080 --api-key-file C:\Sonni\cle.txt -c 32768 --no-ui --no-slots --load-mode none
    ```
    Il charge le modèle (une à deux minutes). Repère dans le texte qui défile : une ligne qui cite
    **Vulkan0**, une ligne `offloaded … layers to GPU` (idéalement `41/41`), puis à la fin
-   **`server is listening on http://127.0.0.1:8080`**. Laisse cette fenêtre ouverte.
+   **`listening on http://127.0.0.1:8080`**. Les lignes violettes « W » sont des avis, pas des erreurs. Laisse cette fenêtre ouverte.
 2. Ouvre un **deuxième** terminal (pas besoin d'administrateur) et teste :
    ```powershell
    Invoke-RestMethod http://127.0.0.1:8080/health
@@ -226,7 +226,9 @@ serveur (étape 19) : ni dans une discussion, ni dans un e-mail.
    ```
    doit afficher une erreur **401** (c'est voulu).
 3. Dans la première fenêtre, la ligne `eval time = … tokens per second` donne la vitesse d'écriture :
-   **au-dessus de 10 tokens par seconde**, c'est confortable pour Sonni.
+   **au-dessus de 10 tokens par seconde**, c'est confortable pour Sonni (mesuré sur ton PC le 8 octobre :
+   30 tokens par seconde ; `--load-mode none` charge le modèle en mémoire au démarrage, sans lui la toute
+   première réponse est deux fois plus lente).
 4. Arrête le modèle : **Ctrl+C** dans la première fenêtre.
 
 **Si le modèle ne démarre pas** (« out of memory », « failed to allocate ») : ouvre le Bloc-notes,
@@ -428,7 +430,8 @@ de sa configuration (`triageWakes`).
 
 `/cerveau` affiche « Avec le modèle qwen3.6-35b-a3b depuis le début : tâches réussies N, échouées M »,
 puis **« modèle confirmé »** quand il a réussi 50 vraies tâches avec moins d'un échec sur 10 (calculé
-par le code). Compte quelques jours en mode assistant.
+par le code). Compte quelques jours en mode assistant. Seules les mauvaises réponses du modèle comptent
+comme échecs : un PC éteint, redémarré ou injoignable, ou une clé refusée, ne pèse pas contre lui.
 
 S'il échoue trop souvent, s'il est trop lent, ou si Claude juge ses notes rarement utiles, essaie le
 modèle de secours : avec le Bloc-notes, écris la ligne
