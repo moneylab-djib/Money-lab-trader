@@ -1,7 +1,51 @@
 # Working status
 - Updated: 2026-10-09
-- Branch / commit: main after PR #31 (step 0.2, trade fees, merge commit of 2026-10-09); before it PR #30 (step 0.1,
-  CI gate, 0ee7f7f).
+- Branch / commit: main after PR #31 (step 0.2, trade fees, c1638c0); before it PR #30 (step 0.1, CI gate, 0ee7f7f).
+  claude/sonni-price-precision (step 0.3, separate pull request) holds the entry below.
+- Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
+  Status: built and verified in the sandbox (GitHub CI: see the pull request); not merged, not in service, not observed.
+  - Found (read-only analysis, docs/research/price-precision.md): fill prices and the average cost were rounded to the
+    cent. Below 1 EUR fills drifted from the market (USDC 0.855 filled at 0.86, +0.58 %; an asset at 0.0123 at 0.01,
+    a false open gain of 22 EUR); averaged positions drifted (USDC −0.58 EUR, ADA 2.70 EUR between trades and the
+    portfolio); below 0.005 EUR the fill price was 0 and the quantity Infinity (stored as 9e999), the equity Infinity
+    (no position cap), then NaN on the next fill and a broker failing on every tick (stops and snapshots stopped).
+    No price floor exists: PUMPEUR (0.0049) and PEPEEUR (3.5e-6) passed the satellite gate on 2026-10-09. round8 is
+    not idempotent from 2^25 units, so a sale of "all" could exceed the position.
+  - Change (guard G17, owner's decisions of 2026-10-09): unit prices keep 12 significant digits (roundPrice), EUR
+    amounts cents, quantities 1e-8; every figure of a fill is computed and checked before any write, and a zero,
+    negative or non-finite one settles the order as `rejected` (an existing status; note for the model, `broker`
+    incident in French) with nothing else written; the ledger refuses such a row as a last line of defence; an
+    unexpected error on one order leaves it pending (one incident a day) and the other orders, stops, horizons and the
+    snapshot go on; a rejected stop gets its level back once a day (on a valid position only); a sale of everything
+    leaves exactly 0. A stored position code cannot value (only a pre-0.3 fill could write one) is reported once a day,
+    never valued, sold, stopped or managed: the total becomes unknown (NaN, shown as "non fiable", never a partial sum),
+    buys (new and pending), decisions, decision requests, its horizon wake and snapshots are suspended; sales and stops
+    of the other positions go on. Malformed order-book quotes (zero, negative, crossed, non-finite) fall back to 5 bps;
+    candles with a price of 0 are skipped. Unit prices below 1 EUR are shown with at least 5 significant digits
+    (owner and model, second-brain facts included); from 1 EUR the text is unchanged. Read-only audit of a copy:
+    sonni/vps/audit-prix.mjs (refuses state.db, a file with -wal/-shm and ~/.automaton/state.db; reads a private
+    temporary copy read-only; checks the SHA-256 is unchanged), run before deployment (sonni/GUIDE-VPS.fr.md).
+  - Unchanged: strategy and order rules, fees (0.8 % taker, 0.4 % maker) and the 5 bps slippage, the universe (no
+    price floor), decisions and their scoring, the SQLite schema, every stored row (only pending orders may become
+    `rejected`, which the schema already allowed). BTC and ETH: existing tests pass unchanged; over 20,000 random
+    round trips each, the result moves by exactly 1 cent in 0.10 % (BTC) and 1.1 % (ETH) of round trips, never more
+    (PAXG 1.05 %, stocks 10 %): the old sale proceeds used a cent-rounded fill price, the new figure is exact.
+  - Checks: sonni 23 files, 244 tests (precision.test 45, the 199 earlier ones unchanged); money-lab 110; runtime 1,646; Likma verify (report
+    47bd54ba): types, sonni, money-lab, runtime, build and sonni-e2e (620 s) pass; the 21 other features re-verified
+    (report b4213778). Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
+    portfolio result with a 0.00 EUR gap; BTC +2.77 and ETH −1.25 EUR as before.
+    Mutations: 30 of 31 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
+    layer: placeOrder refuses that sale too). Adversarial review (5 reviewers, each finding re-checked): fixed a stop
+    "restored" on a corrupt legacy position (it rewrote the row and promised a stop), pending buys filling while buys
+    were suspended, a paid horizon wake and position management on a corrupt position, a share fact from an infinite
+    equity, 4-decimal small-price facts, English details in French notes, the audit replay counting the previous
+    position's sale, and the audit's temporary copy left on Ctrl+C.
+  - Risks left: Kraken quotes that are positive but absurd are used as they are (capping them is a separate step the
+    owner deferred); the consistency check's 0.50 EUR tolerance cannot flag a wrong price below about 0.5 EUR; French
+    quantities keep a decimal point; a corrupt position stays until an owner-approved repair (none is automatic).
+  - Rollback: revert the merge commit through a pull request and redeploy; nothing to migrate back (no schema change,
+    no stored row rewritten). Orders rejected while 0.3 ran stay rejected (their history), and fills it stored keep 12
+    digits, which the old code reads like any price.
 - Step 0.2 of the owner's plan of 2026-10-09, trade statistics count every fee (branch claude/sonni-trade-fees, PR #31).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on the PR's last
   commit); merged into main through PR #31 on the owner's go of 2026-10-09 (merge commit, after the required checks
