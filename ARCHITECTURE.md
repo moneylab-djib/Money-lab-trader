@@ -71,6 +71,15 @@ consolidation is still a proposal.
   woken to keep (new horizon) or sell. Every sale closes a trade with P&L after fees computed by code.
   One equity snapshot per day gives returns and drawdown; the self-funding ratio divides the virtual
   gain by the inference spend converted at `eurUsd`.
+- Numeric soundness (step 0.3, 2026-10-09; guard G17 in docs/GUARDS.md): fill prices and average costs keep
+  12 significant digits, EUR amounts cents, quantities 1e-8, so a round trip costs the same at any price
+  (no price floor: assets below 0.01 EUR are allowed). Every figure of a fill is checked before anything is
+  written; a zero, negative or non-finite one settles the order as `rejected` (note and incident) with
+  nothing else written, and one order's failure never stops the others, the stops or the snapshot. A
+  stored position code cannot value (only a pre-0.3 fill could write one) makes the total unknown: buys,
+  decisions and snapshots are suspended and the value is shown as not reliable until the owner approves a
+  repair; sales and stops of the other positions go on. Unit prices below 1 EUR are shown with at least 5
+  significant digits.
 
 ## Budget and model use
 

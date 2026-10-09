@@ -5,8 +5,49 @@
 
 export const DEFAULT_TIME_ZONE = "Europe/Paris";
 
+/** An amount in euros ("n.d." when code has no finite figure: never "∞ €" or "NaN €"). */
 export function fmtEur(value: number, digits = 2): string {
+  if (!Number.isFinite(value)) return "n.d.";
   return `${value.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits })} €`;
+}
+
+/**
+ * Fraction digits that show a unit price below 1 EUR with at least 5 significant digits (step 0.3, owner's
+ * choice of 2026-10-09: prices from 1 EUR keep their cents, smaller ones would read "0,00 €").
+ */
+function priceDigits(value: number): number {
+  return Math.min(20, Math.max(2, 4 - Math.floor(Math.log10(Math.abs(value)))));
+}
+
+/** A unit price for the owner: "0,0048874 €" below 1 EUR, exactly fmtEur from 1 EUR; never an exponent. */
+export function fmtPrice(value: number): string {
+  if (!Number.isFinite(value)) return "n.d.";
+  if (value === 0 || Math.abs(value) >= 1) return fmtEur(value);
+  return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: priceDigits(value) })} €`;
+}
+
+/**
+ * A price echoed as stored or as the model typed it: every digit, never an exponent (String(7.7e-8) is
+ * "7.7e-8"); exactly String(value) from 1 EUR.
+ */
+export function plainPrice(value: number): string {
+  if (!Number.isFinite(value)) return "n/a";
+  if (value === 0 || Math.abs(value) >= 1) return String(value);
+  return value.toLocaleString("en-US", { useGrouping: false, maximumSignificantDigits: 12 });
+}
+
+/** A quantity as stored (decimal point, every digit, never an exponent); "n.d." for one a pre-0.3 fill left non-finite. */
+export function qtyText(value: number | null): string {
+  if (value === null) return "?";
+  if (!Number.isFinite(value)) return "n.d.";
+  return value !== 0 && Math.abs(value) < 1e-6 ? value.toLocaleString("en-US", { useGrouping: false, maximumSignificantDigits: 12 }) : String(value);
+}
+
+/** A unit price for the model, in English without the unit: "0.0048874" below 1 EUR, exactly value.toFixed(2) from 1 EUR. */
+export function priceEn(value: number): string {
+  if (!Number.isFinite(value)) return "n/a";
+  if (value === 0 || Math.abs(value) >= 1) return value.toFixed(2);
+  return value.toLocaleString("en-US", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: priceDigits(value) });
 }
 
 export function fmtUsdCents(cents: number): string {

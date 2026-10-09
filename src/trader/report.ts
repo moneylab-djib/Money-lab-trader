@@ -19,8 +19,8 @@ import { getPrediction, listOpenPredictions, type Prediction } from "./predictio
 import { readerStatuses } from "./readers.js";
 import { activeConfig } from "./universe.js";
 import { agentStateFr, describePredictionFr, describeResolutionFr, orderNoteFr } from "./status.js";
-import { fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, plural } from "./format.js";
-import { listTrades, recentOrders, snapshots, valuation } from "./portfolio.js";
+import { fmtDay, fmtDayLong, fmtEur, fmtPrice, fmtTime, fmtUsdCents, plural, qtyText } from "./format.js";
+import { listTrades, POSITION_PROBLEM_FR, recentOrders, snapshots, suspensionFr, valuation } from "./portfolio.js";
 import { checksYesterdayFr } from "./brainchecks.js";
 
 type DB = Database.Database;
@@ -189,18 +189,23 @@ export function buildSonniEveningSummary(db: DB, baseCfg: TraderConfig, lab: Mon
   lines.push("", "Portefeuille :");
   if (v.contributedEur === 0) {
     lines.push(`- pas encore ouvert (${fmtEur(cfg.portfolio.startEur)} au premier relevé de prix)`);
+  } else if (!v.complete) {
+    // Step 0.3: a corrupt stored position makes the total unknown; no partial figure stands for the value.
+    lines.push(`- ⚠️ valeur non fiable, total inconnu : ${suspensionFr(v)}`, `- liquidités ${fmtEur(v.cashEur)}`);
+    for (const p of v.invalid) lines.push(`- ${p.asset} : chiffres invalides (${POSITION_PROBLEM_FR[p.problem]}), non évaluée`);
+    for (const p of v.positions) lines.push(`- ${p.asset} : ${fmtEur(p.valueEur)} (${p.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(p.pnlEur))} frais d'achat déduits)${p.invalidation !== null ? `, stop ${fmtPrice(p.invalidation)}` : ""}`);
   } else {
     lines.push(`- valeur ${fmtEur(v.equityEur)}${dayChange !== null ? ` (${dayChange >= 0 ? "+" : "−"}${fmtEur(Math.abs(dayChange))} sur la journée)` : ""}, ` +
       `${v.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(v.pnlEur))} depuis le départ · liquidités ${fmtEur(v.cashEur)}`);
-    for (const p of v.positions) lines.push(`- ${p.asset} : ${fmtEur(p.valueEur)} (${p.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(p.pnlEur))} frais d'achat déduits)${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}`);
+    for (const p of v.positions) lines.push(`- ${p.asset} : ${fmtEur(p.valueEur)} (${p.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(p.pnlEur))} frais d'achat déduits)${p.invalidation !== null ? `, stop ${fmtPrice(p.invalidation)}` : ""}`);
   }
   // Chronological, the way the owner reads a day.
   const orders = recentOrders(db, 20, sinceIso).filter((o) => o.placedAt >= sinceIso || (o.settledAt ?? "") >= sinceIso).reverse();
   lines.push("", "Opérations du jour :");
   if (orders.length === 0) lines.push("- aucune");
   for (const o of orders) {
-    const what = o.side === "buy" ? `achat de ${fmtEur(o.amountEur ?? 0)} de ${o.asset}` : `vente de ${o.quantity} ${o.asset}`;
-    const state = o.status === "pending" ? "en attente" : o.status === "filled" ? `exécuté à ${fmtEur(o.fillPrice!)} (frais ${fmtEur(o.feeEur!)})` : o.status === "expired" ? `expiré (${orderNoteFr(o.note)})` : o.status === "cancelled" ? `annulé (${orderNoteFr(o.note)})` : "refusé";
+    const what = o.side === "buy" ? `achat de ${fmtEur(o.amountEur ?? 0)} de ${o.asset}` : `vente de ${qtyText(o.quantity)} ${o.asset}`;
+    const state = o.status === "pending" ? "en attente" : o.status === "filled" ? `exécuté à ${fmtPrice(o.fillPrice!)} (frais ${fmtEur(o.feeEur!)})` : o.status === "expired" ? `expiré (${orderNoteFr(o.note)})` : o.status === "cancelled" ? `annulé (${orderNoteFr(o.note)})` : `refusé${o.note ? ` (${orderNoteFr(o.note)})` : ""}`;
     lines.push(`- ${fmtTime(o.placedAt, tz)} ${what}${o.origin === "stop" ? " [stop automatique]" : ""} : ${state}`);
     if (o.origin !== "stop") lines.push(`  Raison : ${o.thesis}`);
   }

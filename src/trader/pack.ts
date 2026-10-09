@@ -23,7 +23,7 @@ import { MIN_CASES, SUPPORT_Z } from "./rules.js";
 import { upcomingEvents } from "./events.js";
 import { describeCycles } from "./cycles.js";
 import { recentHeadlines } from "./news.js";
-import { listTrades, listTraps, pendingOrders, recentOrders, tradesAwaitingPostmortem, valuation } from "./portfolio.js";
+import { listTrades, listTraps, pendingOrders, POSITION_PROBLEM_EN, recentOrders, suspensionReason, tradesAwaitingPostmortem, valuation } from "./portfolio.js";
 import { brierSummary, listOpenPredictions, listResolvedPredictions, type Prediction } from "./predictions.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrBefore } from "./prices.js";
 import { describeWatch, openWatches, recentWatches, wakesSince } from "./curiosity.js";
@@ -38,6 +38,7 @@ import { analogLine, similarSituations } from "./analogs.js";
 import { describeEvidence, lessonEvidence } from "./lessonuse.js";
 import { MAX_SATELLITES, recordedCore } from "./universe.js";
 import { NUMBERS_TO_CORRECT_TITLE, numbersToCorrect } from "./brainchecks.js";
+import { plainPrice, priceEn, qtyText } from "./format.js";
 
 type DB = Database.Database;
 
@@ -91,8 +92,14 @@ function pct(from: number, to: number): string {
   return `${change >= 0 ? "+" : ""}${change.toFixed(2)} %`;
 }
 
+/** An amount in EUR; "n/a" when code has no finite figure (a corrupt stored position, step 0.3). */
 function eur(value: number): string {
-  return `${value.toFixed(2)} EUR`;
+  return Number.isFinite(value) ? `${value.toFixed(2)} EUR` : "n/a";
+}
+
+/** A unit price: as eur() from 1 EUR, at least 5 significant digits below (step 0.3). */
+function price(value: number): string {
+  return Number.isFinite(value) ? `${priceEn(value)} EUR` : "n/a";
 }
 
 function short(text: string, max: number): string {
@@ -187,7 +194,7 @@ function pricesSection(db: DB, cfg: TraderConfig, now: Date): Section {
       return past ? `${hours === 168 ? "7 d" : `${hours} h`} ${pct(past.price, last.price)}` : null;
     }).filter(Boolean);
     lines.push(
-      `- ${asset.symbol}: ${eur(last.price)} at ${last.ts} (${Math.round(age)} min old)${stale}` +
+      `- ${asset.symbol}: ${price(last.price)} at ${last.ts} (${Math.round(age)} min old)${stale}` +
         (changes.length ? `; change ${changes.join(", ")}` : "; not enough history for changes yet"),
     );
   }
@@ -195,8 +202,8 @@ function pricesSection(db: DB, cfg: TraderConfig, now: Date): Section {
 }
 
 function openLine(p: Prediction): string {
-  return `- ${p.id}: ${p.asset} ${p.direction} ${eur(p.threshold)} at ${p.horizonUntil}, p=${p.probability} ` +
-    `(made at ${eur(p.referencePrice)}, hypothesis ${p.hypothesisId})`;
+  return `- ${p.id}: ${p.asset} ${p.direction} ${price(p.threshold)} at ${p.horizonUntil}, p=${p.probability} ` +
+    `(made at ${price(p.referencePrice)}, hypothesis ${p.hypothesisId})`;
 }
 
 function openSection(db: DB, limit: number): Section {
@@ -214,7 +221,7 @@ function resolvedLine(db: DB, p: Prediction): string {
     ? `; at the time: ${s.distancePct >= 0 ? "+" : ""}${s.distancePct.toFixed(2)} % away${s.sigmas === null ? "" : ` (${s.sigmas >= 0 ? "+" : ""}${s.sigmas.toFixed(2)} σ)`}, ` +
       `reference ${Math.round(s.refProbability * 100)} % (reference Brier ${((s.refProbability - p.outcome!) ** 2).toFixed(3)})`
     : "";
-  return `- ${p.id}: ${p.asset} ${p.direction} ${eur(p.threshold)} -> ${eur(p.resolutionPrice!)}, ` +
+  return `- ${p.id}: ${p.asset} ${p.direction} ${price(p.threshold)} -> ${price(p.resolutionPrice!)}, ` +
     `${p.outcome === 1 ? "happened" : "did not happen"}, p=${p.probability}, Brier ${p.brier!.toFixed(3)}${odds}`;
 }
 
@@ -421,26 +428,32 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
   const pc = cfg.portfolio;
   const lines: string[] = [];
   const sign = v.pnlEur >= 0 ? "+" : "";
-  lines.push(`- Cash ${eur(v.cashEur)}, positions ${eur(v.positionsEur)}, total ${eur(v.equityEur)} (${sign}${eur(v.pnlEur)}, ${sign}${v.pnlPct.toFixed(2)} % on ${eur(v.contributedEur)} contributed); ` +
+  const suspended = suspensionReason(v);
+  if (suspended) {
+    // Step 0.3: a corrupt stored position makes the total unknown; never a partial figure as the total.
+    lines.push(`- PORTFOLIO VALUE UNKNOWN: ${suspended}. Cash ${eur(v.cashEur)} on ${eur(v.contributedEur)} contributed; ` +
+      `fees ${pc.takerFeePct} % taker / ${pc.makerFeePct} % maker`);
+    for (const p of v.invalid) lines.push(`- ${p.asset}: stored figures code cannot use (${POSITION_PROBLEM_EN[p.problem]}); not valued, not sold, no stop.`);
+  } else lines.push(`- Cash ${eur(v.cashEur)}, positions ${eur(v.positionsEur)}, total ${eur(v.equityEur)} (${sign}${eur(v.pnlEur)}, ${sign}${v.pnlPct.toFixed(2)} % on ${eur(v.contributedEur)} contributed); ` +
     `position cap ${pc.maxPositionPct} % of the portfolio (${eur((v.equityEur * pc.maxPositionPct) / 100)}); a buy from ${pc.bigOrderPct} % (${eur((v.equityEur * pc.bigOrderPct) / 100)}) is a big decision your stronger model confirms; ` +
     `fees ${pc.takerFeePct} % taker / ${pc.makerFeePct} % maker`);
-  if (v.positions.length === 0) lines.push("- No open position: all in cash.");
+  if (v.positions.length === 0 && v.invalid.length === 0) lines.push("- No open position: all in cash.");
   for (const p of v.positions) {
     const s = p.pnlEur >= 0 ? "+" : "";
-    lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling at market costs ${pc.takerFeePct} % more, ${pc.makerFeePct} % with a limit); ` +
-      `stop ${p.invalidation === null ? "none" : eur(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
+    lines.push(`- ${p.asset}: ${qtyText(p.quantity)} at avg ${price(p.avgCost)}, now ${p.lastPrice === null ? "no price" : price(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling at market costs ${pc.takerFeePct} % more, ${pc.makerFeePct} % with a limit); ` +
+      `stop ${p.invalidation === null ? "none" : price(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
     // Step 3 (2026-10-08): the second brain's devil's advocate on this position, if fresh.
     const against = latestOutput(db, "counter_case", p.asset, new Date(now.getTime() - 36 * 3_600_000));
     if (against) lines.push(`  Second brain's case against it (untrusted, ${against.at.slice(5, 16).replace("T", " ")}): ${short(against.content, 320)}`);
   }
   for (const o of pendingOrders(db)) {
-    lines.push(`- Pending ${o.id}: ${o.kind} ${o.side} ${o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${o.quantity} ${o.asset}`}${o.limitPrice ? ` at ${o.limitPrice} EUR` : ""}${o.origin === "stop" ? " (STOP placed by code)" : ""}, until ${o.horizonUntil}`);
+    lines.push(`- Pending ${o.id}: ${o.kind} ${o.side} ${o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${qtyText(o.quantity)} ${o.asset}`}${o.limitPrice ? ` at ${plainPrice(o.limitPrice)} EUR` : ""}${o.origin === "stop" ? " (STOP placed by code)" : ""}, until ${o.horizonUntil}`);
   }
   const since = new Date(now.getTime() - 24 * 3_600_000).toISOString();
   for (const o of recentOrders(db, 6, since)) {
     if (o.status === "pending") continue;
     lines.push(`- ${o.settledAt?.slice(5, 16).replace("T", " ")} ${o.status} ${o.id}: ${o.side} ${o.asset}` +
-      (o.status === "filled" ? ` ${o.fillQuantity} at ${eur(o.fillPrice!)} (fee ${eur(o.feeEur!)}, slippage ${eur(o.slippageEur!)})` : ` — ${o.note ?? ""}`) +
+      (o.status === "filled" ? ` ${qtyText(o.fillQuantity)} at ${price(o.fillPrice!)} (fee ${eur(o.feeEur!)}, slippage ${eur(o.slippageEur!)})` : ` — ${o.note ?? ""}`) +
       (o.origin === "stop" ? " [stop]" : ""));
   }
   const awaiting = tradesAwaitingPostmortem(db, 5);
@@ -454,7 +467,7 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
 function tradesSection(db: DB, limit: number): Section {
   const trades = listTrades(db, limit);
   const lines = trades.length === 0 ? ["- none closed yet"] : trades.map((t) =>
-    `- ${t.id} ${t.asset} ${t.closedAt.slice(0, 16).replace("T", " ")}: ${t.quantity} bought ${eur(t.entryPrice)} sold ${eur(t.exitPrice)}, ` +
+    `- ${t.id} ${t.asset} ${t.closedAt.slice(0, 16).replace("T", " ")}: ${qtyText(t.quantity)} bought ${price(t.entryPrice)} sold ${price(t.exitPrice)}, ` +
       `${t.pnlEur >= 0 ? "+" : ""}${eur(t.pnlEur)} after every fee (${t.pnlPct >= 0 ? "+" : ""}${t.pnlPct.toFixed(2)} %, fees ${eur(t.feesEur)}), closed by ${t.closeReason === "stop" ? "the stop" : "you"}; thesis: ${short(t.thesis, 140)}`);
   return { title: `Closed trades (${trades.length} most recent; profit and loss after every fee, computed by code):`, lines, detail: "trades" };
 }

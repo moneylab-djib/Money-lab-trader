@@ -21,6 +21,8 @@ import { getHypothesis } from "./hypotheses.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter, type PricePoint } from "./prices.js";
 import type { SoulResult } from "./soul.js";
 import { getKV, setKV } from "../money-lab/journal.js";
+import { fmtPrice, plainPrice } from "./format.js";
+import { recordIncident } from "./incidents.js";
 
 type DB = Database.Database;
 
@@ -151,6 +153,78 @@ function rowToTrade(row: any): Trade {
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const round8 = (v: number) => Math.round(v * 1e8) / 1e8;
+/**
+ * Unit prices (fill prices, average costs) keep 12 significant digits (step 0.3, 2026-10-09). Rounded to the
+ * cent, a fill below 1 EUR moved away from the market (USDC up to ±0.58 % a leg) and a price below 0.005 EUR
+ * became 0, with an infinite quantity. Twelve digits also drop float noise, so BTC and ETH fills keep their
+ * cents (60130.049999999996 → 60130.05). EUR amounts stay in cents and quantities in 1e-8.
+ */
+export const roundPrice = (v: number) => Number(v.toPrecision(12));
+const positive = (v: number) => Number.isFinite(v) && v > 0;
+
+/** Why a stored position cannot be valued; only a fill before step 0.3 could write one (a price rounded to 0). */
+export type PositionProblem = "quantity" | "avg_cost" | "value";
+export const POSITION_PROBLEM_EN: Record<PositionProblem, string> = {
+  quantity: "its quantity is not a finite positive number",
+  avg_cost: "its average cost is not a positive number",
+  value: "its value cannot be computed",
+};
+export const POSITION_PROBLEM_FR: Record<PositionProblem, string> = {
+  quantity: "quantité non finie ou invalide",
+  avg_cost: "coût moyen nul ou invalide",
+  value: "valeur incalculable",
+};
+
+export function positionProblem(p: { quantity: number; avgCost: number }): PositionProblem | null {
+  if (!positive(p.quantity)) return "quantity";
+  if (!positive(p.avgCost)) return "avg_cost";
+  return null;
+}
+
+/** Why code refuses to fill an order: the note keeps the code, /portefeuille shows the French text. */
+export type RejectReason = "price" | "quantity" | "amount" | "position" | "nothing" | "suspended";
+const REJECT_EN: Record<RejectReason, string> = {
+  price: "the fill price is not a positive number",
+  quantity: "the quantity is not a positive finite number",
+  amount: "an amount in EUR is not a finite number",
+  position: "the stored position holds figures code cannot use",
+  nothing: "there is no position to sell",
+  suspended: "buys are suspended while a stored position cannot be valued (the portfolio value and the position cap are unknown)",
+};
+const REJECT_FR: Record<RejectReason, string> = {
+  price: "prix d'exécution nul, négatif ou non fini",
+  quantity: "quantité nulle, négative ou non finie",
+  amount: "montant en euros non fini",
+  position: "la position enregistrée a des chiffres invalides",
+  nothing: "aucune position à vendre",
+  suspended: "achats suspendus tant qu'une position enregistrée ne peut pas être évaluée (valeur du portefeuille et plafond inconnus)",
+};
+const REJECT_NOTE = /^rejected by code \((price|quantity|amount|position|nothing|suspended)\)(?:: [^[]*)?(?: \[(.*)\])?$/;
+
+/** The figures a rejection names, in French for the owner (the note keeps code's names for the model). */
+const FIGURE_FR: Record<string, string> = {
+  price: "prix du marché", fill_price: "prix d'exécution", quantity: "quantité", total_quantity: "quantité totale", avg_cost: "coût moyen",
+  amount: "montant", fee: "frais", slippage: "glissement", proceeds: "produit de la vente", entry_fee: "frais d'achat", cost: "coût",
+  pnl: "résultat", pnl_pct: "résultat en %", left: "reste", value: "valeur",
+};
+const VALUE_FR = (v: string) => (v === "Infinity" ? "infini" : v === "-Infinity" ? "moins l'infini" : v === "NaN" ? "indéfini" : v.replace(".", ","));
+
+/** "quantity=Infinity" → "quantité = infini"; a position problem code → its French label. */
+function detailFr(reason: RejectReason, detail: string): string {
+  if (!detail) return "";
+  if (reason === "position" && detail in POSITION_PROBLEM_FR) return POSITION_PROBLEM_FR[detail as PositionProblem];
+  const m = /^(\w+)=(.*)$/.exec(detail);
+  return m ? `${FIGURE_FR[m[1]] ?? m[1]} = ${VALUE_FR(m[2])}` : detail;
+}
+
+/** The French reading of a note left by a rejection, or null for any other note. */
+export function rejectionNoteFr(note: string | null): string | null {
+  const m = REJECT_NOTE.exec(note ?? "");
+  if (!m) return null;
+  const reason = m[1] as RejectReason;
+  const detail = detailFr(reason, m[2] ?? "");
+  return `refusé par le code : ${REJECT_FR[reason]}${detail ? ` (${detail})` : ""}`;
+}
 
 // ─── Reads ──────────────────────────────────────────────────────
 
@@ -221,6 +295,8 @@ function carriedEntryFees(db: DB, asset: string, openedAt: string, openOrderId: 
   return Math.max(0, bought.f - booked.f);
 }
 
+export interface InvalidPosition { asset: string; quantity: number; avgCost: number; problem: PositionProblem }
+
 export interface Valuation {
   cashEur: number;
   positionsEur: number;
@@ -234,34 +310,81 @@ export interface Valuation {
    * carries (paid already), not the sale fee still to come.
    */
   positions: (Position & { lastPrice: number | null; valueEur: number; entryFeesEur: number; pnlEur: number; pnlPct: number })[];
+  /**
+   * Stored positions code cannot value (step 0.3). While one exists the totals (positionsEur, equityEur, pnlEur,
+   * pnlPct) are NaN: unknown, never a partial figure passed off as the total; validPositionsEur is what the
+   * other positions are worth, for a display that says it is partial.
+   */
+  invalid: InvalidPosition[];
+  validPositionsEur: number;
+  complete: boolean;
 }
 
 /** Cash plus positions at the latest stored prices (stale or not: it is a valuation, not a decision). */
 export function valuation(db: DB): Valuation {
   const cash = cashEur(db);
   const contributed = contributedEur(db);
-  const positions = listPositions(db).map((p) => {
-    const last = latestPrice(db, p.asset);
-    const price = last ? last.price : p.avgCost;
-    const value = round2(p.quantity * price);
-    const fees = carriedEntryFees(db, p.asset, p.openedAt, p.openOrderId);
-    const cost = p.quantity * p.avgCost + fees;
-    return {
-      ...p, lastPrice: last ? last.price : null, valueEur: value, entryFeesEur: round2(fees),
-      pnlEur: round2(value - cost), pnlPct: cost > 0 ? ((value - cost) / cost) * 100 : 0,
-    };
-  });
-  const positionsEur = round2(positions.reduce((s, p) => s + p.valueEur, 0));
-  const equity = round2(cash + positionsEur);
+  const invalid: InvalidPosition[] = [];
+  const positions: Valuation["positions"] = [];
+  for (const p of listPositions(db)) {
+    let problem = positionProblem(p);
+    if (!problem) {
+      const last = latestPrice(db, p.asset);
+      const price = last ? last.price : p.avgCost;
+      const value = round2(p.quantity * price);
+      const fees = carriedEntryFees(db, p.asset, p.openedAt, p.openOrderId);
+      const cost = p.quantity * p.avgCost + fees;
+      const pnl = round2(value - cost);
+      if (Number.isFinite(value) && Number.isFinite(pnl) && cost > 0) {
+        positions.push({ ...p, lastPrice: last ? last.price : null, valueEur: value, entryFeesEur: round2(fees), pnlEur: pnl, pnlPct: ((value - cost) / cost) * 100 });
+        continue;
+      }
+      problem = "value";
+    }
+    invalid.push({ asset: p.asset, quantity: p.quantity, avgCost: p.avgCost, problem });
+  }
+  const validPositionsEur = round2(positions.reduce((s, p) => s + p.valueEur, 0));
+  const complete = invalid.length === 0 && Number.isFinite(cash) && Number.isFinite(contributed);
+  const positionsEur = complete ? validPositionsEur : NaN;
+  const equity = complete ? round2(cash + positionsEur) : NaN;
   return {
     cashEur: cash, positionsEur, equityEur: equity, contributedEur: contributed,
-    pnlEur: round2(equity - contributed), pnlPct: contributed > 0 ? ((equity - contributed) / contributed) * 100 : 0, positions,
+    pnlEur: complete ? round2(equity - contributed) : NaN,
+    pnlPct: !complete ? NaN : contributed > 0 ? ((equity - contributed) / contributed) * 100 : 0,
+    positions, invalid, validPositionsEur, complete,
   };
+}
+
+/**
+ * Why buys and decisions are suspended (English, for the model), or null when the portfolio can be valued:
+ * the position cap and the decisions' equity need the total, which a corrupt stored position makes unknown.
+ * Sales and stops of the other positions keep working.
+ */
+export function suspensionReason(v: Valuation): string | null {
+  if (v.complete) return null;
+  const what = v.invalid.length
+    ? v.invalid.map((p) => `the stored ${p.asset} position (${POSITION_PROBLEM_EN[p.problem]})`).join(", ")
+    : "the cash ledger";
+  return `${what} cannot be valued, so the portfolio value and the position cap are unknown; buys and decisions are suspended until the owner repairs it (sales and stops of the other positions still work)`;
+}
+
+/** The same, in French, for the owner. */
+export function suspensionFr(v: Valuation): string | null {
+  if (v.complete) return null;
+  const what = v.invalid.length
+    ? v.invalid.map((p) => `la position ${p.asset} (${POSITION_PROBLEM_FR[p.problem]})`).join(" ni ")
+    : "le registre des liquidités";
+  return `impossible d'évaluer ${what} : la valeur totale et le plafond par position sont inconnus. Achats et décisions suspendus jusqu'à réparation (ton accord nécessaire) ; les ventes et les stops des autres positions continuent.`;
 }
 
 // ─── Capital, contributions, snapshots ──────────────────────────
 
 function addLedger(db: DB, row: { at: string; kind: "capital" | "contribution" | "buy" | "sell"; asset?: string | null; quantity?: number | null; price?: number | null; amountEur: number; feeEur?: number; orderId?: string | null; note?: string | null }): void {
+  // Last line of defence (step 0.3): the ledger is append-only, so a wrong row could never be corrected.
+  const trade = row.kind === "buy" || row.kind === "sell";
+  if (!Number.isFinite(row.amountEur) || !Number.isFinite(row.feeEur ?? 0) || (trade && (!positive(row.quantity ?? NaN) || !positive(row.price ?? NaN)))) {
+    throw new Error(`refusing a ledger row with a non-finite or non-positive figure (${row.kind} ${row.asset ?? ""})`);
+  }
   db.prepare(
     `INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -289,12 +412,16 @@ export function fundingTick(db: DB, cfg: PortfolioConfig, now: Date = new Date()
   return { capital: false, contribution: false };
 }
 
-/** One equity snapshot per UTC day (the first tick of the day), for returns and drawdown. */
+/**
+ * One equity snapshot per UTC day (the first tick of the day), for returns and drawdown. None while the
+ * portfolio cannot be valued: a partial total would be stored for good (the table is append-only).
+ */
 export function snapshotTick(db: DB, now: Date = new Date()): boolean {
   const day = now.toISOString().slice(0, 10);
   const exists = db.prepare("SELECT 1 FROM trader_portfolio_days WHERE day = ?").get(day);
   if (exists) return false;
   const v = valuation(db);
+  if (!v.complete || ![v.cashEur, v.positionsEur, v.equityEur, v.contributedEur].every(Number.isFinite)) return false;
   db.prepare(
     "INSERT INTO trader_portfolio_days (day, at, cash_eur, positions_eur, equity_eur, contributed_eur) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(day, now.toISOString(), v.cashEur, v.positionsEur, v.equityEur, v.contributedEur);
@@ -303,9 +430,11 @@ export function snapshotTick(db: DB, now: Date = new Date()): boolean {
 
 export interface Snapshot { day: string; equityEur: number; contributedEur: number; cashEur: number; positionsEur: number }
 
+/** Daily snapshots, oldest first; a day stored with a non-finite figure (before step 0.3) is left out, like a day without a tick. */
 export function snapshots(db: DB, limit = 400): Snapshot[] {
   return (db.prepare("SELECT day, equity_eur, contributed_eur, cash_eur, positions_eur FROM trader_portfolio_days ORDER BY day DESC LIMIT ?").all(limit) as any[])
     .map((r) => ({ day: r.day, equityEur: r.equity_eur, contributedEur: r.contributed_eur, cashEur: r.cash_eur, positionsEur: r.positions_eur }))
+    .filter((s) => [s.equityEur, s.contributedEur, s.cashEur, s.positionsEur].every(Number.isFinite))
     .reverse();
 }
 
@@ -345,11 +474,14 @@ export function availableCash(db: DB): number {
   return round2(cashEur(db) - reserved);
 }
 
-/** Quantity not yet committed to pending sell orders. */
+/**
+ * Quantity not yet committed to pending sell orders. Never more than held: from 2^25 units (about 33.5 M)
+ * round8 can move a stored quantity up by one step, and a sale of "all" would then exceed the position.
+ */
 export function availableQuantity(db: DB, asset: string): number {
   const held = getPosition(db, asset)?.quantity ?? 0;
   const reserved = (db.prepare("SELECT COALESCE(SUM(quantity), 0) AS v FROM trader_orders WHERE status = 'pending' AND side = 'sell' AND asset = ?").get(asset) as { v: number }).v;
-  return round8(held - reserved);
+  return reserved === 0 ? held : Math.min(held, round8(held - reserved));
 }
 
 /**
@@ -380,8 +512,8 @@ export function placeOrder(db: DB, cfg: TraderConfig, input: OrderInput, now: Da
   const horizonUntil = isoSeconds(new Date(now.getTime() + horizonHours * 3_600_000));
   const limitPrice = num(input.limitPrice);
   if (kind === "limit" && (limitPrice === null || Number.isNaN(limitPrice) || limitPrice <= 0)) return { ok: false, error: "A limit order needs limit_price (EUR)." };
-  if (kind === "limit" && side === "buy" && limitPrice! >= last.price) return { ok: false, error: `A buy limit must be below the current price (${last.price} EUR); use a market order to buy now.` };
-  if (kind === "limit" && side === "sell" && limitPrice! <= last.price) return { ok: false, error: `A sell limit must be above the current price (${last.price} EUR); use a market order to sell now.` };
+  if (kind === "limit" && side === "buy" && limitPrice! >= last.price) return { ok: false, error: `A buy limit must be below the current price (${plainPrice(last.price)} EUR); use a market order to buy now.` };
+  if (kind === "limit" && side === "sell" && limitPrice! <= last.price) return { ok: false, error: `A sell limit must be above the current price (${plainPrice(last.price)} EUR); use a market order to sell now.` };
   const ids: string[] = Array.isArray(input.hypothesisIds) ? input.hypothesisIds.map(String) : [];
   if (ids.length > MAX_HYPOTHESES_PER_ORDER) return { ok: false, error: `At most ${MAX_HYPOTHESES_PER_ORDER} hypothesis ids.` };
   for (const id of ids) if (!getHypothesis(db, id)) return { ok: false, error: `Unknown hypothesis ${id}.` };
@@ -405,6 +537,8 @@ export function placeOrder(db: DB, cfg: TraderConfig, input: OrderInput, now: Da
     const cash = availableCash(db);
     if (amountEur > cash) return { ok: false, error: `Only ${cash.toFixed(2)} EUR available (cash minus pending buys).` };
     const v = valuation(db);
+    const suspended = suspensionReason(v);
+    if (suspended) return { ok: false, error: `Buying is suspended: ${suspended}.` };
     const held = v.positions.find((p) => p.asset === asset)?.valueEur ?? 0;
     const cap = (v.equityEur * pc.maxPositionPct) / 100;
     if (held + amountEur > cap + 0.005) {
@@ -414,15 +548,19 @@ export function placeOrder(db: DB, cfg: TraderConfig, input: OrderInput, now: Da
     if (origin === "model") {
       if (invalidation === null || Number.isNaN(invalidation)) return { ok: false, error: "A buy needs invalidation: the price (EUR) below which your thesis is wrong; code sells there." };
       const reference = kind === "limit" ? limitPrice! : last.price;
-      if (invalidation >= reference) return { ok: false, error: `invalidation (${invalidation}) must be below the entry price (${reference} EUR).` };
+      if (invalidation >= reference) return { ok: false, error: `invalidation (${plainPrice(invalidation)}) must be below the entry price (${plainPrice(reference)} EUR).` };
       if (invalidation < reference * 0.5) return { ok: false, error: "invalidation must be within 50 % of the entry price." };
     }
   } else {
+    const stored = getPosition(db, asset);
+    const problem = stored ? positionProblem(stored) : null;
+    if (problem) return { ok: false, error: `No sale: the stored ${asset} position cannot be used (${POSITION_PROBLEM_EN[problem]}); the owner must repair it.` };
     const held = availableQuantity(db, asset);
     if (held <= 0) return { ok: false, error: `No ${asset} to sell (or all of it is in a pending sell).` };
     const q = input.quantity === "all" || input.quantity === undefined ? held : num(input.quantity);
     if (q === null || Number.isNaN(q) || q <= 0) return { ok: false, error: "quantity must be a positive number or \"all\"." };
-    quantity = round8(Math.min(q, held));
+    quantity = q >= held ? held : Math.min(held, round8(q));
+    if (!(quantity > 0)) return { ok: false, error: "quantity must be at least 0.00000001." };
     if (quantity * last.price < pc.minOrderEur && quantity < held) return { ok: false, error: `The smallest order is ${pc.minOrderEur} EUR; sell everything with quantity "all".` };
   }
   const id = `o_${ulid()}`;
@@ -444,145 +582,303 @@ export function cancelOrder(db: DB, id: unknown, now: Date = new Date(), by: "mo
 
 // ─── Fills ──────────────────────────────────────────────────────
 
-/** Half the relative spread from the stored order-book top, when fresh; else the configured slippage. */
+/**
+ * Half the relative spread from the stored order-book top, when fresh and sound (both sides positive and
+ * finite, ask above bid); else the configured slippage. A sound but very wide quote is used as it is: capping
+ * it would change the fee model (deferred by the owner, 2026-10-09).
+ */
 function slippageFraction(db: DB, asset: string, cfg: PortfolioConfig, now: Date): { fraction: number; source: string } {
   const row = db.prepare(
     `SELECT a.value AS ask, b.value AS bid, a.ts FROM trader_metrics a JOIN trader_metrics b
      ON a.source_id = b.source_id AND a.ts = b.ts AND a.metric = 'ask' AND b.metric = 'bid'
      WHERE a.source_id = ? ORDER BY a.ts DESC LIMIT 1`,
   ).get(`kraken_spread_${asset.toLowerCase()}`) as { ask: number; bid: number; ts: string } | undefined;
-  if (row && row.ask > row.bid && now.getTime() - Date.parse(row.ts) <= SPREAD_MAX_AGE_HOURS * 3_600_000) {
-    const mid = (row.ask + row.bid) / 2;
-    return { fraction: (row.ask - row.bid) / mid / 2, source: "carnet d'ordres Kraken" };
+  if (row && positive(row.bid) && positive(row.ask) && row.ask > row.bid && now.getTime() - Date.parse(row.ts) <= SPREAD_MAX_AGE_HOURS * 3_600_000) {
+    const fraction = (row.ask - row.bid) / ((row.ask + row.bid) / 2) / 2;
+    if (Number.isFinite(fraction) && fraction >= 0) return { fraction, source: "carnet d'ordres Kraken" };
   }
   return { fraction: cfg.slippageBps / 10_000, source: "glissement configuré" };
 }
 
 export interface Fill { order: Order; trade: Trade | null }
 
-function applyFill(db: DB, cfg: TraderConfig, order: Order, price: number, slippageFraction: number, feePct: number, at: string): Fill {
+type FillResult = { fill: Fill } | { rejected: Order };
+
+/**
+ * Settles a pending order as rejected (the one other way out of pending the schema allows) with a note the
+ * model reads, and an incident in French for the owner. Nothing else is written. Null when the order was no
+ * longer pending.
+ */
+function rejectOrder(db: DB, order: Order, reason: RejectReason, detail: string, now: Date): Order | null {
+  const note = `rejected by code (${reason}): ${REJECT_EN[reason]}${detail ? ` [${detail}]` : ""}`;
+  const changed = db.prepare("UPDATE trader_orders SET status = 'rejected', settled_at = ?, note = ? WHERE id = ? AND status = 'pending'")
+    .run(isoSeconds(now), note, order.id).changes;
+  if (changed !== 1) return null;
+  const fr = detailFr(reason, detail);
+  recordIncident(db, "broker", `ordre ${order.id} (${order.side === "buy" ? "achat" : "vente"} ${order.asset}) refusé par le courtier virtuel : ` +
+    `${REJECT_FR[reason]}${fr ? ` (${fr})` : ""}. Rien n'a été inscrit au registre.`, now);
+  return getOrder(db, order.id)!;
+}
+
+/** The first problem among named figures: each must be finite, and the `positive` ones above 0. */
+function figureProblem(figures: Record<string, number>, positiveNames: string[]): string | null {
+  for (const [name, v] of Object.entries(figures)) {
+    if (!Number.isFinite(v) || (positiveNames.includes(name) && v <= 0)) return `${name}=${v}`;
+  }
+  return null;
+}
+
+/** Which rejection a figure named by figureProblem stands for. */
+function reasonOf(name: string): RejectReason {
+  return name === "fill_price" || name === "avg_cost" || name === "price" ? "price" : name === "quantity" || name === "total_quantity" ? "quantity" : "amount";
+}
+
+/**
+ * Fills one order at `price` (the market price, or the limit). Every figure is computed and checked before
+ * anything is written (step 0.3): a zero, negative or non-finite price, quantity or amount settles the order
+ * as rejected and writes no ledger, position or trade row.
+ */
+function applyFill(db: DB, cfg: TraderConfig, order: Order, price: number, slippageFraction: number, feePct: number, at: string, now: Date): FillResult {
+  const reject = (reason: RejectReason, detail: string): FillResult => {
+    const rejected = rejectOrder(db, order, reason, detail, now);
+    return { rejected: rejected ?? getOrder(db, order.id)! };
+  };
+  if (!positive(price)) return reject("price", `price=${price}`);
   let trade: Trade | null = null;
-  db.transaction(() => {
-    if (order.side === "buy") {
-      const fillPrice = round2(price * (1 + slippageFraction));
-      const fee = round2(order.amountEur! * (feePct / 100));
-      const quantity = round8((order.amountEur! - fee) / fillPrice);
-      const slippage = round2(quantity * (fillPrice - price));
+  if (order.side === "buy") {
+    // A buy placed before a stored position went bad (or by the old code, whose cap was then infinite) does not
+    // fill while the total and the position cap are unknown.
+    if (!valuation(db).complete) return reject("suspended", "");
+    const amount = order.amountEur!;
+    const fillPrice = roundPrice(price * (1 + slippageFraction));
+    const fee = round2(amount * (feePct / 100));
+    const quantity = round8((amount - fee) / fillPrice);
+    const slippage = round2(quantity * (fillPrice - price));
+    const current = db.prepare("SELECT * FROM trader_positions WHERE asset = ?").get(order.asset) as any;
+    const opening = !current || current.quantity <= 0;
+    if (!opening) {
+      const problem = positionProblem({ quantity: current.quantity, avgCost: current.avg_cost });
+      if (problem) return reject("position", problem);
+    }
+    const totalQty = opening ? quantity : round8(current.quantity + quantity);
+    // Average cost: what the units cost after the fee, so quantity × avg_cost is the cash paid for them.
+    const avg = opening ? roundPrice((amount - fee) / quantity) : roundPrice((current.quantity * current.avg_cost + (amount - fee)) / totalQty);
+    const bad = figureProblem(
+      { amount, fill_price: fillPrice, quantity, total_quantity: totalQty, avg_cost: avg, fee, slippage },
+      ["amount", "fill_price", "quantity", "total_quantity", "avg_cost"],
+    );
+    if (bad) return reject(reasonOf(bad.split("=")[0]), bad);
+    db.transaction(() => {
       db.prepare(
         `UPDATE trader_orders SET status = 'filled', settled_at = ?, fill_price = ?, fill_quantity = ?, fill_eur = ?, fee_eur = ?, slippage_eur = ? WHERE id = ? AND status = 'pending'`,
-      ).run(at, fillPrice, quantity, order.amountEur, fee, slippage, order.id);
-      addLedger(db, { at, kind: "buy", asset: order.asset, quantity, price: fillPrice, amountEur: -order.amountEur!, feeEur: fee, orderId: order.id });
-      const current = db.prepare("SELECT * FROM trader_positions WHERE asset = ?").get(order.asset) as any;
-      if (!current || current.quantity <= 0) {
+      ).run(at, fillPrice, quantity, amount, fee, slippage, order.id);
+      addLedger(db, { at, kind: "buy", asset: order.asset, quantity, price: fillPrice, amountEur: -amount, feeEur: fee, orderId: order.id });
+      if (opening) {
         db.prepare(
           `INSERT OR REPLACE INTO trader_positions (asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(order.asset, quantity, round2((order.amountEur! - fee) / quantity), at, order.id, order.invalidation, order.horizonUntil, order.thesis, at);
+        ).run(order.asset, quantity, avg, at, order.id, order.invalidation, order.horizonUntil, order.thesis, at);
       } else {
-        const totalQty = round8(current.quantity + quantity);
-        const avg = round2((current.quantity * current.avg_cost + (order.amountEur! - fee)) / totalQty);
         // Adding to a position: the newer order's levels replace the older ones (the thesis is refreshed too).
         db.prepare(
           "UPDATE trader_positions SET quantity = ?, avg_cost = ?, invalidation = COALESCE(?, invalidation), horizon_until = ?, thesis = ?, updated_at = ? WHERE asset = ?",
         ).run(totalQty, avg, order.invalidation, order.horizonUntil, order.thesis, at, order.asset);
       }
-    } else {
-      const position = db.prepare("SELECT * FROM trader_positions WHERE asset = ?").get(order.asset) as any;
-      const quantity = round8(Math.min(order.quantity!, position?.quantity ?? 0));
-      const fillPrice = round2(price * (1 - slippageFraction));
-      const proceeds = round2(quantity * fillPrice);
-      const fee = round2(proceeds * (feePct / 100));
-      const slippage = round2(quantity * (price - fillPrice));
+    })();
+  } else {
+    const position = db.prepare("SELECT * FROM trader_positions WHERE asset = ?").get(order.asset) as any;
+    if (!position || position.quantity <= 0) return reject("nothing", "");
+    const problem = positionProblem({ quantity: position.quantity, avgCost: position.avg_cost });
+    if (problem) return reject("position", problem);
+    // Both quantities are on the 1e-8 grid: no second rounding (round8 is not idempotent from 2^25 units), and
+    // a sale that would leave less than one step takes the whole position, so nothing is left behind.
+    let quantity = Math.min(order.quantity!, position.quantity);
+    if (!(round8(position.quantity - quantity) > 0)) quantity = position.quantity;
+    const left = quantity === position.quantity ? 0 : round8(position.quantity - quantity);
+    const fillPrice = roundPrice(price * (1 - slippageFraction));
+    const proceeds = round2(quantity * fillPrice);
+    const fee = round2(proceeds * (feePct / 100));
+    const slippage = round2(quantity * (price - fillPrice));
+    // Fees of the lot: the purchase fees the position carries in proportion of the quantity sold, plus this sale's fee.
+    const entryFee = (carriedEntryFees(db, order.asset, position.opened_at, position.open_order_id) * quantity) / position.quantity;
+    const cost = quantity * position.avg_cost;
+    // Recorded before the purchase fee, as every trade since the first (the table is append-only):
+    // rowToTrade subtracts the purchase share, so readers get the result after every fee.
+    const pnl = round2(proceeds - fee - cost);
+    const pnlPct = (pnl / cost) * 100;
+    const bad = figureProblem(
+      { fill_price: fillPrice, quantity, proceeds, fee, slippage, entry_fee: entryFee, cost, pnl, pnl_pct: pnlPct, left },
+      ["fill_price", "quantity", "cost"],
+    );
+    if (bad) return reject(reasonOf(bad.split("=")[0]), bad);
+    const tradeId = `t_${ulid()}`;
+    db.transaction(() => {
       db.prepare(
         `UPDATE trader_orders SET status = 'filled', settled_at = ?, fill_price = ?, fill_quantity = ?, fill_eur = ?, fee_eur = ?, slippage_eur = ? WHERE id = ? AND status = 'pending'`,
       ).run(at, fillPrice, quantity, proceeds, fee, slippage, order.id);
       addLedger(db, { at, kind: "sell", asset: order.asset, quantity, price: fillPrice, amountEur: proceeds - fee, feeEur: fee, orderId: order.id });
-      if (position && quantity > 0) {
-        // Fees of the lot: the purchase fees the position carries in proportion of the quantity sold, plus this sale's fee.
-        const entryFee = (carriedEntryFees(db, order.asset, position.opened_at, position.open_order_id) * quantity) / position.quantity;
-        const cost = quantity * position.avg_cost;
-        // Recorded before the purchase fee, as every trade since the first (the table is append-only):
-        // rowToTrade subtracts the purchase share, so readers get the result after every fee.
-        const pnl = round2(proceeds - fee - cost);
-        const tradeId = `t_${ulid()}`;
-        db.prepare(
-          `INSERT INTO trader_trades (id, asset, opened_at, closed_at, quantity, entry_price, exit_price, fees_eur, pnl_eur, pnl_pct, open_order_id, close_order_id, close_reason, thesis)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(tradeId, order.asset, position.opened_at, at, quantity, position.avg_cost, fillPrice, round2(entryFee + fee), pnl, cost > 0 ? (pnl / cost) * 100 : 0,
-          position.open_order_id, order.id, order.origin === "stop" ? "stop" : "model", position.thesis);
-        const left = round8(position.quantity - quantity);
-        db.prepare("UPDATE trader_positions SET quantity = ?, updated_at = ? WHERE asset = ?").run(left, at, order.asset);
-        trade = getTrade(db, tradeId)!;
-      }
-    }
-  })();
-  return { order: getOrder(db, order.id)!, trade };
+      db.prepare(
+        `INSERT INTO trader_trades (id, asset, opened_at, closed_at, quantity, entry_price, exit_price, fees_eur, pnl_eur, pnl_pct, open_order_id, close_order_id, close_reason, thesis)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(tradeId, order.asset, position.opened_at, at, quantity, position.avg_cost, fillPrice, round2(entryFee + fee), pnl, pnlPct,
+        position.open_order_id, order.id, order.origin === "stop" ? "stop" : "model", position.thesis);
+      db.prepare("UPDATE trader_positions SET quantity = ?, updated_at = ? WHERE asset = ?").run(left, at, order.asset);
+    })();
+    trade = getTrade(db, tradeId)!;
+  }
+  return { fill: { order: getOrder(db, order.id)!, trade } };
 }
 
 export interface BrokerOutcome {
   fills: Fill[];
   expired: Order[];
   stops: Order[];
+  /** Orders code refused to fill because a figure was invalid (nothing written for them). */
+  rejected: Order[];
+  /** Orders left pending after an unexpected error (retried at the next tick, or they expire). */
+  failed: string[];
   /** Positions whose horizon passed since the last tick (the model is asked what to do). */
   horizons: Position[];
   funded: { capital: boolean; contribution: boolean };
   snapshot: boolean;
 }
 
+/** One broker incident per key and UTC day: a lasting problem is reported, not repeated at every tick. */
+function brokerIncidentOnce(db: DB, key: string, message: string, now: Date): void {
+  const day = now.toISOString().slice(0, 10);
+  if (getKV(db, key) === day) return;
+  setKV(db, key, day);
+  recordIncident(db, "broker", message, now);
+}
+
+/**
+ * Code places a stop by clearing the position's invalidation level. When that stop is rejected, the level is
+ * put back once a day (the next tick places the stop again) so the position is never left without a stop
+ * silently; a second rejection the same day leaves it without one, with an incident. A last resort: with a
+ * positive price and a valid position a stop's fill cannot be rejected. A position code cannot value is not
+ * touched (no stop is possible on it; its history is not repaired by code).
+ */
+export function restoreStopLevel(db: DB, order: Order, now: Date): void {
+  const position = getPosition(db, order.asset);
+  if (!position || position.invalidation !== null) return;
+  if (positionProblem(position)) {
+    // A position code cannot value gets no stop: nothing is written on it (history is not repaired by code).
+    brokerIncidentOnce(db, `sonni.stop_impossible.${order.asset}`,
+      `stop de ${order.asset} refusé : la position enregistrée a des chiffres invalides, aucun stop possible tant qu'elle n'est pas réparée (ton accord nécessaire).`, now);
+    return;
+  }
+  const row = db.prepare(
+    "SELECT old_value FROM trader_position_updates WHERE asset = ? AND field = 'invalidation' AND by = 'code' AND new_value IS NULL ORDER BY at DESC, id DESC LIMIT 1",
+  ).get(order.asset) as { old_value: string | null } | undefined;
+  const level = Number(row?.old_value ?? NaN);
+  const day = now.toISOString().slice(0, 10);
+  const key = `sonni.stop_restored.${order.asset}`;
+  if (positive(level) && getKV(db, key) !== day) {
+    // One transaction: the level, its update row and the once-a-day mark are written together or not at all.
+    db.transaction(() => {
+      setKV(db, key, day);
+      const nowIso = isoSeconds(now);
+      db.prepare("UPDATE trader_positions SET invalidation = ?, updated_at = ? WHERE asset = ? AND invalidation IS NULL").run(level, nowIso, order.asset);
+      db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', NULL, ?, ?, 'code')")
+        .run(`u_${ulid()}`, order.asset, nowIso, String(level), `stop order ${order.id} rejected by the broker: level restored, the stop is placed again at the next tick`);
+      recordIncident(db, "broker", `stop de ${order.asset} refusé par le courtier virtuel : niveau ${fmtPrice(level)} rétabli, le code le replace au prochain relevé.`, now);
+    })();
+  } else {
+    recordIncident(db, "broker", `stop de ${order.asset} refusé par le courtier virtuel une deuxième fois aujourd'hui : la position reste sans stop tant qu'aucun niveau n'est remis (manage_position, ou ta demande à Sonni). Vérifie /portefeuille.`, now);
+  }
+}
+
 /**
  * Runs after each price collection: funding, fills at the first price
  * stored after each order (market) or at the limit when crossed (limit),
  * expiries, stops on positions whose invalidation level is reached, and
- * the daily snapshot. Deterministic; no inference.
+ * the daily snapshot. Deterministic; no inference. One order that cannot
+ * be processed never stops the others, the stops or the snapshot (step 0.3).
  */
 export function brokerTick(db: DB, cfg: TraderConfig, now: Date = new Date()): BrokerOutcome {
-  const out: BrokerOutcome = { fills: [], expired: [], stops: [], horizons: [], funded: fundingTick(db, cfg.portfolio, now), snapshot: false };
+  const out: BrokerOutcome = { fills: [], expired: [], stops: [], rejected: [], failed: [], horizons: [], funded: fundingTick(db, cfg.portfolio, now), snapshot: false };
   const nowIso = isoSeconds(now);
   for (const order of pendingOrders(db)) {
-    const after = isoSeconds(new Date(Date.parse(order.placedAt) + 1000));
-    const point: PricePoint | undefined = order.kind === "market"
-      ? priceAtOrAfter(db, order.asset, after, nowIso)
-      : firstCrossing(db, order, after, nowIso);
-    if (point) {
-      const slip = order.kind === "market" ? slippageFraction(db, order.asset, cfg.portfolio, now) : { fraction: 0, source: "limite" };
-      const fee = order.kind === "market" ? cfg.portfolio.takerFeePct : cfg.portfolio.makerFeePct;
-      const price = order.kind === "market" ? point.price : order.limitPrice!;
-      out.fills.push(applyFill(db, cfg, order, price, slip.fraction, fee, point.ts));
-      continue;
+    try {
+      const after = isoSeconds(new Date(Date.parse(order.placedAt) + 1000));
+      const point: PricePoint | undefined = order.kind === "market"
+        ? priceAtOrAfter(db, order.asset, after, nowIso)
+        : firstCrossing(db, order, after, nowIso);
+      if (point) {
+        const slip = order.kind === "market" ? slippageFraction(db, order.asset, cfg.portfolio, now) : { fraction: 0, source: "limite" };
+        const fee = order.kind === "market" ? cfg.portfolio.takerFeePct : cfg.portfolio.makerFeePct;
+        const price = order.kind === "market" ? point.price : order.limitPrice!;
+        const result = applyFill(db, cfg, order, price, slip.fraction, fee, point.ts, now);
+        if ("fill" in result) out.fills.push(result.fill);
+        else {
+          out.rejected.push(result.rejected);
+          if (order.origin === "stop") {
+            try {
+              restoreStopLevel(db, order, now);
+            } catch (err) {
+              brokerIncidentOnce(db, `sonni.stop_restore_failed.${order.asset}`,
+                `stop de ${order.asset} refusé et niveau non rétabli (échec technique : ${String(err instanceof Error ? err.message : err).slice(0, 120)}) ; la position est sans stop, vérifie /portefeuille.`, now);
+            }
+          }
+        }
+        continue;
+      }
+      const ttl = order.kind === "market" ? Date.parse(order.placedAt) + MARKET_ORDER_TTL_HOURS * 3_600_000 : Date.parse(order.horizonUntil);
+      if (now.getTime() > ttl) {
+        db.prepare("UPDATE trader_orders SET status = 'expired', settled_at = ?, note = ? WHERE id = ? AND status = 'pending'")
+          .run(nowIso, order.kind === "market" ? "no price stored within 24 h" : "limit not reached before the horizon", order.id);
+        out.expired.push(getOrder(db, order.id)!);
+      }
+    } catch (err) {
+      // Nothing of this order was written (its fill is one transaction); it stays pending and is retried.
+      out.failed.push(order.id);
+      const message = err instanceof Error ? err.message : String(err);
+      brokerIncidentOnce(db, `sonni.broker_failed.${order.id}`,
+        `ordre ${order.id} (${order.side === "buy" ? "achat" : "vente"} ${order.asset}) : échec technique du courtier virtuel, l'ordre reste en attente (${message.slice(0, 160)}).`, now);
     }
-    const ttl = order.kind === "market" ? Date.parse(order.placedAt) + MARKET_ORDER_TTL_HOURS * 3_600_000 : Date.parse(order.horizonUntil);
-    if (now.getTime() > ttl) {
-      db.prepare("UPDATE trader_orders SET status = 'expired', settled_at = ?, note = ? WHERE id = ? AND status = 'pending'")
-        .run(nowIso, order.kind === "market" ? "no price stored within 24 h" : "limit not reached before the horizon", order.id);
-      out.expired.push(getOrder(db, order.id)!);
-    }
+  }
+  // Positions code cannot value (stored before step 0.3): reported once a day, never sold or stopped by code.
+  const v = valuation(db);
+  const invalid = new Set(v.invalid.map((p) => p.asset));
+  for (const p of v.invalid) {
+    brokerIncidentOnce(db, `sonni.invalid_position.${p.asset}`,
+      `position ${p.asset} invalide (${POSITION_PROBLEM_FR[p.problem]}) : valeur du portefeuille inconnue, achats, décisions et instantanés suspendus, ` +
+      `aucun stop possible sur elle. Une réparation demande ton accord.`, now);
   }
   // Stops: a position whose invalidation level is reached gets a market sell from code, filled at the next price.
   for (const p of listPositions(db)) {
-    if (p.invalidation === null) continue;
+    if (p.invalidation === null || invalid.has(p.asset)) continue;
     const last = latestPrice(db, p.asset);
     if (!last || ageMinutes(last, now) > cfg.staleMinutes || last.price > p.invalidation) continue;
     if (pendingOrders(db, p.asset).some((o) => o.side === "sell")) continue;
-    const stop = placeOrder(db, cfg, {
-      asset: p.asset, side: "sell", kind: "market", quantity: "all",
-      thesis: `Stop: ${p.asset} reached the invalidation level ${p.invalidation} EUR (last price ${last.price} EUR); the thesis was: ${p.thesis}`.slice(0, THESIS_MAX),
-      horizonHours: 24,
-    }, now, "stop");
-    if (stop.ok) {
-      db.prepare("UPDATE trader_positions SET invalidation = NULL, updated_at = ? WHERE asset = ?").run(nowIso, p.asset);
-      db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', ?, NULL, ?, 'code')")
-        .run(`u_${ulid()}`, p.asset, nowIso, String(p.invalidation), `stop triggered at ${last.price} EUR (order ${stop.value.id})`);
-      out.stops.push(stop.value);
+    try {
+      // One transaction: the stop order and the cleared level are written together or not at all.
+      const stop = db.transaction(() => {
+        const placed = placeOrder(db, cfg, {
+          asset: p.asset, side: "sell", kind: "market", quantity: "all",
+          thesis: `Stop: ${p.asset} reached the invalidation level ${plainPrice(p.invalidation!)} EUR (last price ${plainPrice(last.price)} EUR); the thesis was: ${p.thesis}`.slice(0, THESIS_MAX),
+          horizonHours: 24,
+        }, now, "stop");
+        if (placed.ok) {
+          db.prepare("UPDATE trader_positions SET invalidation = NULL, updated_at = ? WHERE asset = ?").run(nowIso, p.asset);
+          db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', ?, NULL, ?, 'code')")
+            .run(`u_${ulid()}`, p.asset, nowIso, String(p.invalidation), `stop triggered at ${plainPrice(last.price)} EUR (order ${placed.value.id})`);
+        }
+        return placed;
+      })();
+      if (stop.ok) out.stops.push(stop.value);
+    } catch (err) {
+      // One position's stop failing must not keep the others from being placed; retried at the next tick.
+      brokerIncidentOnce(db, `sonni.stop_failed.${p.asset}`,
+        `stop de ${p.asset} : échec technique au placement, nouvel essai au prochain relevé (${String(err instanceof Error ? err.message : err).slice(0, 120)}).`, now);
     }
   }
   // Horizons: once per position horizon, the model is asked what to do (the position stays).
   for (const p of listPositions(db)) {
-    if (!p.horizonUntil || p.horizonUntil > nowIso) continue;
-    const key = `horizon:${p.asset}:${p.horizonUntil}`;
+    if (!p.horizonUntil || p.horizonUntil > nowIso || invalid.has(p.asset)) continue;
     if (getKV(db, `sonni.horizon_seen.${p.asset}`) === p.horizonUntil) continue;
     setKV(db, `sonni.horizon_seen.${p.asset}`, p.horizonUntil);
     out.horizons.push(p);
-    void key;
   }
   out.snapshot = snapshotTick(db, now);
   return out;
@@ -606,6 +902,8 @@ export function updatePosition(
   const asset = String(input.asset ?? "").toUpperCase().trim();
   const position = getPosition(db, asset);
   if (!position) return { ok: false, error: `No open position in ${asset || "(none)"}.` };
+  const problem = positionProblem(position);
+  if (problem) return { ok: false, error: `The stored ${asset} position cannot be used (${POSITION_PROBLEM_EN[problem]}): code places no stop on it and it cannot be managed until the owner repairs it.` };
   const reason = cleanThesis(input.reason);
   if (!reason.ok) return { ok: false, error: reason.error.replace("The thesis", "The reason") };
   const field = String(input.field ?? "");
@@ -617,7 +915,7 @@ export function updatePosition(
     const last = latestPrice(db, asset);
     if (level === null || Number.isNaN(level) || level <= 0) return { ok: false, error: "value must be a price in EUR." };
     if (!last) return { ok: false, error: `No ${asset} price stored.` };
-    if (level >= last.price) return { ok: false, error: `The invalidation level (${level}) must be below the current price (${last.price} EUR): it is where code sells.` };
+    if (level >= last.price) return { ok: false, error: `The invalidation level (${plainPrice(level)}) must be below the current price (${plainPrice(last.price)} EUR): it is where code sells.` };
     oldValue = position.invalidation === null ? null : String(position.invalidation);
     newValue = String(level);
     db.prepare("UPDATE trader_positions SET invalidation = ?, updated_at = ? WHERE asset = ?").run(level, nowIso, asset);
@@ -675,6 +973,8 @@ export function recordTrapHit(db: DB, input: { trapId: unknown; tradeId: unknown
 // ─── Performance (code-computed, decision 0003 criteria) ─────────
 
 export interface Performance {
+  /** False while a corrupt stored position makes the value unknown: equity and result are then NaN, the changes null. */
+  complete: boolean;
   equityEur: number;
   contributedEur: number;
   pnlEur: number;
@@ -702,6 +1002,7 @@ export function performance(db: DB, cfg: TraderConfig, inferenceSpentCents: numb
   const wins = trades.filter((t) => t.pnlEur > 0).length;
   const fees = round2((db.prepare("SELECT COALESCE(SUM(fee_eur), 0) AS f FROM trader_ledger").get() as { f: number }).f);
   const change = (days: number): number | null => {
+    if (!v.complete) return null;
     const target = new Date(now.getTime() - days * 86_400_000).toISOString().slice(0, 10);
     const base = [...snaps].reverse().find((s) => s.day <= target) ?? snaps[0];
     if (!base || snaps.length === 0 || base.day > target && snaps[0].day > target) return null;
@@ -720,13 +1021,14 @@ export function performance(db: DB, cfg: TraderConfig, inferenceSpentCents: numb
   const spentEur = inferenceSpentCents / 100 / cfg.portfolio.eurUsd;
   const stops = (db.prepare("SELECT COUNT(*) AS n FROM trader_trades WHERE close_reason = 'stop'").get() as { n: number }).n;
   return {
+    complete: v.complete,
     equityEur: v.equityEur, contributedEur: v.contributedEur, pnlEur: v.pnlEur, pnlPct: v.pnlPct,
     change7dPct: change(7), change30dPct: change(30), change90dPct: change(90),
     maxDrawdownPct: maxDd, tradesClosed: trades.length,
     winRate: trades.length ? wins / trades.length : null,
     avgTradePct: trades.length ? trades.reduce((s, t) => s + t.pnlPct, 0) / trades.length : null,
     feesEur: fees,
-    selfFundingRatio: spentEur > 0 ? v.pnlEur / spentEur : null,
+    selfFundingRatio: v.complete && spentEur > 0 ? v.pnlEur / spentEur : null,
     stops,
     firstDay: snaps[0]?.day ?? null,
   };

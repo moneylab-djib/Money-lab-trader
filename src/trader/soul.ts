@@ -581,9 +581,11 @@ export function formatSelfReport(r: SelfReport): string {
   if (p.contributedEur === 0) {
     lines.push("- Portfolio: not funded yet (opens at the first price).");
   } else {
-    lines.push(`- Portfolio: equity ${p.equityEur.toFixed(2)} EUR on ${p.contributedEur.toFixed(2)} contributed (${pctSigned(p.pnlPct)} after fees` +
-      `${p.change7dPct !== null ? `, 7 d ${pctSigned(p.change7dPct)}` : ""}${p.change30dPct !== null ? `, 30 d ${pctSigned(p.change30dPct)}` : ""}` +
-      `${p.maxDrawdownPct !== null ? `, max drawdown ${p.maxDrawdownPct.toFixed(2)} %` : ""}).`);
+    lines.push(!p.complete
+      ? `- Portfolio: value UNKNOWN on ${p.contributedEur.toFixed(2)} contributed (a stored position cannot be valued; buys and decisions are suspended until the owner repairs it).`
+      : `- Portfolio: equity ${p.equityEur.toFixed(2)} EUR on ${p.contributedEur.toFixed(2)} contributed (${pctSigned(p.pnlPct)} after fees` +
+        `${p.change7dPct !== null ? `, 7 d ${pctSigned(p.change7dPct)}` : ""}${p.change30dPct !== null ? `, 30 d ${pctSigned(p.change30dPct)}` : ""}` +
+        `${p.maxDrawdownPct !== null ? `, max drawdown ${p.maxDrawdownPct.toFixed(2)} %` : ""}).`);
     lines.push(`- Trades closed: ${p.tradesClosed}${p.winRate !== null ? `, win rate ${Math.round(p.winRate * 100)} %, mean ${pctSigned(p.avgTradePct!)} per trade (after every fee)` : ""}; ` +
       `fees ${p.feesEur.toFixed(2)} EUR; stops hit ${p.stops}; ` +
       `self-funding ratio ${p.selfFundingRatio === null ? "n/a" : p.selfFundingRatio.toFixed(2)} (virtual gain / inference spend; 1 = paid for itself).`);
@@ -622,8 +624,10 @@ export function formatSelfReportFr(r: SelfReport): string {
   if (p.contributedEur === 0) {
     lines.push("- pas encore ouvert : il s'ouvre au premier relevé de prix.");
   } else {
-    lines.push(`- Rendement après frais : ${pctSignedFr(p.pnlPct)} (${eurFr(p.pnlEur)} sur ${eurFr(p.contributedEur)} versés)` +
-      `${p.change30dPct !== null ? `, ${pctSignedFr(p.change30dPct)} sur 30 jours` : ""}${p.maxDrawdownPct !== null ? `, pire recul ${pctSignedFr(-p.maxDrawdownPct)}` : ""}.`);
+    lines.push(!p.complete
+      ? `- Rendement après frais : inconnu (${eurFr(p.contributedEur)} versés) ; une position enregistrée a des chiffres invalides, achats et décisions suspendus jusqu'à réparation.`
+      : `- Rendement après frais : ${pctSignedFr(p.pnlPct)} (${eurFr(p.pnlEur)} sur ${eurFr(p.contributedEur)} versés)` +
+        `${p.change30dPct !== null ? `, ${pctSignedFr(p.change30dPct)} sur 30 jours` : ""}${p.maxDrawdownPct !== null ? `, pire recul ${pctSignedFr(-p.maxDrawdownPct)}` : ""}.`);
     lines.push(`- Erreurs : ${p.tradesClosed} opération${p.tradesClosed > 1 ? "s" : ""} close${p.tradesClosed > 1 ? "s" : ""}` +
       `${p.winRate !== null ? `, ${Math.round(p.winRate * 100)} % gagnantes, ${pctSignedFr(p.avgTradePct!)} en moyenne (après tous les frais)` : ""}, ${p.stops} stop${p.stops > 1 ? "s" : ""} déclenché${p.stops > 1 ? "s" : ""}, frais ${eurFr(p.feesEur)}.`);
     lines.push(`- Autofinancement : ${p.selfFundingRatio === null ? "pas encore mesurable" : `${p.selfFundingRatio.toFixed(2).replace(".", ",")} (gain virtuel / coût de l'IA ; 1 = il paie sa propre IA)`}.`);

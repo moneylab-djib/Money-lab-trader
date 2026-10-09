@@ -265,7 +265,10 @@ export function buildSonniPromptBlock(
     `Curiosity: ${wakesDeliveredToday(db, now)} of ${cfg.curiosity.maxSelfWakesPerDay} self-wakes used today ` +
       `(move alert ${cfg.curiosity.moveAlertPct} % in 1 h, at least ${cfg.curiosity.minMinutesBetweenWakes} min apart). ` +
       `Pages read today: ${pagesReadToday(db, now)} of ${cfg.readPagesPerDay}. ${readerLine}`,
-    `Portfolio: cash ${v.cashEur.toFixed(2)} EUR, ${v.positions.length} position(s) worth ${v.positionsEur.toFixed(2)} EUR, ` +
+    `Portfolio: cash ${v.cashEur.toFixed(2)} EUR, ` +
+      (v.complete
+        ? `${v.positions.length} position(s) worth ${v.positionsEur.toFixed(2)} EUR, `
+        : `${v.positions.length + v.invalid.length} position(s), total value UNKNOWN (${v.invalid.map((p) => p.asset).join(", ")} cannot be valued: buys and decisions are suspended until the owner repairs it), `) +
       `${pending.length} pending order(s); cap ${cfg.portfolio.maxPositionPct} % per position, fees ${cfg.portfolio.takerFeePct} % taker / ${cfg.portfolio.makerFeePct} % maker, ` +
       `min order ${cfg.portfolio.minOrderEur} EUR. Orders fill at the next stored price, never at the one you see.`,
     `Inference: model ${i.model ?? "chosen by the runtime"}; ` +

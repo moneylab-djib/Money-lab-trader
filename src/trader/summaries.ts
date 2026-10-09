@@ -131,7 +131,13 @@ export function summarize(db: DB, cfg: TraderConfig, period: SummaryPeriod, star
     const mark = (before: string) => db.prepare("SELECT day, equity_eur, contributed_eur FROM trader_portfolio_days WHERE day < ? ORDER BY day DESC LIMIT 1").get(before) as { day: string; equity_eur: number; contributed_eur: number } | undefined;
     const a = mark(start);
     const b = mark(end);
-    if (a && b && a.day !== b.day) parts.push(`portefeuille ${b.equity_eur.toFixed(2).replace(".", ",")} € (résultat ${eur(b.equity_eur - b.contributed_eur - (a.equity_eur - a.contributed_eur))} hors apports)`);
+    if (a && b && a.day !== b.day) {
+      // A day stored with a non-finite figure (before step 0.3) gives no number: this text is stored for good.
+      const figures = [a.equity_eur, a.contributed_eur, b.equity_eur, b.contributed_eur];
+      parts.push(figures.every(Number.isFinite)
+        ? `portefeuille ${b.equity_eur.toFixed(2).replace(".", ",")} € (résultat ${eur(b.equity_eur - b.contributed_eur - (a.equity_eur - a.contributed_eur))} hors apports)`
+        : "portefeuille : valeur inconnue (chiffres invalides enregistrés)");
+    }
   }
   if (added.length || retired.length) parts.push(`leçons : +${added.length}, −${retired.length}`);
   if (reflections.length || notes.length) {

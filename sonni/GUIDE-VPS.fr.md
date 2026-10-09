@@ -245,6 +245,10 @@ exactement comme avant.
 
 ## Mettre Sonni à jour
 
+Pour la mise à jour de l'étape 0.3 (précision des prix), arrête-toi après la ligne `pnpm run build` et fais
+d'abord l'audit en lecture seule décrit plus bas ; ne lance `configure.mjs` et `systemctl restart sonni`
+qu'ensuite.
+
 ```sh
 cd /opt/sonni
 sudo -u sonni -H git fetch origin
@@ -276,6 +280,21 @@ mois déjà terminés (le journal affiche « Résumés calculés : … »).
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.
+Avec la mise à jour de l'étape 0.3 (précision des prix), fais d'abord un **audit en lecture seule** de
+l'historique, après `pnpm run build` et **avant** `configure.mjs` et `systemctl restart sonni`. Il lit la
+dernière copie quotidienne (jamais la base active : il refuse `state.db`) et ne modifie rien. Cette copie
+a jusqu'à un jour : ce qui s'est passé depuis, la nouvelle version le détecte elle-même au démarrage
+(incident « courtier virtuel » dans `/technique`, valeur « non fiable » dans `/portefeuille`) :
+```sh
+ls /home/sonni/.automaton/backups/
+sudo -u sonni -H node sonni/vps/audit-prix.mjs /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ
+```
+(remplace AAAA-MM-JJ par la date la plus récente de la liste). La dernière ligne doit dire « Fichier
+audité inchangé ». Si la conclusion dit « rien à réparer », continue la mise à jour. Sinon, arrête-toi
+et envoie-moi le résultat : **ne répare rien toi-même**, une réparation demande une procédure séparée et
+ton accord. Après la mise à jour, un ordre que le courtier virtuel refuse (prix ou quantité invalide)
+apparaît dans `/portefeuille` comme « refusé (refusé par le code : …) » et dans `/technique` comme
+incident « courtier virtuel ».
 La ligne `configure.mjs` réécrit la configuration avec les nouveaux réglages (sources, lecteurs,
 réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Lance-la bien avec
 `sudo -u sonni -H` (en root seul, elle écrit un fichier que Sonni ne lit pas, et le dit). Elle doit

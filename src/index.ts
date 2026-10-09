@@ -50,7 +50,7 @@ import { MONEY_LAB_WAKE_REASON_KEY } from "./money-lab/journal.js";
 import { isReviewDue } from "./money-lab/review.js";
 import { recordHealthEvent } from "./money-lab/health.js";
 import { recordIncident } from "./trader/incidents.js";
-import { fmtTime } from "./trader/format.js";
+import { fmtTime, plainPrice } from "./trader/format.js";
 import {
   createSelfHostedClient,
   environmentProtected,
@@ -659,9 +659,11 @@ async function run(): Promise<void> {
       const b = brokerTick(db.raw, live());
       if (b.funded.capital) logger.info(`[SONNI] Portefeuille virtuel ouvert avec ${traderBase.portfolio.startEur} EUR.`);
       if (b.funded.contribution) logger.info(`[SONNI] Versement virtuel mensuel de ${traderBase.portfolio.monthlyEur} EUR.`);
-      for (const f of b.fills) logger.info(`[SONNI] Ordre ${f.order.id} exécuté : ${f.order.side} ${f.order.asset} ${f.order.fillQuantity} à ${f.order.fillPrice} EUR${f.trade ? ` ; opération ${f.trade.id} close, résultat après frais ${f.trade.pnlEur} EUR` : ""}.`);
+      for (const f of b.fills) logger.info(`[SONNI] Ordre ${f.order.id} exécuté : ${f.order.side} ${f.order.asset} ${f.order.fillQuantity} à ${f.order.fillPrice === null ? "?" : plainPrice(f.order.fillPrice)} EUR${f.trade ? ` ; opération ${f.trade.id} close, résultat après frais ${f.trade.pnlEur} EUR` : ""}.`);
       for (const o of b.expired) logger.info(`[SONNI] Ordre ${o.id} expiré : ${o.note}.`);
       for (const o of b.stops) logger.info(`[SONNI] Stop déclenché sur ${o.asset} : ordre ${o.id}.`);
+      for (const o of b.rejected) logger.info(`[SONNI] Ordre ${o.id} refusé par le courtier : ${o.note}.`);
+      for (const id of b.failed) logger.warn(`[SONNI] Ordre ${id} : échec technique, laissé en attente (incident courtier virtuel).`);
     });
     every(6 * 60 * 60_000, "Sonni historique", async () => {
       const n = await historyTick(db.raw, live());

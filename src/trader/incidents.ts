@@ -3,7 +3,8 @@
  * should know about, dated, in one place. Automatic pauses, caps reached,
  * unknown inference costs, error streaks, answers cut at the output
  * limit, unknown stop reasons, no-progress sleeps, sources disabled,
- * readers refused, backups that fail verification. Shown by /technique
+ * readers refused, backups that fail verification, orders the paper broker refuses or cannot
+ * process and positions it cannot value (step 0.3). Shown by /technique
  * and counted in the morning report; append-only, written by code only.
  */
 
@@ -15,7 +16,7 @@ type DB = Database.Database;
 
 export const INCIDENT_KINDS = [
   "pause", "cap", "unknown_cost", "errors", "truncated", "unknown_stop", "no_progress",
-  "source_disabled", "reader_refused", "backup", "loop", "brain_offline", "brain_recount",
+  "source_disabled", "reader_refused", "backup", "loop", "brain_offline", "brain_recount", "broker",
 ] as const;
 export type IncidentKind = (typeof INCIDENT_KINDS)[number];
 
@@ -33,6 +34,7 @@ export const INCIDENT_LABEL_FR: Record<IncidentKind, string> = {
   loop: "boucle",
   brain_offline: "second cerveau injoignable",
   brain_recount: "compteur du second cerveau remis à zéro",
+  broker: "courtier virtuel",
 };
 
 export interface Incident {
