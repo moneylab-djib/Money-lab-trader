@@ -434,6 +434,7 @@ describe("Trade results after every fee", () => {
     const v0 = valuation(db.raw);
     const qty = v0.positions[0].quantity;
     expect(v0.positions[0]).toMatchObject({ entryFeesEur: 0.8, pnlEur: -0.85 });
+    expect(v0.positions[0].pnlPct).toBeCloseTo(-0.85, 2); // on the 100 EUR the position cost, its purchase fee included
     expect(v0.equityEur).toBe(cents(v0.cashEur + qty * 60_000));
     expect(v0.pnlEur).toBe(cents(v0.equityEur - 1000));
     // Half sold at +5 %, then the rest: each trade carries half the purchase fee.
@@ -454,6 +455,65 @@ describe("Trade results after every fee", () => {
     // The portfolio's own result never depended on this: equity minus contributions.
     expect(valuation(db.raw).pnlEur).toBe(cents(cashBack - 100));
     db.close();
+  });
+
+  /** Fills each step at its price, one hour apart, and returns the fills (the portfolio opens at the first price). */
+  function steps(list: { price: number; order: Record<string, unknown>; fillAt?: number }[]) {
+    const db = openDb();
+    storePrice(db, "BTC", T0, list[0].price);
+    brokerTick(db.raw, TRADER, T0);
+    const fills = list.map((step, i) => {
+      storePrice(db, "BTC", hours(i + 1), step.price);
+      const placed = placeOrder(db.raw, TRADER, { asset: "BTC", thesis: THESIS, ...step.order } as any, hours(i + 1));
+      expect(placed.ok, JSON.stringify(placed)).toBe(true);
+      storePrice(db, "BTC", hours(i + 1.1), step.fillAt ?? step.price);
+      const fill = brokerTick(db.raw, TRADER, hours(i + 1.1)).fills[0];
+      expect(fill.order.status).toBe("filled");
+      return fill;
+    });
+    return { db, fills, trades: fills.map((f) => f.trade).filter((t): t is NonNullable<typeof t> => t !== null) };
+  }
+  const buy = (amountEur: number, price: number) => ({ price, order: { side: "buy", amountEur, invalidation: price * 0.7 } });
+  const sell = (quantity: number | "all", price: number) => ({ price, order: { side: "sell", quantity } });
+  const totalBuyFees = (fills: { order: { side: string; feeEur: number | null } }[]) => cents(fills.filter((f) => f.order.side === "buy").reduce((s, f) => s + f.order.feeEur!, 0));
+  const sum = (values: number[]) => cents(values.reduce((s, v) => s + v, 0));
+
+  it("a buy after a partial sale: the purchase shares add up to the buy fees and the trades to the portfolio's result", () => {
+    // 100 EUR at 30 000, 90 % sold flat, 250 EUR more at 60 000, all sold at 58 730: both trades lost money.
+    const first = steps([buy(100, 30_000)]);
+    const qty = first.fills[0].order.fillQuantity!;
+    first.db.close();
+    const { db, fills, trades } = steps([buy(100, 30_000), sell(Math.round(qty * 0.9 * 1e8) / 1e8, 30_000), buy(250, 60_000), sell("all", 58_730)]);
+    expect(trades).toHaveLength(2);
+    expect(trades[0].entryFeeEur).toBe(0.72);
+    // The open position after the add carried the 0.08 left from the first buy plus the 2.00 of the second.
+    expect(trades[1].entryFeeEur).toBe(2.08);
+    expect(sum(trades.map((t) => t.entryFeeEur))).toBe(totalBuyFees(fills));
+    expect(trades[1].pnlEur).toBeLessThan(0); // pooling every buy since the opening read +0.21 here: a win
+    expect(Math.abs(sum(trades.map((t) => t.pnlEur)) - valuation(db.raw).pnlEur)).toBeLessThanOrEqual(0.02);
+    expect(performance(db.raw, TRADER, 0, hours(6))).toMatchObject({ tradesClosed: 2, winRate: 0 });
+    db.close();
+  });
+
+  it("the shares add up whatever the order of prices, fees and leftover quantities", () => {
+    const cases = [
+      // Dearer first, then cheaper: pooling booked more purchase fees than were paid.
+      (q: number) => [buy(290, 60_000), sell(Math.round(q * 0.9 * 1e8) / 1e8, 60_000), buy(250, 32_000), sell("all", 32_000)],
+      // A sale that leaves dust keeps the position open: the next buy joins it.
+      (q: number) => [buy(290, 60_000), sell(Math.round((q - 0.00001) * 1e8) / 1e8, 60_000), buy(250, 30_000), sell("all", 30_000)],
+      // A limit add pays the maker fee (0.4 %), not the taker fee.
+      (q: number) => [buy(100, 60_000), sell(Math.round((q / 2) * 1e8) / 1e8, 60_000), { price: 60_000, order: { side: "buy", kind: "limit", limitPrice: 59_900, amountEur: 100, invalidation: 45_000, horizonHours: 24 }, fillAt: 59_900 }, sell("all", 60_000)],
+    ];
+    for (const build of cases) {
+      const probe = steps([build(0)[0]]);
+      const q = probe.fills[0].order.fillQuantity!;
+      probe.db.close();
+      const { db, fills, trades } = steps(build(q));
+      expect(sum(trades.map((t) => t.entryFeeEur))).toBe(totalBuyFees(fills));
+      expect(Math.abs(sum(trades.map((t) => t.pnlEur)) - valuation(db.raw).pnlEur)).toBeLessThanOrEqual(0.02);
+      expect(valuation(db.raw).positions).toEqual([]);
+      db.close();
+    }
   });
 
   it("stored rows are never rewritten: the correction is applied when reading", () => {

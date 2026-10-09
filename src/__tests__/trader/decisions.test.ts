@@ -22,7 +22,7 @@ import { isoSeconds } from "../../trader/prices.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
 import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
 import { brokerTick, pendingOrders, placeOrder } from "../../trader/portfolio.js";
-import { breakEvenMovePct, decisionOutcome, decisionStats, decisionsDue, listDecisions, recordDecision } from "../../trader/decisions.js";
+import { breakEvenMovePct, decisionOutcome, decisionStats, decisionsDue, decisionsPackLines, listDecisions, recordDecision } from "../../trader/decisions.js";
 import { describeOdds, getPredictionSnapshot, marketOdds, normalCdf, skillBetween } from "../../trader/snapshot.js";
 import { isBigOrder, readPendingBigOrder, STRONG_DAILY_SHARE, strongBudgetLeft } from "../../trader/strong.js";
 import { formatSelfReport, formatSelfReportFr, selfReport } from "../../trader/soul.js";
@@ -257,7 +257,7 @@ describe("The loop and the pack", () => {
 });
 
 describe("Decisions and fees (step 0.2)", () => {
-  // A round trip costs about 1.72 % (taker fee and slippage, both ways): a smaller rise pays nobody.
+  // A market round trip needs a rise beyond about 1.72 % (taker fee and slippage, both ways): a smaller one pays nobody.
   function scenario(move: number) {
     const db = openDb();
     storePrice(db, "BTC", T0, 60_000);
@@ -273,19 +273,48 @@ describe("Decisions and fees (step 0.2)", () => {
   it("a rise inside the fees is the right side for a buy but not a profit, and no missed gain after staying out", () => {
     const { db, stats } = scenario(1);
     expect(stats).toMatchObject({ scored7d: 2, good7d: 1, entries7d: 1, entriesPaid7d: 0, flatAvoided: 1, flatSmallRises: 1, flatMissed: 0 });
-    expect(stats.breakEvenPct).toBeCloseTo(breakEvenMovePct(TRADER), 10);
-    const fr = formatSelfReportFr(selfReport(db.raw, TRADER, 193, hours(168)));
-    expect(fr).toContain("du bon côté (sens du marché, hors frais) à 24 h");
-    expect(fr).toContain("achats rentables après frais à 7 jours : 0 sur 1 (un aller-retour coûte 1,72 %)");
-    expect(fr).toContain("rester en dehors : 1 perte évitée (dont 1 hausse trop faible pour payer les frais), 0 gain manqué au-delà des frais.");
+    // The 7-day scores read decisions old enough to have one: 200 h later these are in the week before.
+    const fr = formatSelfReportFr(selfReport(db.raw, TRADER, 193, hours(200)));
+    expect(fr).toContain("- Décisions par actif (7 derniers jours) : aucune encore.");
+    expect(fr).toContain("- Décisions de la semaine d'avant (il y a 7 à 14 jours), notées à 7 jours : du bon côté (sens du marché, hors frais) 1 sur 2 ; " +
+      "achats rentables après frais : 0 sur 1 (un aller-retour au marché demande une hausse de plus de 1,72 % pour payer frais et glissement) ; " +
+      "rester en dehors : 1 perte évitée (dont 1 hausse trop faible pour payer les frais), 0 gain manqué au-delà des frais.");
     db.close();
   });
 
   it("a rise beyond the fees is a profitable buy and a real missed gain after staying out", () => {
     const { db, stats } = scenario(3);
     expect(stats).toMatchObject({ good7d: 1, entries7d: 1, entriesPaid7d: 1, flatAvoided: 0, flatSmallRises: 0, flatMissed: 1 });
-    expect(formatSelfReport(selfReport(db.raw, TRADER, 193, hours(168)))).toContain("buys and adds profitable after fees at 7 d 1/1 (a round trip costs 1.72 %)");
+    expect(formatSelfReport(selfReport(db.raw, TRADER, 193, hours(200)))).toContain("Decisions made 7 to 14 d ago, scored at 7 d: right side (direction, fees aside) 1/2; " +
+      "buys and adds profitable after fees 1/1 (a market round trip needs a rise beyond 1.72 % to pay its fees and slippage); " +
+      "staying out: 0 loss(es) avoided (0 of them rises the fees would have eaten), 1 gain(s) missed beyond the fees");
+    // Two weeks on, nothing is left in that window.
+    expect(formatSelfReportFr(selfReport(db.raw, TRADER, 193, hours(400)))).toContain("- Décisions de la semaine d'avant (il y a 7 à 14 jours), notées à 7 jours : aucune note encore.");
     db.close();
+  });
+
+  it.each([
+    [1.7, { entriesPaid7d: 0, flatMissed: 0, flatSmallRises: 1 }],
+    [1.75, { entriesPaid7d: 1, flatMissed: 1, flatSmallRises: 0 }],
+  ])("the line is the round-trip break-even (1.72 %%): a %s %% rise", (move, expected) => {
+    expect(breakEvenMovePct(TRADER)).toBeCloseTo(1.7211, 4);
+    const { db, stats } = scenario(move);
+    expect(stats).toMatchObject({ entries7d: 1, ...expected });
+    db.close();
+  });
+
+  it("the pack says whether a buy's move paid a round trip", () => {
+    for (const [move, verdict] of [[1, "not beyond"], [2, "beyond"]] as const) {
+      const db = openDb();
+      storePrice(db, "BTC", T0, 60_000);
+      storePrice(db, "ETH", T0, 2_000);
+      brokerTick(db.raw, TRADER, T0);
+      expect(recordDecision(db.raw, TRADER, { asset: "ETH", action: "buy", reason: "L'ETH rebondit sur son support ; petite position d'essai pour apprendre." }, T0).ok).toBe(true);
+      storePrice(db, "ETH", hours(24), 2_000 * (1 + move / 100));
+      expect(decisionsPackLines(db.raw, TRADER, hours(25))).toContain(`- ETH: buy at 2000 EUR on 2026-10-07 08:00 UTC; 24 h later +${move.toFixed(2)} % ` +
+        `(right side, ${verdict} the 1.72 % rise a market round trip needs to pay its fees and slippage)`);
+      db.close();
+    }
   });
 
   it("after a sale, any rise is a missed gain: the sale fee was paid either way", () => {

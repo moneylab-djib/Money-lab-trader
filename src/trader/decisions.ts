@@ -144,8 +144,10 @@ export function decisionOutcome(db: DB, d: Decision, horizonHours: number): Deci
 }
 
 /**
- * The rise a market buy needs before its sale pays back what it cost: the taker fee on both legs and the
- * configured slippage on both fills, in %. A fresh order-book spread can make a real fill cheaper or dearer.
+ * The rise a market buy needs before its market sale pays back what it cost: the taker fee on both legs and
+ * the configured slippage on both fills, in %. A flat round trip loses a little less than this (about 1.69 %
+ * of the stake for 1.72 %); limit orders pay the lower maker fee, and a fresh order-book spread can make a
+ * real fill cheaper or dearer.
  */
 export function breakEvenMovePct(cfg: TraderConfig): number {
   const fee = cfg.portfolio.takerFeePct / 100;
@@ -175,8 +177,9 @@ export interface DecisionStats {
   byAction: Partial<Record<DecisionAction, number>>;
 }
 
-export function decisionStats(db: DB, cfg: TraderConfig, since: string): DecisionStats {
-  const ds = listDecisions(db, since);
+/** Decisions made at or after `since` (and before `until` when given), scored by code. */
+export function decisionStats(db: DB, cfg: TraderConfig, since: string, until?: string): DecisionStats {
+  const ds = listDecisions(db, since).filter((d) => until === undefined || d.madeAt < until);
   const breakEven = breakEvenMovePct(cfg);
   const s: DecisionStats = {
     total: ds.length, scored24h: 0, good24h: 0, scored7d: 0, good7d: 0, entries7d: 0, entriesPaid7d: 0,
@@ -212,7 +215,7 @@ export function decisionsPackLines(db: DB, cfg: TraderConfig, now: Date = new Da
     const entry = d.action === "buy" || d.action === "add";
     lines.push(`- ${a.symbol}: ${d.action} at ${d.price} EUR on ${d.madeAt.slice(0, 16).replace("T", " ")} UTC` +
       (o ? `; 24 h later ${o.movePct >= 0 ? "+" : ""}${o.movePct.toFixed(2)} % (${o.good ? "right side" : "wrong side"}` +
-        `${entry ? `, ${o.movePct > breakEven ? "beyond" : "not beyond"} the ${breakEven.toFixed(2)} % a round trip costs in fees` : ""})` : "; not scored yet"));
+        `${entry ? `, ${o.movePct > breakEven ? "beyond" : "not beyond"} the ${breakEven.toFixed(2)} % rise a market round trip needs to pay its fees and slippage` : ""})` : "; not scored yet"));
   }
   const due = decisionsDue(db, cfg, now);
   if (due.length) lines.push(`Due now (no decision in ${DECISION_HOURS} h): ${due.join(", ")}.`);

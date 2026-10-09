@@ -90,7 +90,7 @@ export interface Trade {
   feesEur: number;
   entryFeeEur: number;
   exitFeeEur: number;
-  /** Result after every fee: what the trade added to or took from the portfolio. */
+  /** Result after every fee: the sale's proceeds after its fee, minus what the lot cost with its purchase fees. */
   pnlEur: number;
   /** pnlEur over what the lot cost, its purchase fees included. */
   pnlPct: number;
@@ -206,13 +206,19 @@ export function getTrade(db: DB, id: string): Trade | undefined {
 }
 
 /**
- * The purchase fees a quantity of a position carries: the buy fees since the position opened, in
- * proportion of that quantity (the average-cost rule, used both when a part is sold and for what is held).
+ * The purchase fees a position still carries: the fees of its buys since it opened, minus the shares already
+ * booked to its earlier sales. A sale books the share of what it sells (the average-cost rule), so the shares
+ * add up to the buy fees in any order of buys and sales (a buy after a partial sale included).
  */
-function entryFeeShare(db: DB, asset: string, openedAt: string, quantity: number): number {
-  const b = db.prepare("SELECT COALESCE(SUM(fee_eur), 0) AS f, COALESCE(SUM(quantity), 0) AS q FROM trader_ledger WHERE kind = 'buy' AND asset = ? AND at >= ?")
-    .get(asset, openedAt) as { f: number; q: number };
-  return b.q > 0 ? (b.f * Math.min(quantity, b.q)) / b.q : 0;
+function carriedEntryFees(db: DB, asset: string, openedAt: string, openOrderId: string): number {
+  const bought = db.prepare("SELECT COALESCE(SUM(fee_eur), 0) AS f FROM trader_ledger WHERE kind = 'buy' AND asset = ? AND at >= ?")
+    .get(asset, openedAt) as { f: number };
+  // Same purchase share as rowToTrade reads: the lot's fees minus the sale order's fee.
+  const booked = db.prepare(
+    `SELECT COALESCE(SUM(MAX(0, t.fees_eur - COALESCE(o.fee_eur, 0))), 0) AS f FROM trader_trades t
+     LEFT JOIN trader_orders o ON o.id = t.close_order_id WHERE t.asset = ? AND t.open_order_id = ?`,
+  ).get(asset, openOrderId) as { f: number };
+  return Math.max(0, bought.f - booked.f);
 }
 
 export interface Valuation {
@@ -238,7 +244,7 @@ export function valuation(db: DB): Valuation {
     const last = latestPrice(db, p.asset);
     const price = last ? last.price : p.avgCost;
     const value = round2(p.quantity * price);
-    const fees = entryFeeShare(db, p.asset, p.openedAt, p.quantity);
+    const fees = carriedEntryFees(db, p.asset, p.openedAt, p.openOrderId);
     const cost = p.quantity * p.avgCost + fees;
     return {
       ...p, lastPrice: last ? last.price : null, valueEur: value, entryFeesEur: round2(fees),
@@ -492,8 +498,8 @@ function applyFill(db: DB, cfg: TraderConfig, order: Order, price: number, slipp
       ).run(at, fillPrice, quantity, proceeds, fee, slippage, order.id);
       addLedger(db, { at, kind: "sell", asset: order.asset, quantity, price: fillPrice, amountEur: proceeds - fee, feeEur: fee, orderId: order.id });
       if (position && quantity > 0) {
-        // Fees of the lot: the buy fees in proportion of the quantity sold, plus this sale's fee.
-        const entryFee = entryFeeShare(db, order.asset, position.opened_at, quantity);
+        // Fees of the lot: the purchase fees the position carries in proportion of the quantity sold, plus this sale's fee.
+        const entryFee = (carriedEntryFees(db, order.asset, position.opened_at, position.open_order_id) * quantity) / position.quantity;
         const cost = quantity * position.avg_cost;
         // Recorded before the purchase fee, as every trade since the first (the table is append-only):
         // rowToTrade subtracts the purchase share, so readers get the result after every fee.

@@ -427,7 +427,7 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
   if (v.positions.length === 0) lines.push("- No open position: all in cash.");
   for (const p of v.positions) {
     const s = p.pnlEur >= 0 ? "+" : "";
-    lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling costs ${pc.takerFeePct} % more); ` +
+    lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling at market costs ${pc.takerFeePct} % more, ${pc.makerFeePct} % with a limit); ` +
       `stop ${p.invalidation === null ? "none" : eur(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
     // Step 3 (2026-10-08): the second brain's devil's advocate on this position, if fresh.
     const against = latestOutput(db, "counter_case", p.asset, new Date(now.getTime() - 36 * 3_600_000));
