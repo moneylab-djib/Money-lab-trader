@@ -166,7 +166,7 @@ try {
     for (const [asset, a] of byAsset) say(`- ${asset} : ${count(a.n, "exécution", "exécutions")}, écart maximal avec le prix du marché ${fr(a.max)} % (glissement configuré : 0,05 %)`);
     say("");
 
-    // 3. Open positions averaged from several buys below 10 EUR: stored average cost against the ledger replay.
+    // 3. Open positions averaged from several buys, at any price: stored average cost against the ledger replay.
     say("3. Positions ouvertes moyennées (coût moyen enregistré comparé au registre)");
     let averaged = 0;
     // Every price: a cent-rounded average drifts by up to 0.005 EUR a unit, which passes a cent above about 2 units.

@@ -335,20 +335,24 @@ describe("Nothing invalid is written: a bad fill is rejected and the rest goes o
 
   it("one stop that cannot be placed does not keep the others from being placed", () => {
     const db = funded();
-    trade(db, 1, "ETH", 2_000, { side: "buy", amountEur: 100, invalidation: 1_900 });
+    // Stops run in asset order (ADA, BTC, ETH): the failing one sits in the middle, so neither the stops
+    // before it nor the ones after it may be lost.
+    trade(db, 1, "ADA", 0.2, buy(100, 0.2));
     trade(db, 2, "BTC", 60_000, buy(100, 60_000));
-    db.raw.exec("CREATE TEMP TRIGGER fail_eth_stop BEFORE INSERT ON main.trader_position_updates WHEN NEW.asset = 'ETH' BEGIN SELECT RAISE(ABORT, 'disk full (test)'); END;");
-    storePrice(db, "ETH", hours(3), 1_890);
-    storePrice(db, "BTC", hours(3), 41_000);
-    const out = brokerTick(db.raw, TRADER, hours(3));
-    expect(out.stops.map((o) => o.asset)).toEqual(["BTC"]);
+    trade(db, 3, "ETH", 2_000, { side: "buy", amountEur: 100, invalidation: 1_900 });
+    db.raw.exec("CREATE TEMP TRIGGER fail_btc_stop BEFORE INSERT ON main.trader_position_updates WHEN NEW.asset = 'BTC' BEGIN SELECT RAISE(ABORT, 'disk full (test)'); END;");
+    storePrice(db, "ADA", hours(4), 0.13);
+    storePrice(db, "BTC", hours(4), 41_000);
+    storePrice(db, "ETH", hours(4), 1_890);
+    const out = brokerTick(db.raw, TRADER, hours(4));
+    expect(out.stops.map((o) => o.asset)).toEqual(["ADA", "ETH"]);
     expect(out.snapshot).toBe(false); // already taken today; the tick went on to it without throwing
-    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_orders WHERE asset = 'ETH' AND origin = 'stop'").get()).toEqual({ n: 0 }); // nothing half written
-    expect(getPosition(db.raw, "ETH")!.invalidation).toBe(1_900); // kept: retried at the next tick
-    expect(listIncidents(db.raw).some((i) => i.message.startsWith("stop de ETH : échec technique au placement"))).toBe(true);
-    db.raw.exec("DROP TRIGGER fail_eth_stop");
-    storePrice(db, "ETH", hours(3.1), 1_890);
-    expect(brokerTick(db.raw, TRADER, hours(3.1)).stops.map((o) => o.asset)).toEqual(["ETH"]);
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_orders WHERE asset = 'BTC' AND origin = 'stop'").get()).toEqual({ n: 0 }); // nothing half written
+    expect(getPosition(db.raw, "BTC")!.invalidation).toBe(42_000); // kept: retried at the next tick
+    expect(listIncidents(db.raw).some((i) => i.message.startsWith("stop de BTC : échec technique au placement"))).toBe(true);
+    db.raw.exec("DROP TRIGGER fail_btc_stop");
+    storePrice(db, "BTC", hours(4.1), 41_000);
+    expect(brokerTick(db.raw, TRADER, hours(4.1)).stops.map((o) => o.asset)).toEqual(["BTC"]);
     db.close();
   });
 

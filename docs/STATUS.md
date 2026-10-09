@@ -3,7 +3,8 @@
 - Branch / commit: main after PR #31 (step 0.2, trade fees, c1638c0); before it PR #30 (step 0.1, CI gate, 0ee7f7f).
   claude/sonni-price-precision (step 0.3, separate pull request) holds the entry below.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
-  Status: built and verified in the sandbox (GitHub CI: see the pull request); not merged, not in service, not observed.
+  Status: built and verified (sandbox; GitHub CI on draft PR #32: `checks`, `e2e`, `audit` and `trufflehog` green on
+    f4a0ad8, re-run on each push); not merged, not in service, not observed.
   - Found (read-only analysis, docs/research/price-precision.md): fill prices and the average cost were rounded to the
     cent. Below 1 EUR fills drifted from the market (USDC 0.855 filled at 0.86, +0.58 %; an asset at 0.0123 at 0.01,
     a false open gain of 22 EUR); averaged positions drifted (USDC −0.58 EUR, ADA 2.70 EUR between trades and the
@@ -35,7 +36,7 @@
     Likma: price-precision and the 16 features sharing its files verified on the last source in one run (report
     15abf660): types, sonni, money-lab, runtime, build and sonni-e2e (610 s) pass. Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
     portfolio result with a 0.00 EUR gap; BTC +2.77 and ETH −1.25 EUR as before.
-    Mutations: 34 of 35 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
+    Mutations: 35 of 36 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
     layer: placeOrder refuses that sale too). Adversarial review (5 reviewers, each finding re-checked): fixed a stop
     "restored" on a corrupt legacy position (it rewrote the row and promised a stop), pending buys filling while buys
     were suspended, a paid horizon wake and position management on a corrupt position, a share fact from an infinite
@@ -44,7 +45,9 @@
     review`): pass, with six minor points, all applied: one failing stop no longer blocks the other stops, a level
     restore is all or nothing, the second-rejection incident says what puts the stop back, quantities never show an
     exponent, get_odds shows small prices in full, the audit compares averaged positions at every price, and FR-2 states
-    that a dust sale whose proceeds round to 0.00 EUR is a valid fill (tested).
+    that a dust sale whose proceeds round to 0.00 EUR is a valid fill (tested). Second independent review on f4a0ad8:
+    pass; its one minor point (the stop-isolation test failed the asset that sorts last, so a loop that stopped at the
+    first failing stop still passed) is fixed: the failing stop now sits between two others, and that mutation fails.
   - Risks left: Kraken quotes that are positive but absurd are used as they are (capping them is a separate step the
     owner deferred); the consistency check's 0.50 EUR tolerance cannot flag a wrong price below about 0.5 EUR; French
     quantities keep a decimal point; a corrupt position stays until an owner-approved repair (none is automatic).

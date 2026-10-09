@@ -1601,7 +1601,7 @@
         "THE SYSTEM SHALL provide a strictly read-only audit of a copy of the database (never the active file) that reports non-finite rows, zero prices and averaged positions whose cost drifted under cent rounding",
         "Strategy, order rules, configured fees and slippage, the universe (no price floor), decisions and their scoring, the SQLite schema and stored history are unchanged; BTC and ETH results stay within 1 cent of before (the cent of sale proceeds a cent-rounded fill price moved); no paid call, no real trading"
       ],
-      "status": "verified",
+      "status": "built",
       "paths": [
         "src/trader/portfolio.ts",
         "src/trader/format.ts",
@@ -1643,8 +1643,8 @@
           ],
           "after": [],
           "status": "done",
-          "done_at": "2026-10-09T19:44:03.088582+00:00",
-          "note": "Implemented and covered by precision.test.ts (45 tests); mutations of this task's code each fail a test"
+          "done_at": "2026-10-09T22:34:54.330791+00:00",
+          "note": "Implemented and covered by precision.test.ts (48 tests); mutations of this task's code each fail a test"
         },
         {
           "id": "t2",
@@ -1656,8 +1656,8 @@
             "t1"
           ],
           "status": "done",
-          "done_at": "2026-10-09T19:44:03.272646+00:00",
-          "note": "Implemented and covered by precision.test.ts (45 tests); mutations of this task's code each fail a test"
+          "done_at": "2026-10-09T22:34:54.506168+00:00",
+          "note": "Implemented and covered by precision.test.ts (48 tests); mutations of this task's code each fail a test"
         },
         {
           "id": "t3",
@@ -1669,8 +1669,8 @@
             "t1"
           ],
           "status": "done",
-          "done_at": "2026-10-09T19:44:03.446129+00:00",
-          "note": "Implemented and covered by precision.test.ts (45 tests); mutations of this task's code each fail a test"
+          "done_at": "2026-10-09T22:34:54.692906+00:00",
+          "note": "Implemented and covered by precision.test.ts (48 tests); mutations of this task's code each fail a test"
         },
         {
           "id": "t4",
@@ -1680,8 +1680,8 @@
           ],
           "after": [],
           "status": "done",
-          "done_at": "2026-10-09T19:44:03.688357+00:00",
-          "note": "Implemented and covered by precision.test.ts (45 tests); mutations of this task's code each fail a test"
+          "done_at": "2026-10-09T22:34:54.877048+00:00",
+          "note": "Implemented and covered by precision.test.ts (48 tests); mutations of this task's code each fail a test"
         },
         {
           "id": "t5",
@@ -1701,106 +1701,13 @@
             "t4"
           ],
           "status": "done",
-          "done_at": "2026-10-09T19:44:03.849861+00:00",
-          "note": "Implemented and covered by precision.test.ts (45 tests); mutations of this task's code each fail a test"
+          "done_at": "2026-10-09T22:34:55.113637+00:00",
+          "note": "Implemented and covered by precision.test.ts (48 tests); mutations of this task's code each fail a test"
         }
       ],
       "implementation": {
-        "at": "2026-10-09T19:44:04.052058+00:00",
-        "note": "Unit prices to 12 significant digits, EUR in cents, quantities in 1e-8; fill figures checked before any write, invalid ones rejected (French note, broker incident), ledger last-line guard; per-order isolation; stop level restored once a day on a valid position only; sale of everything leaves 0; invalid stored positions reported and never valued, sold, stopped or managed; totals unknown and shown as not reliable; buys (placed and pending), decisions, decision requests, horizon wakes and snapshots suspended; malformed spreads fall back to 5 bps; zero-price candles skipped; prices below 1 EUR shown with 5+ significant digits; second-brain facts keep small prices; read-only audit on a private copy. 45 precision tests; 30 of 31 mutations fail a test (the 31st is a redundant layer)."
-      },
-      "verification": {
-        "at": "2026-10-09T20:51:08.445497+00:00",
-        "fingerprint_version": 3,
-        "fingerprint": "34ffe33c371c9866d097dece2229b381dedcad26869555402c8fcb71cd170c87",
-        "scope": [
-          "src/trader/portfolio.ts",
-          "src/trader/format.ts",
-          "src/trader/status.ts",
-          "src/trader/report.ts",
-          "src/trader/pack.ts",
-          "src/trader/prompt.ts",
-          "src/trader/decisions.ts",
-          "src/trader/summaries.ts",
-          "src/trader/soul.ts",
-          "src/trader/incidents.ts",
-          "src/trader/candles.ts",
-          "src/trader/rules.ts",
-          "src/trader/brain.ts",
-          "src/trader/brainchecks.ts",
-          "src/trader/curiosity.ts",
-          "src/trader/snapshot.ts",
-          "src/trader/tools.ts",
-          "src/index.ts",
-          "sonni/vps/audit-prix.mjs",
-          "src/__tests__/trader/precision.test.ts"
-        ],
-        "criterion_checks": {
-          "1": [
-            "sonni",
-            "types"
-          ],
-          "2": "sonni",
-          "3": "sonni",
-          "4": "sonni",
-          "5": "sonni",
-          "6": "sonni",
-          "7": "sonni",
-          "8": [
-            "sonni-e2e",
-            "money-lab",
-            "runtime"
-          ]
-        },
-        "checks_hash": "3a8ae11b70bfaaa628b2c3ae0d7a10c608dbe08289b0924b8caacec70a5aa4c6",
-        "report": ".likma/checks/15abf66002a5448f92ca282250fb0935.json",
-        "contract": "48643d996b94331d85056e306358d06fcc8439b09ed7cb453e99bacb6e9efde2",
-        "results": [
-          {
-            "name": "sonni",
-            "result": "passed",
-            "exit_code": 0,
-            "seconds": 22.805,
-            "output_bytes": 29546,
-            "output_sha256": "adbabc71429047978e84e6c9bf56295e43be4971a98fe1a8c47eb8f2bb17aeaa"
-          },
-          {
-            "name": "types",
-            "result": "passed",
-            "exit_code": 0,
-            "seconds": 7.617,
-            "output_bytes": 72,
-            "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
-          },
-          {
-            "name": "sonni-e2e",
-            "result": "passed",
-            "exit_code": 0,
-            "seconds": 610.156,
-            "output_bytes": 5084,
-            "output_sha256": "349c599cecf7cbf80ea0e2aa84d929956978d0406371cad082aff9cfda9fe3c7"
-          },
-          {
-            "name": "money-lab",
-            "result": "passed",
-            "exit_code": 0,
-            "seconds": 28.587,
-            "output_bytes": 40005,
-            "output_sha256": "5a19c4ab7d1ed8b944af73efa269071fb0472df03ee13f5442ed6c92e06432bd"
-          },
-          {
-            "name": "runtime",
-            "result": "passed",
-            "exit_code": 0,
-            "seconds": 27.206,
-            "output_bytes": 83215,
-            "output_sha256": "298306254818cf289eef460e3442c80f6cbef35045b6200db35722f3758c963f"
-          }
-        ],
-        "integrity": {
-          "base": "c1638c06cb130eedfc562e20d4a2041ae8f8fae4",
-          "flags": []
-        }
+        "at": "2026-10-09T22:34:55.376512+00:00",
+        "note": "Unit prices to 12 significant digits, EUR in cents, quantities in 1e-8; fill figures checked before any write, invalid ones rejected (French note, broker incident), ledger last-line guard; per-order isolation; per-position stop isolation (stop order and cleared level in one transaction); stop level restored once a day on a valid position only, in one transaction; sale of everything leaves 0; a dust sale at 0.00 EUR is a valid fill; invalid stored positions reported and never valued, sold, stopped or managed; totals unknown and shown as not reliable; buys (placed and pending), decisions, decision requests, horizon wakes and snapshots suspended; malformed spreads fall back to 5 bps; zero-price candles skipped; prices below 1 EUR shown with 5+ significant digits, quantities without exponent; second-brain facts keep small prices; read-only audit on a private copy (averaged positions at every price). 48 precision tests; 35 of 36 mutations fail a test (the 36th is a redundant layer)."
       }
     }
   ]
