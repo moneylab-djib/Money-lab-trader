@@ -46,7 +46,9 @@ nightly memory copy): sonni/GUIDE-PC.fr.md and sonni/pc/, scripts tested in pc-s
 with config keys and commands).
 GitHub CI (.github/workflows/ci.yml) runs every check above exactly as configured, each under its time limit, with
 poppler-utils, pwsh and a browser present so no test skips itself; a failure, an error or a time limit fails the
-run, and ci-workflow.test keeps the workflow in step with likma.project.json.
+run, and ci-workflow.test keeps the workflow in step with likma.project.json. main is protected (ruleset "main
+protégée"): no direct push, no force push; merging needs a pull request with `checks`, `e2e` and `trufflehog` green
+on a branch up to date with main.
 No start command is configured: starting runs a paid agent and requires owner approval.
 After a merge or broad edit: `likma project feature reverify --path .` re-runs each check once for all stale
 features. Bot guards are mapped to their tests in likma.project.json (`bot_guards`, checked by `project audit`).

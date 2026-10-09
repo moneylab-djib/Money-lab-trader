@@ -31,8 +31,14 @@
     on the e2e job, a paths filter, the e2e job deleted). GitHub: a deliberately broken test made `checks` fail
     (run 37904871922, "1 failed | 22 passed", exit 1); a test that never ends made it fail at the 600 s limit
     (run 37905860524); both are removed in the commit carrying this entry, whose CI run is in PR #30.
-  - Limits: CI does not block a merge (main has no branch protection or required checks: an owner setting on
-    GitHub); the Likma audit passes with a warning when LIKMA_REPO_TOKEN is missing (pull requests from forks):
+  - main is protected since 2026-10-09 10:36 UTC by the owner's ruleset "main protégée" (id 24783336, active,
+    empty bypass list, checked through the API): no deletion, no force push, no creation of main, a pull request is
+    required (0 approvals: GitHub forbids approving one's own pull request), and the checks `checks`, `e2e` and
+    `trufflehog` (GitHub Actions) must pass on a branch up to date with main. The Likma audit is not required (its
+    token can expire and would then block every merge). Emergency: the owner sets the ruleset to Disabled for one
+    merge, then back to Active. A pull request that edits .github/workflows/ or ci-workflow.test needs a close look:
+    required checks only check job names.
+  - Limits: the Likma audit passes with a warning when LIKMA_REPO_TOKEN is missing (pull requests from forks):
     to fix in Likma's workflow template, not here; money-lab/e2e/harness.mjs and chaos.mjs are run neither by CI
     nor by Likma (they never were); setup-node and pnpm/action-setup are pinned by tag, not by commit; Node 20
     (end of life) is no longer tested.
