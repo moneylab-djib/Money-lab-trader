@@ -215,7 +215,9 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    plus, la nouvelle valeur étant l'exacte. Aucun prix nul, quantité
    infinie ou NaN n'est plus écrit : le code refuse l'ordre (« refusé par le code : … » dans
    `/portefeuille`, incident « courtier virtuel » dans `/technique`). Un ordre en panne ne bloque plus les
-   autres, ni les stops, ni l'instantané du jour ; un stop refusé retrouve son niveau. Une position déjà
+   autres, ni les stops, ni l'instantané du jour ; un stop qui ne peut pas être placé garde son niveau
+   pour le relevé suivant sans bloquer les autres stops ; un stop refusé retrouve son niveau une fois par
+   jour (sinon un incident te dit que la position est sans stop). Une position déjà
    enregistrée avec des chiffres invalides est signalée, jamais évaluée : la valeur du portefeuille
    s'affiche « non fiable », achats et décisions sont suspendus jusqu'à une réparation que tu approuves.
    Les prix sous 1 € s'affichent avec au moins 5 chiffres (« 0,0048874 € ») ; à partir de 1 €, rien ne
