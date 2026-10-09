@@ -99,6 +99,15 @@ describe("createTokenCounter", () => {
       expect(performance.now() - started).toBeLessThan(1_000);
       expect(tokens).toBeGreaterThanOrEqual(Math.ceil(run.length / 4));
     }
+    // Runs alternating with padding: the padding on both sides of a removed run must not join into one long piece.
+    const padded = (" ".repeat(255) + "x".repeat(256)).repeat(100);
+    const started = performance.now();
+    expect(counter.countTokens(padded)).toBeGreaterThan(100 * 73);
+    expect(performance.now() - started).toBeLessThan(1_000);
+    // Long runs outside ASCII are never counted below their exact size.
+    for (const run of ["中".repeat(600), "🙂".repeat(300), "ひ".repeat(400)]) {
+      expect(counter.countTokens(run)).toBeGreaterThanOrEqual(getEncoding("cl100k_base").encode(run).length);
+    }
     const words = "Sonni relit ses notes du soir et compare ses chiffres. ".repeat(200);
     expect(counter.countTokens(words)).toBe(getEncoding("cl100k_base").encode(words).length);
     expect(counter.countTokens("a".repeat(255))).toBe(getEncoding("cl100k_base").encode("a".repeat(255)).length);

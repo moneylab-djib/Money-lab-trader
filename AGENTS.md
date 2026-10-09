@@ -38,7 +38,7 @@ Checks (configured in likma.project.json; `likma project check --path .`, or
   - runtime: the rest of src/__tests__ (vitest run excluding trader/ and money-lab/); the three test checks
     together are the whole suite (plain `pnpm test`, about 1 min)
   - build: pnpm run build
-  - sonni-e2e: node sonni/e2e.mjs (requires `build`, which Likma runs first; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~9 min incl. the outage scenario)
+  - sonni-e2e: node sonni/e2e.mjs (requires `build`, which Likma runs first; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~10 min incl. the outage scenario, plus up to 12 min when started just before Paris midnight; limit 1500 s)
   - deps: pnpm audit --prod --audit-level critical (needs registry access)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/; the owner's PC (second brain,

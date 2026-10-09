@@ -24,6 +24,7 @@
           "typecheck"
         ],
         "env": [],
+        "timeout_seconds": 600,
         "description": "TypeScript typecheck"
       },
       "sonni": {
@@ -72,6 +73,7 @@
           "build"
         ],
         "env": [],
+        "timeout_seconds": 600,
         "description": "Compile dist/"
       },
       "sonni-e2e": {
@@ -80,7 +82,7 @@
           "sonni/e2e.mjs"
         ],
         "env": [],
-        "timeout_seconds": 900,
+        "timeout_seconds": 1500,
         "description": "Real process against fake Kraken/Anthropic/Telegram/readers/sources, incl. outage scenario",
         "requires": [
           "build"
