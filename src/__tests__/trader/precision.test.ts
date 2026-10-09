@@ -255,6 +255,12 @@ describe("Averaged buys, partial and full sales conserve units and euros", () =>
 
   it("a sale of everything leaves exactly zero, even past 2^25 units where round8 is not idempotent", () => {
     // 100 EUR at 2.61147e-6 EUR is 37,967,284.62804712 units: re-rounded, the old sale exceeded the position.
+    const held = funded();
+    trade(held, 1, "PEPE", 2.61147e-6, buy(100, 2.61147e-6));
+    expect(getPosition(held.raw, "PEPE")!.quantity).toBe(37967284.62804712);
+    expect(37967284.62804712 * 1e8 % 1).not.toBe(0); // the double is off the 1e-8 grid: round8 moves it up a step
+    expect(availableQuantity(held.raw, "PEPE")).toBe(37967284.62804712); // never more than held
+    held.close();
     const odd = roundTrip("PEPE", 2.61147e-6);
     expect(odd.bought.fillQuantity).toBe(37967284.62804712);
     expect(odd.sold.fillQuantity).toBe(odd.bought.fillQuantity);
@@ -441,14 +447,19 @@ describe("A corrupt position stored before step 0.3 is reported, never valued, a
       .toMatchObject({ ok: false, error: expect.stringContaining("Decisions are suspended") });
     expect(decisionsDue(db.raw, TRADER, hours(3))).toEqual([]); // no paid turn asked for a decision it cannot record
     expect(decisionsPackLines(db.raw, TRADER, hours(3)).join("\n")).toContain("Decisions are suspended");
-    // The BTC stop still works: price below its 42,000 invalidation.
-    storePrice(db, "BTC", hours(26), 41_000);
-    const tick = brokerTick(db.raw, TRADER, hours(26));
+    // A sell order left pending on PUMP by the old code is rejected, not filled from Infinity.
+    db.raw.prepare(`INSERT INTO trader_orders (id, placed_at, asset, side, kind, amount_eur, quantity, limit_price, thesis, probability, invalidation, horizon_until, hypothesis_ids, origin, status)
+      VALUES ('o_pending', ?, 'PUMP', 'sell', 'market', NULL, 1000, NULL, ?, NULL, NULL, ?, '[]', 'model', 'pending')`).run(isoSeconds(hours(3)), THESIS, isoSeconds(hours(100)));
+    // The BTC stop still works: price below its 42,000 invalidation, a day with no snapshot yet (2026-10-09).
+    storePrice(db, "BTC", hours(50), 41_000);
+    storePrice(db, "PUMP", hours(50), 0.002); // below PUMP's stored level: no stop on a position code cannot value
+    const tick = brokerTick(db.raw, TRADER, hours(50));
+    expect(tick.rejected.map((o) => o.note)).toEqual([expect.stringMatching(/^rejected by code \(position\)/)]);
     expect(tick.stops.map((o) => o.asset)).toEqual(["BTC"]);
     expect(tick.snapshot).toBe(false);
-    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_portfolio_days WHERE day = '2026-10-08'").get()).toEqual({ n: 1 }); // only the legacy row
-    storePrice(db, "BTC", hours(26.1), 41_000);
-    expect(brokerTick(db.raw, TRADER, hours(26.1)).fills[0].trade!.asset).toBe("BTC");
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_portfolio_days WHERE day = '2026-10-09'").get()).toEqual({ n: 0 });
+    storePrice(db, "BTC", hours(50.1), 41_000);
+    expect(brokerTick(db.raw, TRADER, hours(50.1)).fills[0].trade!.asset).toBe("BTC");
     const incidents = listIncidents(db.raw).filter((i) => i.message.startsWith("position PUMP invalide"));
     expect(incidents).toHaveLength(1); // once a day, not at every tick
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_orders WHERE asset = 'PUMP' AND status = 'pending'").get()).toEqual({ n: 0 }); // no code stop on it

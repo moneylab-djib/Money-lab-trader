@@ -243,6 +243,12 @@
       "edit_when": "Deployment layout, config keys, budget rule or owner steps change"
     },
     {
+      "area": "Sonni price audit",
+      "path": "sonni/vps/audit-prix.mjs",
+      "purpose": "Read-only audit of a copy of Sonni's memory (never the active state.db): non-finite or zero figures pre-0.3 fills left, cent-rounded fills and averaged positions that drifted",
+      "edit_when": "What the paper broker stores changes, or the VPS guide's update procedure changes (sonni/GUIDE-VPS.fr.md)"
+    },
+    {
       "area": "Money Lab runtime",
       "path": "src/money-lab/",
       "purpose": "Imported runtime (budgets, Telegram, guards, journal); see docs/upstream/MONEY-LAB-README.md",
@@ -287,8 +293,8 @@
     {
       "area": "Sonni paper broker",
       "path": "src/trader/portfolio.ts",
-      "purpose": "Virtual portfolio: funding, orders checked and filled by code at later prices with fees and slippage, positions, stops, horizons, trades with P&L, traps, snapshots, performance",
-      "edit_when": "Order rules, fees, the position cap, fills or the performance figures change (keep docs/MEMORY.md and ARCHITECTURE.md in sync)"
+      "purpose": "Virtual portfolio: funding, orders checked and filled by code at later prices with fees and slippage, positions, stops, horizons, trades with P&L, traps, snapshots, performance; numeric soundness (12-digit unit prices, checks before any write, rejected orders, invalid stored positions suspend buys and decisions: guard G17)",
+      "edit_when": "Order rules, fees, the position cap, fills or the performance figures change (keep docs/MEMORY.md, docs/GUARDS.md and ARCHITECTURE.md in sync)"
     },
     {
       "area": "Sonni owner reports",
@@ -375,6 +381,7 @@
     ],
     "history_integrity": [
       "src/__tests__/trader/guards.test.ts",
+      "src/__tests__/trader/precision.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
       "sonni/e2e.mjs",
       "src/__tests__/trader/pc-scripts.test.ts",

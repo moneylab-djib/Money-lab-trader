@@ -41,6 +41,7 @@ Checks (configured in likma.project.json; `likma project check --path .`, or
   - sonni-e2e: node sonni/e2e.mjs (requires `build`, which Likma runs first; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~10 min incl. the outage scenario, plus up to 12 min when started just before Paris midnight; limit 1500 s)
   - deps: pnpm audit --prod --audit-level critical (needs registry access)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
+Price audit (step 0.3; read-only, on a copy, refuses the active state.db): node sonni/vps/audit-prix.mjs <copy>
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/; the owner's PC (second brain,
 nightly memory copy): sonni/GUIDE-PC.fr.md and sonni/pc/, scripts tested in pc-scripts.test (keep them in sync
 with config keys and commands).

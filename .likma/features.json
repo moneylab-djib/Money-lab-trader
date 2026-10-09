@@ -1615,7 +1615,13 @@
         "src/trader/incidents.ts",
         "src/trader/candles.ts",
         "src/trader/rules.ts",
-        "src/index.ts"
+        "src/trader/brain.ts",
+        "src/trader/curiosity.ts",
+        "src/trader/snapshot.ts",
+        "src/trader/tools.ts",
+        "src/index.ts",
+        "sonni/vps/audit-prix.mjs",
+        "src/__tests__/trader/precision.test.ts"
       ],
       "track": "deep",
       "bug": {

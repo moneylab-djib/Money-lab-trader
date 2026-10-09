@@ -205,7 +205,21 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    frais, mais les résumés et autopsies déjà écrits gardent leurs chiffres d'origine (avant frais
    d'achat). Les prix d'exécution et le coût moyen sont arrondis au centime : pour un actif à moins de
    1 € le résultat peut s'écarter de plusieurs dixièmes de %, et sous 0,005 € le prix arrondi tomberait
-   à 0 (défaut ancien, à corriger dans une étape séparée si tu le décides).
+   à 0 (défaut ancien, corrigé par l'étape 0.3 ci-dessous).
+   Étape 0.3, précision des prix (construite, PR séparée ; pas encore fusionnée ni en service). Une fois
+   déployée : le prix d'exécution et le coût moyen gardent 12 chiffres significatifs (les montants restent
+   au centime) ; le glissement de 0,05 % s'applique à tous les prix, donc un aller-retour de 100 € coûte
+   1,69 € partout (USDC : 1,69 € au lieu de 1,59 €, le chiffre juste) ; les actifs à moins de 0,01 € sont
+   permis, sans prix plancher. BTC et ETH : mêmes résultats, sauf environ 1 aller-retour sur 1 000 (BTC) et
+   1 sur 100 (ETH) qui bouge d'un centime, la nouvelle valeur étant l'exacte. Aucun prix nul, quantité
+   infinie ou NaN n'est plus écrit : le code refuse l'ordre (« refusé par le code : … » dans
+   `/portefeuille`, incident « courtier virtuel » dans `/technique`). Un ordre en panne ne bloque plus les
+   autres, ni les stops, ni l'instantané du jour ; un stop refusé retrouve son niveau. Une position déjà
+   enregistrée avec des chiffres invalides est signalée, jamais évaluée : la valeur du portefeuille
+   s'affiche « non fiable », achats et décisions sont suspendus jusqu'à une réparation que tu approuves.
+   Les prix sous 1 € s'affichent avec au moins 5 chiffres (« 0,0048874 € ») ; à partir de 1 €, rien ne
+   change. Avant le déploiement : un audit en lecture seule d'une copie de sa mémoire
+   (`sonni/GUIDE-VPS.fr.md`, « Mettre Sonni à jour »). Rien de l'historique n'est réparé ni réécrit.
 3. **Actualité et calendrier** ✅ (voir 1 ter).
 4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :
    - *C1 — Dossiers et carnets* ✅ construit le 7 octobre : un dossier par actif suivi, écrit par Sonni
