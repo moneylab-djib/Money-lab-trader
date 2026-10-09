@@ -1386,7 +1386,7 @@
         "Token counts of ordinary text are unchanged (exact tiktoken count)",
         "No runtime or trading behaviour of Sonni changes; no paid call in any check"
       ],
-      "status": "planned",
+      "status": "built",
       "paths": [
         ".github/workflows/ci.yml",
         ".github/workflows/release.yml",
@@ -1402,6 +1402,10 @@
           5,
           6
         ]
+      },
+      "implementation": {
+        "at": "2026-10-09T08:13:32.015788+00:00",
+        "note": "ci.yml runs every Likma check without masking; runtime check added; token counter guard; worklog test path; ci-workflow guard test; review fixes"
       }
     }
   ]
