@@ -1708,6 +1708,13 @@
       "implementation": {
         "at": "2026-10-09T22:34:55.376512+00:00",
         "note": "Unit prices to 12 significant digits, EUR in cents, quantities in 1e-8; fill figures checked before any write, invalid ones rejected (French note, broker incident), ledger last-line guard; per-order isolation; per-position stop isolation (stop order and cleared level in one transaction); stop level restored once a day on a valid position only, in one transaction; sale of everything leaves 0; a dust sale at 0.00 EUR is a valid fill; invalid stored positions reported and never valued, sold, stopped or managed; totals unknown and shown as not reliable; buys (placed and pending), decisions, decision requests, horizon wakes and snapshots suspended; malformed spreads fall back to 5 bps; zero-price candles skipped; prices below 1 EUR shown with 5+ significant digits, quantities without exponent; second-brain facts keep small prices; read-only audit on a private copy (averaged positions at every price). 48 precision tests; 35 of 36 mutations fail a test (the 36th is a redundant layer)."
+      },
+      "review": {
+        "at": "2026-10-09T22:35:56.977840+00:00",
+        "verdict": "pass",
+        "notes": "Independent acceptance review (separate agent, no shared context with the implementer) of c1638c0...f4a0ad8: every criterion FR-1 to FR-8 and every owner constraint met; fill figures checked before one atomic write; corrupt legacy positions make the total unknown and suspend buys, decisions and snapshots; display, audit and conservation correct (0.00 EUR gap measured on seven assets); no schema, fee or history change. Its one minor finding (stop-isolation test failed the asset sorting last, so a break in the stops-loop catch passed) and two nits (stale counts in features.json, stale audit comment) were fixed in 1f9fffd, a test, comment and notes change only; the break mutation now fails the test.",
+        "fingerprint": "ebffbc7e395efa049b103ad45a3de2dd0b2a874d254a3e6be1bc6343bbf658d4",
+        "contract": "48643d996b94331d85056e306358d06fcc8439b09ed7cb453e99bacb6e9efde2"
       }
     }
   ]
