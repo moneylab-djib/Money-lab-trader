@@ -1386,7 +1386,7 @@
         "Token counts of ordinary text are unchanged (exact tiktoken count)",
         "No runtime or trading behaviour of Sonni changes; no paid call in any check"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         ".github/workflows/ci.yml",
         ".github/workflows/release.yml",
@@ -1406,6 +1406,61 @@
       "implementation": {
         "at": "2026-10-09T08:13:32.015788+00:00",
         "note": "ci.yml runs every Likma check without masking; runtime check added; token counter guard; worklog test path; ci-workflow guard test; review fixes"
+      },
+      "verification": {
+        "at": "2026-10-09T08:25:08.810703+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "a2c99d655bf5bc0b4fa79772ddac98faa2d0a01bf01256f6d0ef231c9318b46b",
+        "scope": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/release.yml",
+          "src/__tests__/trader/ci-workflow.test.ts",
+          "src/memory/context-manager.ts",
+          "src/__tests__/memory/context-manager.test.ts",
+          "src/__tests__/money-lab/money-lab.test.ts",
+          "likma.project.json"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "runtime",
+          "4": "sonni",
+          "5": "runtime",
+          "6": "sonni-e2e"
+        },
+        "checks_hash": "9094757bd0d1339572cc961dc56c88e9cf759e9b15e1be7e5ddf1f28822bf517",
+        "report": ".likma/checks/0e660b1be7cf4fca8a152292d7e55bbe.json",
+        "contract": "f85afc98668d66a2e3d785b6905b0e6d10529611a5b3a12fe87af042c0fd08b3",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 22.273,
+            "output_bytes": 28915,
+            "output_sha256": "7f7018e63eb42d3451325703af1eb4db111e220ee7263a574e379644837fb25b"
+          },
+          {
+            "name": "runtime",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 28.548,
+            "output_bytes": 79159,
+            "output_sha256": "3f95c75e07b68d9e8ba132b83a9c1760cbcf0778ea974d3b98f755d4e44017fb"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 621.613,
+            "output_bytes": 5084,
+            "output_sha256": "f23f154b4cfb0f78c7a13a6f9903d17572a0f51debad8d791886c3e35c2a7630"
+          }
+        ],
+        "integrity": {
+          "base": "fd5916d2a0fcef6ac2142cc44b0c9c380e036a21",
+          "flags": []
+        }
       }
     }
   ]
