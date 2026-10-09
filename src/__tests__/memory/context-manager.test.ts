@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getEncoding } from "js-tiktoken";
 import {
   ContextManager,
   createTokenCounter,
@@ -86,6 +87,21 @@ describe("createTokenCounter", () => {
 
     expect(counter.cache.has("default::evict-0")).toBe(false);
     expect(counter.cache.has("default::evict-10004")).toBe(true);
+  });
+
+  it("counts long unbroken runs quickly, and ordinary text exactly as before", () => {
+    const counter = createTokenCounter();
+    counter.countTokens("warm up");
+    // A single pre-token of 50,000 characters took minutes (quadratic merges in js-tiktoken).
+    for (const run of ["x".repeat(50_000), " ".repeat(50_000) + "x", "=".repeat(50_000), "é".repeat(50_000)]) {
+      const started = performance.now();
+      const tokens = counter.countTokens(run);
+      expect(performance.now() - started).toBeLessThan(1_000);
+      expect(tokens).toBeGreaterThanOrEqual(Math.ceil(run.length / 4));
+    }
+    const words = "Sonni relit ses notes du soir et compare ses chiffres. ".repeat(200);
+    expect(counter.countTokens(words)).toBe(getEncoding("cl100k_base").encode(words).length);
+    expect(counter.countTokens("a".repeat(255))).toBe(getEncoding("cl100k_base").encode("a".repeat(255)).length);
   });
 });
 

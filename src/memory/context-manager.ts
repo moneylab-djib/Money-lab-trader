@@ -128,6 +128,20 @@ function formatCacheKey(text: string, model?: string): string {
   return `${model ?? "default"}::${text}`;
 }
 
+// js-tiktoken's merges are quadratic in the length of one pre-token: an unbroken run of
+// letters, spaces or punctuation (8,000 characters take about 6 s) stalled every caller.
+// Such runs are estimated like the fallback below; no ordinary word comes near this length.
+const LONG_RUN = /\p{L}{256,}|[^\s\p{L}\p{N}]{256,}|\s{256,}/gu;
+
+function encodedLength(encoder: Tiktoken, text: string): number {
+  let longChars = 0;
+  const rest = text.replace(LONG_RUN, (run) => {
+    longChars += run.length;
+    return " ";
+  });
+  return encoder.encode(rest).length + Math.ceil(longChars / 3.5);
+}
+
 export function createTokenCounter(): TokenCounter {
   const cache = new Map<string, number>();
   let encoder: Tiktoken | null = null;
@@ -152,7 +166,7 @@ export function createTokenCounter(): TokenCounter {
     let count: number;
     if (encoder) {
       try {
-        count = encoder.encode(normalizedText).length;
+        count = encodedLength(encoder, normalizedText);
       } catch {
         count = Math.ceil(normalizedText.length / 3.5);
       }

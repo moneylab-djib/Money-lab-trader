@@ -1,46 +1,70 @@
+# Every check of likma.project.json, run exactly as the project runs it locally. A failing test, an
+# error or a time limit reached fails the run: nothing here turns a failure into a success.
+# src/__tests__/trader/ci-workflow.test.ts keeps this file in step with likma.project.json.
 name: CI
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  # A new push to a pull request cancels its older run; every commit on main keeps its own run.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
 jobs:
-  build-and-test:
+  checks:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [20, 22]
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: ${{ matrix.node-version }}
-      - uses: pnpm/action-setup@v4
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run typecheck
-      - name: Run tests
-        timeout-minutes: 10
-        run: |
-          set +e
-          timeout 300 pnpm test
-          RC=$?
-          set -e
-          # Exit code 124 means timeout killed the process (vitest hung after tests completed)
-          if [ $RC -eq 124 ]; then echo "::warning::vitest process hung after tests, killed by timeout"; exit 0; fi
-          exit $RC
-      - name: Run security tests
-        timeout-minutes: 10
-        run: |
-          set +e
-          timeout 180 pnpm test -- --grep "security|injection|policy|financial"
-          RC=$?
-          set -e
-          if [ $RC -eq 124 ]; then echo "::warning::vitest process hung after tests, killed by timeout"; exit 0; fi
-          exit $RC
-
-  security-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - uses: pnpm/action-setup@v4
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm audit --audit-level=high || true
+      - name: Tools the conditional tests need
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends poppler-utils
+          # Without these, five tests skip themselves; here they must run.
+          pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+          command -v pdftoppm
+          command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser
+      - name: install
+        run: pnpm install --frozen-lockfile
+      - name: "check: types"
+        run: timeout -k 30 600 pnpm run typecheck
+      - name: "check: sonni"
+        run: timeout -k 30 600 pnpm exec vitest run src/__tests__/trader
+      - name: "check: money-lab"
+        run: timeout -k 30 600 pnpm exec vitest run src/__tests__/money-lab
+      - name: "check: runtime"
+        run: timeout -k 30 600 pnpm exec vitest run --exclude 'src/__tests__/trader/**' --exclude 'src/__tests__/money-lab/**'
+      - name: "check: build"
+        run: timeout -k 30 600 pnpm run build
+      - name: "check: deps"
+        run: timeout -k 30 300 pnpm audit --prod --audit-level critical
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+      - name: install
+        run: pnpm install --frozen-lockfile
+      - name: "check: build"
+        run: timeout -k 30 600 pnpm run build
+      - name: "check: sonni-e2e"
+        run: timeout -k 30 900 node sonni/e2e.mjs

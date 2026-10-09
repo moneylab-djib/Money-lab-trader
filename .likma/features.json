@@ -1374,6 +1374,35 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "ci-gate",
+      "title": "GitHub CI runs every check and fails on any failure, error or time limit",
+      "criteria": [
+        "1. ci.yml runs every likma.project.json check (types, sonni, money-lab, runtime, build, sonni-e2e, deps) exactly as configured, each under its time limit, on every pull request and every push to main",
+        "2. No step or job can turn a failure, an error or a time limit into a success (no set +e, || true, exit 0, $? test, continue-on-error), and ci-workflow.test fails if one is reintroduced or a check drifts from likma.project.json",
+        "3. The whole suite (87 files) finishes and passes with a non-root HOME: the token counter counts a 50,000-character unbroken run in under 1 s, and the Money Lab worklog test no longer depends on running as root",
+        "4. A deliberately failing test, a hanging test and a crashed test worker each make the check fail (exit code not 0), locally and on GitHub",
+        "Token counts of ordinary text are unchanged (exact tiktoken count)",
+        "No runtime or trading behaviour of Sonni changes; no paid call in any check"
+      ],
+      "status": "planned",
+      "paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "src/__tests__/trader/ci-workflow.test.ts",
+        "src/memory/context-manager.ts",
+        "src/__tests__/memory/context-manager.test.ts",
+        "src/__tests__/money-lab/money-lab.test.ts",
+        "likma.project.json"
+      ],
+      "bug": {
+        "current": "CI ran plain pnpm test under a 300 s limit and turned the limit into success; the suite never finished (context-hardening), two failing tests stayed hidden, build and e2e never ran, the audit was || true",
+        "unchanged": [
+          5,
+          6
+        ]
+      }
     }
   ]
 }

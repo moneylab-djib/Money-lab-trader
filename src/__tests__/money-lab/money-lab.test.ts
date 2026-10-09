@@ -653,7 +653,7 @@ describe("Money Lab agent loop", () => {
         evidence: ["https://example.org/forum-thread (2026-10-03)"], acquisition_channel: "relevant directories",
       } }]),
       toolCallResponse([{ name: "write_file", arguments: {
-        path: path.join(os.homedir(), ".automaton", "WORKLOG.md"), content: "Exploring CSV cleanup",
+        path: "~/.automaton/WORKLOG.md", content: "Exploring CSV cleanup",
       } }]),
       toolCallResponse([{ name: "transfer_credits", arguments: { to_address: "0xabc", amount_cents: 100 } }]),
       toolCallResponse([{ name: "request_help", arguments: {
@@ -675,7 +675,8 @@ describe("Money Lab agent loop", () => {
     ]);
     expect(calls[0].error).toBeUndefined();
     expect(calls[1].error).toBeUndefined();
-    expect(conway.files[path.join(os.homedir(), ".automaton", "WORKLOG.md")]).toBe("Exploring CSV cleanup");
+    // The test identity has a sandbox, whose home is /root whatever the machine running the tests.
+    expect(conway.files["/root/.automaton/WORKLOG.md"]).toBe("Exploring CSV cleanup");
     expect(calls[2].error).toMatch(/Unknown tool: transfer_credits/); // hidden from the model entirely
     expect(calls[3].error).toBeUndefined();
     expect(db.getAgentState()).toBe("sleeping");
