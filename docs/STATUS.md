@@ -1,8 +1,10 @@
 # Working status
 - Updated: 2026-10-09
-- Branch / commit: main after PR #29 (fd5916d); claude/sonni-ci-gate (PR #30, draft) holds step 0.1 below.
+- Branch / commit: main after PR #30 (step 0.1, CI gate, merge commit of 2026-10-09); before it PR #29 (fd5916d).
 - Step 0.1 of the owner's plan of 2026-10-09, GitHub CI tells the truth (branch claude/sonni-ci-gate, PR #30).
-  Status: built and verified (sandbox and GitHub); not merged, not in service, not observed by the owner.
+  Status: built and verified (sandbox and GitHub); merged into main through PR #30 on the owner's go of 2026-10-09
+  (merge commit, after `checks`, `e2e` and `trufflehog` passed under the ruleset); not in service (the VPS has not
+  been updated, and only the token counter there would change); not observed by the owner.
   - Found in the CI logs of main (run 37843427737, fd5916d): ci.yml ran `timeout 300 pnpm test` and turned exit
     124 into success. Both test steps hit their limit (5:00 and 3:00): the suite never finished, because
     context-hardening.test builds 50,000-character unbroken turns and js-tiktoken is quadratic on one long
