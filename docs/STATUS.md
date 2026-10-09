@@ -1,9 +1,12 @@
 # Working status
 - Updated: 2026-10-09
-- Branch / commit: main after PR #30 (step 0.1, CI gate, merge commit of 2026-10-09); before it PR #29 (fd5916d).
-  claude/sonni-trade-fees (PR #31, draft) holds step 0.2 below.
+- Branch / commit: main after PR #31 (step 0.2, trade fees, merge commit of 2026-10-09); before it PR #30 (step 0.1,
+  CI gate, 0ee7f7f).
 - Step 0.2 of the owner's plan of 2026-10-09, trade statistics count every fee (branch claude/sonni-trade-fees, PR #31).
-  Status: built and verified in the sandbox (GitHub CI: see PR #31); not merged, not in service, not observed by the owner.
+  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on the PR's last
+  commit); merged into main through PR #31 on the owner's go of 2026-10-09 (merge commit, after the required checks
+  passed under the ruleset); not in service (the VPS has not been updated: it waits for a controlled deployment the
+  owner approves); not observed by the owner.
   - Found: a closed trade's `pnl_eur` is stored as proceeds − sale fee − quantity × entry price, and the entry price
     is the fill price, so the purchase fee (0.8 % taker) was left out of every trade result, the win rate, the mean
     trade %, the day/week/month summaries, the pack and the consistency check's facts. A +1 % round trip of 100 EUR
@@ -28,12 +31,16 @@
     share, the dead 7-day window, "a round trip costs 1.72 %" (it costs 1.69 % of the stake; 1.72 % is the rise it
     needs), the missing "market" qualifier and two test gaps; the stale e2e expectation of `/statut` was fixed
     after the first CI run.
-  - Limits: trades stored before 2026-10-09 keep their stored fee split (it only differs when a buy followed a
-    partial sale of the same position); summaries stored before keep sums before the purchase fee; post-mortems
-    Sonni wrote from those figures stay as written. Pre-existing and not changed here (a separate step if the
-    owner wants it): fill prices and the average cost are rounded to the cent, so on USDC (about 0.86 EUR) a
-    market fill can be off by up to ±0.58 % and a blended cost basis by about 0.5 %. The break-even assumes market
-    orders on both legs. Likma: the 240-minute session begun at 07:46 UTC for step 0.1 reached its time limit
+  - Limits. Old results: nothing stored is rewritten, so trades stored before the deployment keep their stored fee
+    split (it only differs when a buy followed a partial sale of the same position); day/week/month summaries
+    stored before keep sums before the purchase fee; post-mortems, notes and lessons Sonni wrote from the old
+    figures stay as written, and the second brain's consistency check flags each such text once (code's figure is
+    now after every fee). Should a sale order be missing (never seen), all of the trade's fees count as purchase
+    fees: the result can only read lower. Price rounding (pre-existing, not changed here; a separate step if the
+    owner wants it): fill prices and the average cost are rounded to the cent, so on an asset below 1 EUR (USDC,
+    about 0.86 EUR) a market fill can be off by up to ±0.58 % per leg instead of the 5 bps of slippage, and a cost
+    basis blended from two buys by about 0.5 %; on BTC, ETH, PAXG and the tokenized stocks the effect is
+    negligible. The break-even (1.72 %) assumes market orders on both legs; limit legs cost less. Likma: the 240-minute session begun at 07:46 UTC for step 0.1 reached its time limit
     with no failure; a new one was begun deliberately for this verification (no failure budget evaded; the
     previous one is archived under .likma/sessions/).
 - Step 0.1 of the owner's plan of 2026-10-09, GitHub CI tells the truth (branch claude/sonni-ci-gate, PR #30).
