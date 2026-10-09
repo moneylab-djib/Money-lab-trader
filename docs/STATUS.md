@@ -3,8 +3,8 @@
 - Branch / commit: main after PR #31 (step 0.2, trade fees, c1638c0); before it PR #30 (step 0.1, CI gate, 0ee7f7f).
   claude/sonni-price-precision (step 0.3, separate pull request) holds the entry below.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
-  Status: built and verified (sandbox; GitHub CI on draft PR #32: `checks`, `e2e`, `audit` and `trufflehog` green on
-    f4a0ad8, re-run on each push); not merged, not in service, not observed.
+  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on draft PR #32,
+    re-run on each push); not merged, not in service, not observed.
   - Found (read-only analysis, docs/research/price-precision.md): fill prices and the average cost were rounded to the
     cent. Below 1 EUR fills drifted from the market (USDC 0.855 filled at 0.86, +0.58 %; an asset at 0.0123 at 0.01,
     a false open gain of 22 EUR); averaged positions drifted (USDC −0.58 EUR, ADA 2.70 EUR between trades and the
@@ -33,8 +33,10 @@
     round trips each, the result moves by exactly 1 cent in 0.10 % (BTC) and 1.1 % (ETH) of round trips, never more
     (PAXG 1.05 %, stocks 10 %): the old sale proceeds used a cent-rounded fill price, the new figure is exact.
   - Checks: sonni 23 files, 247 tests (precision.test 48, the 199 earlier ones unchanged); money-lab 110; runtime 1,646;
-    Likma: price-precision and the 16 features sharing its files verified on the last source in one run (report
-    15abf660): types, sonni, money-lab, runtime, build and sonni-e2e (610 s) pass. Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
+    Likma: price-precision verified on the last source (report 46d3489f: types, sonni, money-lab, runtime, build and
+    sonni-e2e, 621 s), the 13 other features sharing its files re-verified (report 4ec72dbc, sonni-e2e 620 s).
+    The Likma work-session time limit ran out during a re-verification (sonni-e2e cut after 16 s, no code failure);
+    a new session was begun deliberately after reviewing progress (known cost 0 EUR, checks make no paid call). Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
     portfolio result with a 0.00 EUR gap; BTC +2.77 and ETH −1.25 EUR as before.
     Mutations: 35 of 36 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
     layer: placeOrder refuses that sale too). Adversarial review (5 reviewers, each finding re-checked): fixed a stop
