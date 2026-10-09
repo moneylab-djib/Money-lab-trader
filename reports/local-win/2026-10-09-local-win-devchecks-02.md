@@ -80,5 +80,6 @@ Garde-fou ressources : 5,4 Go de RAM libre, llama-server à 0 % CPU → étapes 
 
 ---
 Annexe — rappel des mesures du PC (rapport n°01) : second cerveau Qwen3.6-35B-A3B à ~27,6 tokens/s en génération
-(109 réponses), 483 tokens/s en prompt ; aucune erreur dans les journaux llama ; les deux arrêts `code -1` du 2026-10-08
-étaient externes (installation), sans événement Windows ni erreur GPU.
+(109 réponses), 483 tokens/s en prompt ; aucune erreur dans les journaux llama. Les deux arrêts `code -1` du 2026-10-08 :
+aucune erreur llama.cpp ni événement Windows dans les 3 minutes autour — cause non établie par les mesures ; l'hypothèse
+d'un arrêt externe pendant l'installation du 8 octobre reste à confirmer par le propriétaire.
