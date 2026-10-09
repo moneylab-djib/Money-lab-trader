@@ -70,6 +70,14 @@ const before = sha256(file);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sonni-audit-prix-"));
 const copy = path.join(dir, "copie.db");
 let db;
+// The private copy holds all of Sonni's memory: removed on Ctrl+C, a stop or a closed SSH session too.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(signal, () => {
+    try { db?.close(); } catch { /* nothing */ }
+    fs.rmSync(dir, { recursive: true, force: true });
+    process.exit(130);
+  });
+}
 try {
   fs.copyFileSync(file, copy);
   // A WAL-mode copy cannot be opened read-only without its -wal file: mark our private copy as a rollback
@@ -161,8 +169,13 @@ try {
     // 3. Open positions averaged from several buys below 10 EUR: stored average cost against the ledger replay.
     say(`3. Positions ouvertes moyennées sous ${CENT_SENSITIVE} € (coût moyen enregistré comparé au registre)`);
     let averaged = 0;
-    for (const p of rows("SELECT asset, quantity, avg_cost, opened_at FROM trader_positions WHERE quantity > 0 AND quantity <= ? AND avg_cost > 0 AND avg_cost < ? ORDER BY asset", HUGE, CENT_SENSITIVE)) {
-      const moves = rows("SELECT kind, quantity, amount_eur, fee_eur FROM trader_ledger WHERE asset = ? AND kind IN ('buy', 'sell') AND at >= ? ORDER BY at, rowid", p.asset, p.opened_at);
+    for (const p of rows("SELECT asset, quantity, avg_cost, opened_at, open_order_id FROM trader_positions WHERE quantity > 0 AND quantity <= ? AND avg_cost > 0 AND avg_cost < ? ORDER BY asset", HUGE, CENT_SENSITIVE)) {
+      // From the ledger row of the order that opened this position (append-only, so rowid is the order of
+      // writing): a sale of the previous position in the same tick is not part of it.
+      const start = db.prepare("SELECT rowid AS r FROM trader_ledger WHERE kind = 'buy' AND order_id = ?").get(p.open_order_id);
+      const moves = start
+        ? rows("SELECT kind, quantity, amount_eur, fee_eur FROM trader_ledger WHERE asset = ? AND kind IN ('buy', 'sell') AND rowid >= ? ORDER BY rowid", p.asset, start.r)
+        : rows("SELECT kind, quantity, amount_eur, fee_eur FROM trader_ledger WHERE asset = ? AND kind IN ('buy', 'sell') AND at >= ? ORDER BY at, rowid", p.asset, p.opened_at);
       const buys = moves.filter((m) => m.kind === "buy").length;
       if (buys < 2) continue;
       let held = 0;
@@ -177,7 +190,7 @@ try {
       averaged += 1;
       const gap = p.quantity * (p.avg_cost - avg);
       say(`- ${p.asset} : ${buys} achats, coût moyen enregistré ${price(p.avg_cost)} contre ${price(avg)} d'après le registre, ` +
-        `écart ${fr(gap)} € sur la position${Math.abs(held - p.quantity) > 1e-6 ? ` (attention : le registre donne ${held} unités, la position ${p.quantity})` : ""}`);
+        `écart ${fr(gap)} € sur la position${Math.abs(held - p.quantity) > 1e-6 ? ` (attention : le registre donne ${fr(held, 8)} unités, la position ${fr(p.quantity, 8)})` : ""}`);
       if (Math.abs(gap) >= 0.01) problems += 1;
     }
     if (averaged === 0) say("- aucune");
@@ -186,7 +199,7 @@ try {
     const counts = rows("SELECT (SELECT COUNT(*) FROM trader_orders WHERE status = 'filled') AS fills, (SELECT COUNT(*) FROM trader_positions WHERE quantity > 0) AS open")[0];
     say(`Parcouru : ${count(counts.fills, "ordre exécuté", "ordres exécutés")}, ${count(counts.open, "position ouverte", "positions ouvertes")}.`);
     say(problems === 0
-      ? "Conclusion : rien à réparer. L'étape 0.3 peut être déployée sans procédure de réparation."
+      ? "Conclusion : rien à réparer dans cette copie. L'étape 0.3 peut être déployée sans procédure de réparation ; ce qui a pu arriver après la copie est détecté par la nouvelle version elle-même (incident « courtier virtuel »)."
       : `Conclusion : ${count(problems, "point", "points")} à examiner. Rien n'a été modifié ; une réparation éventuelle demande une procédure séparée et ton accord.`);
   }
 } catch (err) {

@@ -720,7 +720,7 @@ export function createTraderTools(): AutomatonTool[] {
         const db = ctx.db.raw;
         const r = updatePosition(db, activeConfig(db, ctx.config.trader), { asset: args.asset, field: args.field, value: args.value, reason: args.reason });
         if (!r.ok) return `Refused: ${r.error}`;
-        return `Position ${r.value.asset}: stop ${r.value.invalidation ?? "none"} EUR, horizon ${r.value.horizonUntil ?? "none"}.`;
+        return `Position ${r.value.asset}: stop ${r.value.invalidation === null ? "none" : plainPrice(r.value.invalidation)} EUR, horizon ${r.value.horizonUntil ?? "none"}.`;
       },
     },
     {

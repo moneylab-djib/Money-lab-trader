@@ -32,6 +32,7 @@ import { latestHistoricalTest } from "./historical.js";
 import { getPrediction, type Prediction } from "./predictions.js";
 import { getPredictionSnapshot, skillBetween } from "./snapshot.js";
 import { getOrder, getTrade } from "./portfolio.js";
+import { fmtPrice, priceEn } from "./format.js";
 import { getDecision } from "./decisions.js";
 import { mentionedAssets } from "./dossiers.js";
 import { isoSeconds, priceAtOrBefore } from "./prices.js";
@@ -154,7 +155,9 @@ class Sheet {
   facts: Fact[] = [];
   add(role: Role, labelEn: string, labelFr: string, value: number | null | undefined, unit: FactUnit, signed = false): void {
     if (value === null || value === undefined || !Number.isFinite(value) || this.facts.length >= CONSISTENCY_MAX_FACTS) return;
-    this.facts.push({ key: `F${this.facts.length + 1}`, role, labelEn, labelFr, value: Math.round(value * 10_000) / 10_000, unit, signed });
+    // Below 1 (a price under 1 EUR, step 0.3) significant digits are kept: 4 decimals turned 3.5e-6 EUR into 0.
+    const rounded = unit === "eur" && Math.abs(value) < 1 ? Number(value.toPrecision(8)) : Math.round(value * 10_000) / 10_000;
+    this.facts.push({ key: `F${this.facts.length + 1}`, role, labelEn, labelFr, value: rounded, unit, signed });
   }
 }
 
@@ -259,7 +262,7 @@ export function factSheet(db: DB, cfg: TraderConfig, source: CheckSource, row: T
       sheet.add("price", `${d.asset} price at the decision`, `prix du ${d.asset} au moment de la décision`, d.price, "eur");
       if (d.positionEur > 0) {
         sheet.add("position", `value of the ${d.asset} position`, `valeur de la position ${d.asset}`, d.positionEur, "eur");
-        if (d.equityEur > 0) sheet.add("share", `${d.asset} position as a share of the portfolio`, `part du ${d.asset} dans le portefeuille`, (d.positionEur / d.equityEur) * 100, "pct");
+        if (Number.isFinite(d.equityEur) && d.equityEur > 0) sheet.add("share", `${d.asset} position as a share of the portfolio`, `part du ${d.asset} dans le portefeuille`, (d.positionEur / d.equityEur) * 100, "pct");
       }
       sheet.add("equity", "portfolio value", "valeur du portefeuille", d.equityEur, "eur");
       marketFacts(db, sheet, d.asset, d.madeAt, false, false);
@@ -304,7 +307,7 @@ export function consistencySubject(db: DB, cfg: TraderConfig, source: CheckSourc
 }
 
 const enNumber = (f: Fact) => {
-  const v = f.unit === "eur" ? f.value.toFixed(2) : f.unit === "brier" ? f.value.toFixed(3) : f.value.toFixed(2);
+  const v = f.unit === "eur" ? priceEn(f.value) : f.unit === "brier" ? f.value.toFixed(3) : f.value.toFixed(2);
   const sign = f.signed && f.value > 0 ? "+" : "";
   const unit = f.unit === "eur" ? " EUR" : f.unit === "sigma" ? " sigmas" : f.unit === "brier" ? "" : " %";
   return `${sign}${v}${unit}`;
@@ -555,7 +558,7 @@ export function factValueFr(f: Fact): string {
   switch (f.unit) {
     case "pct": return `${sign}${frNumber(f.value, 2)} %`;
     case "prob": return `${frNumber(f.value, 0)} %`;
-    case "eur": return `${sign}${frNumber(f.value, 2)} €`;
+    case "eur": return `${sign}${Math.abs(f.value) < 1 && f.value !== 0 ? fmtPrice(f.value).replace(" €", "").replace(/\u202f/g, " ") : frNumber(f.value, 2)} €`;
     case "sigma": return `${sign}${frNumber(f.value, 2)} σ`;
     case "brier": return frNumber(f.value, 3);
   }

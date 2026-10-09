@@ -211,7 +211,8 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    au centime) ; le glissement de 0,05 % s'applique à tous les prix, donc un aller-retour de 100 € coûte
    1,69 € partout (USDC : 1,69 € au lieu de 1,59 €, le chiffre juste) ; les actifs à moins de 0,01 € sont
    permis, sans prix plancher. BTC et ETH : mêmes résultats, sauf environ 1 aller-retour sur 1 000 (BTC) et
-   1 sur 100 (ETH) qui bouge d'un centime, la nouvelle valeur étant l'exacte. Aucun prix nul, quantité
+   1 sur 100 (ETH) qui bouge d'un centime (l'or PAXG aussi 1 sur 100, les actions 1 sur 10), jamais
+   plus, la nouvelle valeur étant l'exacte. Aucun prix nul, quantité
    infinie ou NaN n'est plus écrit : le code refuse l'ordre (« refusé par le code : … » dans
    `/portefeuille`, incident « courtier virtuel » dans `/technique`). Un ordre en panne ne bloque plus les
    autres, ni les stops, ni l'instantané du jour ; un stop refusé retrouve son niveau. Une position déjà

@@ -182,13 +182,14 @@ export function positionProblem(p: { quantity: number; avgCost: number }): Posit
 }
 
 /** Why code refuses to fill an order: the note keeps the code, /portefeuille shows the French text. */
-export type RejectReason = "price" | "quantity" | "amount" | "position" | "nothing";
+export type RejectReason = "price" | "quantity" | "amount" | "position" | "nothing" | "suspended";
 const REJECT_EN: Record<RejectReason, string> = {
   price: "the fill price is not a positive number",
   quantity: "the quantity is not a positive finite number",
   amount: "an amount in EUR is not a finite number",
   position: "the stored position holds figures code cannot use",
   nothing: "there is no position to sell",
+  suspended: "buys are suspended while a stored position cannot be valued (the portfolio value and the position cap are unknown)",
 };
 const REJECT_FR: Record<RejectReason, string> = {
   price: "prix d'exécution nul, négatif ou non fini",
@@ -196,13 +197,33 @@ const REJECT_FR: Record<RejectReason, string> = {
   amount: "montant en euros non fini",
   position: "la position enregistrée a des chiffres invalides",
   nothing: "aucune position à vendre",
+  suspended: "achats suspendus tant qu'une position enregistrée ne peut pas être évaluée (valeur du portefeuille et plafond inconnus)",
 };
-const REJECT_NOTE = /^rejected by code \((price|quantity|amount|position|nothing)\)(?:: [^[]*)?(?: \[(.*)\])?$/;
+const REJECT_NOTE = /^rejected by code \((price|quantity|amount|position|nothing|suspended)\)(?:: [^[]*)?(?: \[(.*)\])?$/;
+
+/** The figures a rejection names, in French for the owner (the note keeps code's names for the model). */
+const FIGURE_FR: Record<string, string> = {
+  price: "prix du marché", fill_price: "prix d'exécution", quantity: "quantité", total_quantity: "quantité totale", avg_cost: "coût moyen",
+  amount: "montant", fee: "frais", slippage: "glissement", proceeds: "produit de la vente", entry_fee: "frais d'achat", cost: "coût",
+  pnl: "résultat", pnl_pct: "résultat en %", left: "reste", value: "valeur",
+};
+const VALUE_FR = (v: string) => (v === "Infinity" ? "infini" : v === "-Infinity" ? "moins l'infini" : v === "NaN" ? "indéfini" : v.replace(".", ","));
+
+/** "quantity=Infinity" → "quantité = infini"; a position problem code → its French label. */
+function detailFr(reason: RejectReason, detail: string): string {
+  if (!detail) return "";
+  if (reason === "position" && detail in POSITION_PROBLEM_FR) return POSITION_PROBLEM_FR[detail as PositionProblem];
+  const m = /^(\w+)=(.*)$/.exec(detail);
+  return m ? `${FIGURE_FR[m[1]] ?? m[1]} = ${VALUE_FR(m[2])}` : detail;
+}
 
 /** The French reading of a note left by a rejection, or null for any other note. */
 export function rejectionNoteFr(note: string | null): string | null {
   const m = REJECT_NOTE.exec(note ?? "");
-  return m ? `refusé par le code : ${REJECT_FR[m[1] as RejectReason]}${m[2] ? ` (${m[2]})` : ""}` : null;
+  if (!m) return null;
+  const reason = m[1] as RejectReason;
+  const detail = detailFr(reason, m[2] ?? "");
+  return `refusé par le code : ${REJECT_FR[reason]}${detail ? ` (${detail})` : ""}`;
 }
 
 // ─── Reads ──────────────────────────────────────────────────────
@@ -351,9 +372,9 @@ export function suspensionReason(v: Valuation): string | null {
 export function suspensionFr(v: Valuation): string | null {
   if (v.complete) return null;
   const what = v.invalid.length
-    ? v.invalid.map((p) => `la position ${p.asset} (${POSITION_PROBLEM_FR[p.problem]})`).join(", ")
+    ? v.invalid.map((p) => `la position ${p.asset} (${POSITION_PROBLEM_FR[p.problem]})`).join(" ni ")
     : "le registre des liquidités";
-  return `${what} ne peut pas être évaluée : la valeur totale et le plafond par position sont inconnus. Achats et décisions suspendus jusqu'à réparation (ton accord nécessaire) ; les ventes et les stops des autres positions continuent.`;
+  return `impossible d'évaluer ${what} : la valeur totale et le plafond par position sont inconnus. Achats et décisions suspendus jusqu'à réparation (ton accord nécessaire) ; les ventes et les stops des autres positions continuent.`;
 }
 
 // ─── Capital, contributions, snapshots ──────────────────────────
@@ -593,8 +614,9 @@ function rejectOrder(db: DB, order: Order, reason: RejectReason, detail: string,
   const changed = db.prepare("UPDATE trader_orders SET status = 'rejected', settled_at = ?, note = ? WHERE id = ? AND status = 'pending'")
     .run(isoSeconds(now), note, order.id).changes;
   if (changed !== 1) return null;
+  const fr = detailFr(reason, detail);
   recordIncident(db, "broker", `ordre ${order.id} (${order.side === "buy" ? "achat" : "vente"} ${order.asset}) refusé par le courtier virtuel : ` +
-    `${REJECT_FR[reason]}${detail ? ` (${detail})` : ""}. Rien n'a été inscrit au registre.`, now);
+    `${REJECT_FR[reason]}${fr ? ` (${fr})` : ""}. Rien n'a été inscrit au registre.`, now);
   return getOrder(db, order.id)!;
 }
 
@@ -624,6 +646,9 @@ function applyFill(db: DB, cfg: TraderConfig, order: Order, price: number, slipp
   if (!positive(price)) return reject("price", `price=${price}`);
   let trade: Trade | null = null;
   if (order.side === "buy") {
+    // A buy placed before a stored position went bad (or by the old code, whose cap was then infinite) does not
+    // fill while the total and the position cap are unknown.
+    if (!valuation(db).complete) return reject("suspended", "");
     const amount = order.amountEur!;
     const fillPrice = roundPrice(price * (1 + slippageFraction));
     const fee = round2(amount * (feePct / 100));
@@ -729,11 +754,19 @@ function brokerIncidentOnce(db: DB, key: string, message: string, now: Date): vo
 /**
  * Code places a stop by clearing the position's invalidation level. When that stop is rejected, the level is
  * put back once a day (the next tick places the stop again) so the position is never left without a stop
- * silently; a second rejection the same day leaves it without one, with an incident.
+ * silently; a second rejection the same day leaves it without one, with an incident. A last resort: with a
+ * positive price and a valid position a stop's fill cannot be rejected. A position code cannot value is not
+ * touched (no stop is possible on it; its history is not repaired by code).
  */
-function restoreStopLevel(db: DB, order: Order, now: Date): void {
+export function restoreStopLevel(db: DB, order: Order, now: Date): void {
   const position = getPosition(db, order.asset);
   if (!position || position.invalidation !== null) return;
+  if (positionProblem(position)) {
+    // A position code cannot value gets no stop: nothing is written on it (history is not repaired by code).
+    brokerIncidentOnce(db, `sonni.stop_impossible.${order.asset}`,
+      `stop de ${order.asset} refusé : la position enregistrée a des chiffres invalides, aucun stop possible tant qu'elle n'est pas réparée (ton accord nécessaire).`, now);
+    return;
+  }
   const row = db.prepare(
     "SELECT old_value FROM trader_position_updates WHERE asset = ? AND field = 'invalidation' AND by = 'code' AND new_value IS NULL ORDER BY at DESC, id DESC LIMIT 1",
   ).get(order.asset) as { old_value: string | null } | undefined;
@@ -849,6 +882,8 @@ export function updatePosition(
   const asset = String(input.asset ?? "").toUpperCase().trim();
   const position = getPosition(db, asset);
   if (!position) return { ok: false, error: `No open position in ${asset || "(none)"}.` };
+  const problem = positionProblem(position);
+  if (problem) return { ok: false, error: `The stored ${asset} position cannot be used (${POSITION_PROBLEM_EN[problem]}): code places no stop on it and it cannot be managed until the owner repairs it.` };
   const reason = cleanThesis(input.reason);
   if (!reason.ok) return { ok: false, error: reason.error.replace("The thesis", "The reason") };
   const field = String(input.field ?? "");

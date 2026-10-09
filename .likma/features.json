@@ -1599,7 +1599,7 @@
         "WHEN a stored position holds figures code cannot use, THE SYSTEM SHALL report it explicitly, SHALL show the portfolio total as unknown rather than a partial figure, and SHALL suspend buys, decisions and snapshots while the total cannot be computed, while sales and stops of valid positions keep working",
         "WHEN a unit price below 1 EUR is shown to the owner or the model, THE SYSTEM SHALL show at least 5 significant digits without exponent; prices from 1 EUR keep their current text",
         "THE SYSTEM SHALL provide a strictly read-only audit of a copy of the database (never the active file) that reports non-finite rows, zero prices and averaged positions whose cost drifted under cent rounding",
-        "Strategy, order rules, configured fees and slippage, the universe (no price floor), decisions and their scoring, the SQLite schema, stored history and BTC/ETH results to the cent are unchanged; no paid call, no real trading"
+        "Strategy, order rules, configured fees and slippage, the universe (no price floor), decisions and their scoring, the SQLite schema and stored history are unchanged; BTC and ETH results stay within 1 cent of before (the cent of sale proceeds a cent-rounded fill price moved); no paid call, no real trading"
       ],
       "status": "planned",
       "paths": [

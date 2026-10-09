@@ -19,7 +19,7 @@ import type { TraderConfig } from "./config.js";
 import { EVENT_LABEL_FR, type EventType } from "./events.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter, priceAtOrBefore, type PricePoint } from "./prices.js";
 import type { SoulResult } from "./soul.js";
-import { listPositions } from "./portfolio.js";
+import { listPositions, positionProblem } from "./portfolio.js";
 import { plainPrice } from "./format.js";
 
 type DB = Database.Database;
@@ -215,7 +215,7 @@ export function cancelWatch(db: DB, id: unknown, now: Date = new Date()): SoulRe
 
 export function describeWatch(w: Watch): string {
   const cond = w.kind === "price"
-    ? `${w.asset} ${w.direction} ${w.value} EUR`
+    ? `${w.asset} ${w.direction} ${plainPrice(w.value!)} EUR`
     : w.kind === "move"
       ? `${w.asset} moves ${w.value} % or more within ${w.windowHours} h`
       : `at ${w.dueAt!.slice(0, 16).replace("T", " ")} UTC`;
@@ -317,13 +317,14 @@ export function evaluateTriggers(db: DB, cfg: TraderConfig, now: Date = new Date
   const unplanned = settled.filter((o) => o.origin === "stop" || o.status === "expired");
   if (unplanned.length > 0) {
     const summary = unplanned.slice(0, 5).map((o) =>
-      `${o.id} ${o.origin === "stop" ? "STOP " : ""}${o.side} ${o.asset} ${o.status}${o.fill_price ? ` at ${o.fill_price} EUR` : ""}`).join(", ");
+      `${o.id} ${o.origin === "stop" ? "STOP " : ""}${o.side} ${o.asset} ${o.status}${o.fill_price ? ` at ${plainPrice(o.fill_price)} EUR` : ""}`).join(", ");
     out.push({ key: "orders", reason: `${unplanned.length} order(s) settled by code without your decision: ${summary}${unplanned.length > 5 ? ", ..." : ""}` });
   }
   if (settled.length > 0) setKV(db, KV_SETTLED_REPORTED, settled[settled.length - 1].settled_at);
   const nowIso = isoSeconds(now);
   for (const p of listPositions(db)) {
-    if (!p.horizonUntil || p.horizonUntil > nowIso) continue;
+    // A position code cannot value cannot be sold or managed: no paid wake for its horizon (step 0.3).
+    if (!p.horizonUntil || p.horizonUntil > nowIso || positionProblem(p)) continue;
     const key = `horizon:${p.asset}:${p.horizonUntil}`;
     if (!lastWakeAt(db, key)) out.push({ key, reason: `your ${p.asset} position reached its horizon (${p.horizonUntil}): keep it with a new horizon (manage_position) or sell` });
   }

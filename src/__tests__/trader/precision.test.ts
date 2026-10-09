@@ -18,8 +18,10 @@ import { applyTraderProfile, DEFAULT_PORTFOLIO, parseTraderConfig, type TraderCo
 import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
 import {
-  availableQuantity, brokerTick, getPosition, listTrades, performance, placeOrder, rejectionNoteFr, roundPrice, snapshots, valuation,
+  availableQuantity, brokerTick, getOrder, getPosition, listTrades, performance, placeOrder, rejectionNoteFr, restoreStopLevel, roundPrice, snapshots, updatePosition, valuation,
 } from "../../trader/portfolio.js";
+import { describeWatch, evaluateTriggers } from "../../trader/curiosity.js";
+import { consistencySubject, factValueFr } from "../../trader/brainchecks.js";
 import { decisionsDue, decisionsPackLines, recordDecision } from "../../trader/decisions.js";
 import { fmtEur, fmtPrice, plainPrice, priceEn } from "../../trader/format.js";
 import { listIncidents } from "../../trader/incidents.js";
@@ -292,7 +294,7 @@ describe("Nothing invalid is written: a bad fill is rejected and the rest goes o
     expect(out.rejected).toHaveLength(1);
     expect(out.rejected[0]).toMatchObject({ asset: "TINY", status: "rejected" });
     expect(out.rejected[0].note).toMatch(/^rejected by code \(quantity\): the quantity is not a positive finite number \[quantity=Infinity\]$/);
-    expect(rejectionNoteFr(out.rejected[0].note)).toBe("refusé par le code : quantité nulle, négative ou non finie (quantity=Infinity)");
+    expect(rejectionNoteFr(out.rejected[0].note)).toBe("refusé par le code : quantité nulle, négative ou non finie (quantité = infini)");
     expect(out.fills.map((f) => f.order.asset)).toEqual(["BTC"]); // the next order still fills in the same tick
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_ledger WHERE asset = 'TINY'").get()).toEqual({ n: 0 });
     expect(getPosition(db.raw, "TINY")).toBeUndefined();
@@ -331,25 +333,24 @@ describe("Nothing invalid is written: a bad fill is rejected and the rest goes o
     db.close();
   });
 
-  it("a rejected stop puts its level back once a day, and says so when it cannot", () => {
+  it("a rejected stop puts its level back once a day, and says so when it cannot (a last resort)", () => {
     const db = funded();
     trade(db, 1, "ETH", 2_000, { side: "buy", amountEur: 100, invalidation: 1_900 });
-    const corrupt = () => db.raw.prepare("UPDATE trader_positions SET avg_cost = 0 WHERE asset = 'ETH'").run();
-    const repair = () => db.raw.prepare("UPDATE trader_positions SET avg_cost = 2001 WHERE asset = 'ETH'").run();
     storePrice(db, "ETH", hours(2), 1_890);
-    expect(brokerTick(db.raw, TRADER, hours(2)).stops).toHaveLength(1);
+    const [stop] = brokerTick(db.raw, TRADER, hours(2)).stops;
     expect(getPosition(db.raw, "ETH")!.invalidation).toBeNull();
-    corrupt(); // the stored position goes bad before the stop fills
-    storePrice(db, "ETH", hours(2.1), 1_885);
-    expect(brokerTick(db.raw, TRADER, hours(2.1)).rejected[0]).toMatchObject({ origin: "stop", status: "rejected" });
+    // With a positive price and a valid position a stop's fill cannot be rejected: the rejection is simulated.
+    db.raw.prepare("UPDATE trader_orders SET status = 'rejected', settled_at = ?, note = 'rejected by code (amount): test' WHERE id = ?").run(isoSeconds(hours(2.1)), stop.id);
+    restoreStopLevel(db.raw, getOrder(db.raw, stop.id)!, hours(2.1));
     expect(getPosition(db.raw, "ETH")!.invalidation).toBe(1_900);
+    const update = db.raw.prepare("SELECT new_value, reason, by FROM trader_position_updates WHERE asset = 'ETH' ORDER BY at DESC, id DESC LIMIT 1").get() as any;
+    expect(update).toMatchObject({ new_value: "1900", by: "code", reason: expect.stringContaining("level restored") });
     expect(listIncidents(db.raw).some((i) => i.message.includes("stop de ETH refusé") && i.message.includes("rétabli"))).toBe(true);
-    repair();
     storePrice(db, "ETH", hours(2.2), 1_880);
-    expect(brokerTick(db.raw, TRADER, hours(2.2)).stops).toHaveLength(1); // placed again
-    corrupt();
-    storePrice(db, "ETH", hours(2.3), 1_875);
-    brokerTick(db.raw, TRADER, hours(2.3));
+    const [again] = brokerTick(db.raw, TRADER, hours(2.2)).stops; // the next tick places the stop again
+    expect(again.asset).toBe("ETH");
+    db.raw.prepare("UPDATE trader_orders SET status = 'rejected', settled_at = ?, note = 'rejected by code (amount): test' WHERE id = ?").run(isoSeconds(hours(2.3)), again.id);
+    restoreStopLevel(db.raw, getOrder(db.raw, again.id)!, hours(2.3));
     expect(getPosition(db.raw, "ETH")!.invalidation).toBeNull(); // the second time that day: no loop
     expect(listIncidents(db.raw).some((i) => i.message.includes("reste sans stop jusqu'à demain"))).toBe(true);
     db.close();
@@ -422,7 +423,7 @@ describe("A corrupt position stored before step 0.3 is reported, never valued, a
       formatSelfReportFr(selfReport(db.raw, TRADER, 193, hours(2.5))),
     ];
     for (const text of views) expect(text).not.toMatch(BROKEN);
-    expect(views[0]).toContain("⚠️ Valeur non fiable, total inconnu : la position PUMP (quantité non finie ou invalide) ne peut pas être évaluée");
+    expect(views[0]).toContain("⚠️ Valeur non fiable, total inconnu : impossible d'évaluer la position PUMP (quantité non finie ou invalide) : la valeur totale et le plafond par position sont inconnus.");
     expect(views[0]).toContain("PUMP : chiffres invalides (quantité non finie ou invalide), non évaluée ; ni vendue ni stoppée par le code");
     expect(views[0]).not.toMatch(/^Valeur \d/m);
     expect(views[2]).toContain("valeur non fiable, total inconnu");
@@ -466,6 +467,43 @@ describe("A corrupt position stored before step 0.3 is reported, never valued, a
     db.close();
   });
 
+  it("an old stop and an old buy left pending are rejected without touching the stored position; no paid wake, no management", () => {
+    const db = legacy();
+    // What the old code left when PUMP's stop triggered: the level cleared by code and a sale of Infinity units pending.
+    db.raw.prepare("UPDATE trader_positions SET invalidation = NULL WHERE asset = 'PUMP'").run();
+    db.raw.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES ('u_old', 'PUMP', ?, 'invalidation', '0.0028', NULL, 'stop triggered', 'code')").run(isoSeconds(hours(2.5)));
+    const pending = (id: string, side: string, extra: string) => db.raw.prepare(`INSERT INTO trader_orders (id, placed_at, asset, side, kind, amount_eur, quantity, limit_price, thesis, probability, invalidation, horizon_until, hypothesis_ids, origin, status)
+      VALUES (?, ?, ?, ?, ?, ${extra}, ?, NULL, NULL, ?, '[]', ?, 'pending')`).run(id, isoSeconds(hours(2.5)), side === "sell" ? "PUMP" : "ETH", side, side === "sell" ? "market" : "limit", THESIS, isoSeconds(hours(200)), side === "sell" ? "stop" : "model");
+    pending("o_oldstop", "sell", "NULL, 9e999, NULL");
+    pending("o_oldbuy", "buy", "290, NULL, 1900"); // the old cap was computed against an infinite total
+    const dump = () => JSON.stringify([db.raw.prepare("SELECT * FROM trader_positions WHERE asset = 'PUMP'").all(), db.raw.prepare("SELECT * FROM trader_position_updates").all()]);
+    const before = dump();
+    storePrice(db, "PUMP", hours(3), 0.0025);
+    storePrice(db, "ETH", hours(3), 1_850);
+    const out = brokerTick(db.raw, TRADER, hours(3));
+    expect(out.rejected.map((o) => [o.id, o.note!.split(":")[0]]).sort()).toEqual([["o_oldbuy", "rejected by code (suspended)"], ["o_oldstop", "rejected by code (position)"]]);
+    expect(out.fills).toEqual([]);
+    expect(getPosition(db.raw, "ETH")).toBeUndefined();
+    expect(dump()).toBe(before); // no level "restored" on a position code cannot value
+    const messages = listIncidents(db.raw).map((i) => i.message);
+    expect(messages.some((m) => m.includes("stop de PUMP refusé : la position enregistrée a des chiffres invalides, aucun stop possible"))).toBe(true);
+    expect(messages.some((m) => m.includes("rétabli"))).toBe(false);
+    expect(messages.some((m) => m.includes("achats suspendus tant qu'une position enregistrée ne peut pas être évaluée"))).toBe(true);
+    // No paid wake for the horizon of a position that can be neither sold nor managed.
+    expect(evaluateTriggers(db.raw, TRADER, hours(4)).map((t) => t.key).filter((k) => k.startsWith("horizon:PUMP"))).toEqual([]);
+    expect(updatePosition(db.raw, TRADER, { asset: "PUMP", field: "invalidation", value: 0.002, reason: "Je protège la position avec un stop plus bas." }, hours(4)))
+      .toMatchObject({ ok: false, error: expect.stringContaining("The stored PUMP position cannot be used") });
+    db.close();
+  });
+
+  it("an old decision stored with an infinite portfolio value gives the second brain no share figure", () => {
+    const db = legacy();
+    db.raw.prepare("INSERT INTO trader_decisions (id, made_at, asset, action, reason, price, position_eur, equity_eur, order_id) VALUES ('d_old', ?, 'BTC', 'hold', 'Je garde le BTC : la position fait 10 % du portefeuille.', 60000, 100, 9e999, NULL)").run(isoSeconds(hours(2.5)));
+    const subject = consistencySubject(db.raw, TRADER, "decision", "d_old")!;
+    expect(subject.facts.map((f) => f.role)).not.toContain("share");
+    db.close();
+  });
+
   it("the legacy rows stay as stored; readers skip what they cannot use", () => {
     const db = legacy();
     const dump = () => JSON.stringify(["trader_ledger", "trader_orders", "trader_positions", "trader_portfolio_days"].map((t) =>
@@ -504,6 +542,19 @@ describe("Small prices are readable for the owner and the model (prices from 1 E
       expect(priceEn(bad)).toBe("n/a");
     }
     expect(plainPrice(7.7e-8)).toBe("0.000000077");
+    expect(describeWatch({ id: "w_1", kind: "price", asset: "MOG", direction: "below", value: 9.5e-7, windowHours: null, dueAt: null, note: "test" } as any)).toBe("w_1 [price] MOG below 0.00000095 EUR — test");
+    const fact = (value: number) => ({ key: "F1", role: "price", labelEn: "price", labelFr: "prix", value, unit: "eur", signed: false }) as any;
+    expect(factValueFr(fact(0.0048874))).toBe("0,0048874 €");
+    expect(factValueFr(fact(61_650.12))).toBe("61 650,12 €");
+    expect(factValueFr(fact(0.8))).toBe("0,80 €");
+    // Through code's fact sheet: a decision on PUMP keeps its price (4 decimals made it 0.0049, and 3.5e-6 became 0).
+    const db = funded();
+    storePrice(db, "PUMP", hours(1), 0.004885);
+    const d = recordDecision(db.raw, TRADER, { asset: "PUMP", action: "stay_out", reason: "Je reste en dehors de PUMP : trop peu d'historique pour juger." }, hours(1));
+    expect(d.ok).toBe(true);
+    const facts = consistencySubject(db.raw, TRADER, "decision", (d as any).value.id)!.facts;
+    expect(facts.find((f) => f.role === "price")!.value).toBe(0.004885);
+    db.close();
     expect(plainPrice(0.0048874425)).toBe("0.0048874425");
     expect(plainPrice(55_000)).toBe("55000");
   });
@@ -574,7 +625,34 @@ describe("Read-only price audit of a database copy (sonni/vps/audit-prix.mjs)", 
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain("1. Chiffres invalides (prix nul, quantité nulle ou infinie, montant infini)\n- aucun");
     expect(r.stdout).toMatch(/USDC : 2 achats, .* écart 0,00 € sur la position/);
-    expect(r.stdout).toContain("Conclusion : rien à réparer.");
+    expect(r.stdout).toContain("Conclusion : rien à réparer dans cette copie.");
+  });
+
+  it("replays an averaged position from its own opening order, not the previous position's sale in the same tick", () => {
+    const file = path.join(tmp("sonni-audit-"), "state.db.backup-2026-10-11");
+    const db = openDb(file);
+    storePrice(db, "BTC", T0, 60_000);
+    brokerTick(db.raw, TRADER, T0);
+    trade(db, 1, "USDC", 0.86, buy(100, 0.86));
+    // A sale of everything and a new buy filled at the same price point: the new position opens at the sale's time.
+    storePrice(db, "USDC", hours(2), 0.87);
+    expect(placeOrder(db.raw, TRADER, { asset: "USDC", side: "sell", quantity: "all", thesis: THESIS }, hours(2)).ok).toBe(true);
+    expect(placeOrder(db.raw, TRADER, { asset: "USDC", thesis: THESIS, ...buy(50, 0.87) } as any, hours(2.01)).ok).toBe(true);
+    storePrice(db, "USDC", hours(2.1), 0.87);
+    brokerTick(db.raw, TRADER, hours(2.1));
+    trade(db, 3, "USDC", 0.88, buy(30, 0.88));
+    db.close();
+    const r = run(file);
+    expect(r.stdout).toMatch(/USDC : 2 achats, .* écart 0,00 € sur la position\n/);
+    expect(r.stdout).toContain("Conclusion : rien à réparer dans cette copie.");
+  });
+
+  it("leaves no copy behind in the temporary folder", () => {
+    const file = seededCopy();
+    const tmpRoot = tmp("sonni-audit-tmp-");
+    const r = spawnSync(process.execPath, [SCRIPT, file], { encoding: "utf-8", env: { ...process.env, HOME: tmp("sonni-audit-home-"), TMPDIR: tmpRoot } });
+    expect(r.status, r.stderr).toBe(0);
+    expect(fs.readdirSync(tmpRoot)).toEqual([]);
   });
 
   it("refuses the active database: state.db, a file with -wal or -shm beside it, or ~/.automaton/state.db", () => {
@@ -590,6 +668,9 @@ describe("Read-only price audit of a database copy (sonni/vps/audit-prix.mjs)", 
     const r2 = run(copy);
     expect(r2.status).toBe(2);
     expect(r2.stderr).toContain("un fichier -wal ou -shm est à côté");
+    fs.rmSync(`${copy}-wal`);
+    fs.writeFileSync(`${copy}-shm`, "");
+    expect(run(copy).stderr).toContain("un fichier -wal ou -shm est à côté");
     const home = tmp("sonni-audit-home-");
     fs.mkdirSync(path.join(home, ".automaton"));
     fs.copyFileSync(live, path.join(home, ".automaton", "state.db"));
@@ -598,6 +679,11 @@ describe("Read-only price audit of a database copy (sonni/vps/audit-prix.mjs)", 
     const r3 = spawnSync(process.execPath, [SCRIPT, linked], { encoding: "utf-8", env: { ...process.env, HOME: home } });
     expect(r3.status).toBe(2);
     expect(r3.stderr).toContain("Refusé : c'est la base active de Sonni");
+    const symlink = path.join(dir, "raccourci.db");
+    fs.symlinkSync(path.join(home, ".automaton", "state.db"), symlink);
+    const r4 = spawnSync(process.execPath, [SCRIPT, symlink], { encoding: "utf-8", env: { ...process.env, HOME: home } });
+    expect(r4.status).toBe(2);
+    expect(r4.stderr).toContain("Refusé : c'est la base active de Sonni");
     expect(run(path.join(dir, "absent.db")).status).toBe(2);
   });
 });

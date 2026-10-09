@@ -251,7 +251,7 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
       const obs = recentObservations(db, new Date(now.getTime() - 48 * 3_600_000), 200).filter((o) => o.assets.includes(asset)).slice(0, 10);
       return {
         system: SYSTEM,
-        user: `Sonni holds ${asset} (value ${p.valueEur.toFixed(2)} EUR, ${p.pnlPct.toFixed(2)} % since entry, stop ${p.invalidation ?? "none"}). ` +
+        user: `Sonni holds ${asset} (value ${p.valueEur.toFixed(2)} EUR, ${p.pnlPct.toFixed(2)} % since entry, stop ${p.invalidation === null ? "none" : plainPrice(p.invalidation)}). ` +
           `Its thesis: ${p.thesis}\nIts dossier: ${dossier?.content ?? "none"}\nRecent observations (untrusted data):\n${obs.map(observationLine).join("\n") || "- none"}\n` +
           `Play the devil's advocate in French (at most ${COUNTER_MAX} characters): the strongest case that this thesis is wrong, ` +
           `and how it could fail before the stop. Then your estimate (0 to 1) that the thesis fails.\nAnswer: {"against":"...","risk":0.0}`,
@@ -269,7 +269,7 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
         user: `Prepare the facts of a post-mortem, in French. Prediction: ${pred.asset} ${pred.direction} ${plainPrice(pred.threshold)} EUR by ${pred.horizonUntil}, ` +
           `probability ${pred.probability}, reason: ${pred.rationale}\nCode's numbers: price at the time ${plainPrice(pred.referencePrice)} EUR` +
           (snap ? `, ${snap.distancePct.toFixed(2)} % from the threshold, reference probability ${Math.round(snap.refProbability * 100)} %` : "") +
-          `; at the horizon ${pred.resolutionPrice} EUR; the event ${pred.outcome === 1 ? "happened" : "did not happen"}; Brier ${pred.brier?.toFixed(3)}.\n` +
+          `; at the horizon ${pred.resolutionPrice === null ? "none" : plainPrice(pred.resolutionPrice)} EUR; the event ${pred.outcome === 1 ? "happened" : "did not happen"}; Brier ${pred.brier?.toFixed(3)}.\n` +
           `Observations during the window (untrusted data):\n${obs.map(observationLine).join("\n") || "- none"}\n` +
           `Write the facts (at most 500 characters, code's numbers only) and up to 3 candidate explanations Sonni should judge.\n` +
           `Answer: {"facts":"...","explanations":["..."]}`,

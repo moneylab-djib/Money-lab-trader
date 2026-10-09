@@ -245,6 +245,10 @@ exactement comme avant.
 
 ## Mettre Sonni à jour
 
+Pour la mise à jour de l'étape 0.3 (précision des prix), arrête-toi après la ligne `pnpm run build` et fais
+d'abord l'audit en lecture seule décrit plus bas ; ne lance `configure.mjs` et `systemctl restart sonni`
+qu'ensuite.
+
 ```sh
 cd /opt/sonni
 sudo -u sonni -H git fetch origin
@@ -277,8 +281,10 @@ Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.
 Avec la mise à jour de l'étape 0.3 (précision des prix), fais d'abord un **audit en lecture seule** de
-l'historique, après `git pull` et `pnpm install`, et **avant** `systemctl restart sonni`. Il lit la
-dernière copie quotidienne (jamais la base active : il refuse `state.db`) et ne modifie rien :
+l'historique, après `pnpm run build` et **avant** `configure.mjs` et `systemctl restart sonni`. Il lit la
+dernière copie quotidienne (jamais la base active : il refuse `state.db`) et ne modifie rien. Cette copie
+a jusqu'à un jour : ce qui s'est passé depuis, la nouvelle version le détecte elle-même au démarrage
+(incident « courtier virtuel » dans `/technique`, valeur « non fiable » dans `/portefeuille`) :
 ```sh
 ls /home/sonni/.automaton/backups/
 sudo -u sonni -H node sonni/vps/audit-prix.mjs /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ

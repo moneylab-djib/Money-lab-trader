@@ -240,7 +240,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   lines.push(`- ${plural(perf.tradesClosed, "opération close", "opérations closes")}` +
     (perf.winRate !== null ? `, ${Math.round(perf.winRate * 100)} % gagnantes, ${signedPct(perf.avgTradePct!)} en moyenne (après tous les frais)` : "") +
     ` · frais payés ${fmtEur(perf.feesEur)}${perf.stops ? ` · ${plural(perf.stops, "stop déclenché", "stops déclenchés")}` : ""}`);
-  if (!perf.complete) lines.push("- valeur, variations et pire recul : inconnus tant que la position invalide n'est pas réparée");
+  if (!perf.complete) lines.push("- valeur et variations : inconnues tant que les chiffres invalides ne sont pas réparés");
   if (perf.change7dPct !== null) {
     lines.push(`- 7 jours ${signedPct(perf.change7dPct)}${perf.change30dPct !== null ? ` · 30 jours ${signedPct(perf.change30dPct)}` : ""}` +
       `${perf.maxDrawdownPct !== null ? ` · pire recul ${signedPct(-perf.maxDrawdownPct)}` : ""}${perf.firstDay ? ` (depuis le ${fmtDay(perf.firstDay)})` : ""}`);
