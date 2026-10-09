@@ -217,7 +217,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   lines.push(`Valeur ${fmtEur(v.equityEur)} (${signed(v.pnlEur)}, ${signedPct(v.pnlPct)} sur ${fmtEur(v.contributedEur)} versés) · liquidités ${fmtEur(v.cashEur)}`);
   if (v.positions.length === 0) lines.push("Aucune position : tout en liquide.");
   for (const p of v.positions) {
-    lines.push(`${p.asset} : ${p.quantity} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)}) acheté ${fmtEur(p.avgCost)}` +
+    lines.push(`${p.asset} : ${p.quantity} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)} frais d'achat déduits) acheté ${fmtEur(p.avgCost)}` +
       `${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}${p.horizonUntil ? `, revoir ${fmtWhen(p.horizonUntil, tz)}` : ""}` +
       (short ? "" : `
   Raison : ${p.thesis}`));
@@ -228,7 +228,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   const perf = performance(db, cfg, 0, now);
   lines.push("", "Résultats (calculés par le code) :");
   lines.push(`- ${plural(perf.tradesClosed, "opération close", "opérations closes")}` +
-    (perf.winRate !== null ? `, ${Math.round(perf.winRate * 100)} % gagnantes, ${signedPct(perf.avgTradePct!)} en moyenne` : "") +
+    (perf.winRate !== null ? `, ${Math.round(perf.winRate * 100)} % gagnantes, ${signedPct(perf.avgTradePct!)} en moyenne (après tous les frais)` : "") +
     ` · frais payés ${fmtEur(perf.feesEur)}${perf.stops ? ` · ${plural(perf.stops, "stop déclenché", "stops déclenchés")}` : ""}`);
   if (perf.change7dPct !== null) {
     lines.push(`- 7 jours ${signedPct(perf.change7dPct)}${perf.change30dPct !== null ? ` · 30 jours ${signedPct(perf.change30dPct)}` : ""}` +
@@ -241,7 +241,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   }
   const trades = listTrades(db, 5);
   if (trades.length) {
-    lines.push("", "Dernières opérations closes :");
+    lines.push("", "Dernières opérations closes (résultat après tous les frais) :");
     for (const t of trades) {
       lines.push(`- ${t.asset} : ${signed(t.pnlEur)} (${signedPct(t.pnlPct)}), acheté ${fmtEur(t.entryPrice)} vendu ${fmtEur(t.exitPrice)} le ${fmtWhen(t.closedAt, tz)}` +
         `${t.closeReason === "stop" ? ", par le stop" : ""} — ${t.thesis.slice(0, 140)}`);

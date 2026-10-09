@@ -86,9 +86,16 @@ export interface Trade {
   quantity: number;
   entryPrice: number;
   exitPrice: number;
+  /** Fees of the lot: its share of the purchase fees plus the sale fee. */
   feesEur: number;
+  entryFeeEur: number;
+  exitFeeEur: number;
+  /** Result after every fee: the sale's proceeds after its fee, minus what the lot cost with its purchase fees. */
   pnlEur: number;
+  /** pnlEur over what the lot cost, its purchase fees included. */
   pnlPct: number;
+  /** As stored when the trade closed, before the purchase fee (see rowToTrade). */
+  recordedPnlEur: number;
   openOrderId: string;
   closeOrderId: string;
   closeReason: "model" | "stop";
@@ -122,10 +129,22 @@ function rowToPosition(row: any): Position {
   };
 }
 
+/** Trades with the fee of the sale that closed them (trader_trades rows are append-only and never rewritten). */
+const TRADE_SELECT = "SELECT t.*, o.fee_eur AS exit_fee_eur FROM trader_trades t LEFT JOIN trader_orders o ON o.id = t.close_order_id";
+
 function rowToTrade(row: any): Trade {
+  // pnl_eur was recorded as proceeds − sale fee − quantity × entry price, and the entry price is the fill
+  // price: the purchase fee was left out (2026-10-09 audit). fees_eur holds the purchase fee share plus the
+  // sale fee, and the sale order keeps its own fee, so the purchase share is their difference. Should the
+  // sale order be missing, every fee of the lot is counted as a purchase fee: the result can only read lower.
+  const exitFee = row.exit_fee_eur ?? 0;
+  const entryFee = round2(Math.max(0, row.fees_eur - exitFee));
+  const pnl = round2(row.pnl_eur - entryFee);
+  const basis = row.quantity * row.entry_price + entryFee;
   return {
     id: row.id, asset: row.asset, openedAt: row.opened_at, closedAt: row.closed_at, quantity: row.quantity,
-    entryPrice: row.entry_price, exitPrice: row.exit_price, feesEur: row.fees_eur, pnlEur: row.pnl_eur, pnlPct: row.pnl_pct,
+    entryPrice: row.entry_price, exitPrice: row.exit_price, feesEur: row.fees_eur, entryFeeEur: entryFee, exitFeeEur: round2(exitFee),
+    pnlEur: pnl, pnlPct: basis > 0 ? (pnl / basis) * 100 : 0, recordedPnlEur: row.pnl_eur,
     openOrderId: row.open_order_id, closeOrderId: row.close_order_id, closeReason: row.close_reason, thesis: row.thesis,
   };
 }
@@ -176,14 +195,30 @@ export function recentOrders(db: DB, limit = 10, since?: string): Order[] {
 
 export function listTrades(db: DB, limit = 20, since?: string): Trade[] {
   const rows = since
-    ? db.prepare("SELECT * FROM trader_trades WHERE closed_at >= ? ORDER BY closed_at DESC LIMIT ?").all(since, limit)
-    : db.prepare("SELECT * FROM trader_trades ORDER BY closed_at DESC LIMIT ?").all(limit);
+    ? db.prepare(`${TRADE_SELECT} WHERE t.closed_at >= ? ORDER BY t.closed_at DESC LIMIT ?`).all(since, limit)
+    : db.prepare(`${TRADE_SELECT} ORDER BY t.closed_at DESC LIMIT ?`).all(limit);
   return (rows as any[]).map(rowToTrade);
 }
 
 export function getTrade(db: DB, id: string): Trade | undefined {
-  const row = db.prepare("SELECT * FROM trader_trades WHERE id = ?").get(id);
+  const row = db.prepare(`${TRADE_SELECT} WHERE t.id = ?`).get(id);
   return row ? rowToTrade(row) : undefined;
+}
+
+/**
+ * The purchase fees a position still carries: the fees of its buys since it opened, minus the shares already
+ * booked to its earlier sales. A sale books the share of what it sells (the average-cost rule), so the shares
+ * add up to the buy fees in any order of buys and sales (a buy after a partial sale included).
+ */
+function carriedEntryFees(db: DB, asset: string, openedAt: string, openOrderId: string): number {
+  const bought = db.prepare("SELECT COALESCE(SUM(fee_eur), 0) AS f FROM trader_ledger WHERE kind = 'buy' AND asset = ? AND at >= ?")
+    .get(asset, openedAt) as { f: number };
+  // Same purchase share as rowToTrade reads: the lot's fees minus the sale order's fee.
+  const booked = db.prepare(
+    `SELECT COALESCE(SUM(MAX(0, t.fees_eur - COALESCE(o.fee_eur, 0))), 0) AS f FROM trader_trades t
+     LEFT JOIN trader_orders o ON o.id = t.close_order_id WHERE t.asset = ? AND t.open_order_id = ?`,
+  ).get(asset, openOrderId) as { f: number };
+  return Math.max(0, bought.f - booked.f);
 }
 
 export interface Valuation {
@@ -194,8 +229,11 @@ export interface Valuation {
   /** Equity minus contributions: the result of Sonni's decisions, fees included. */
   pnlEur: number;
   pnlPct: number;
-  /** Position values; null price when none is stored. */
-  positions: (Position & { lastPrice: number | null; valueEur: number; pnlEur: number; pnlPct: number })[];
+  /**
+   * Position values; null price when none is stored. A position's result counts the purchase fees it
+   * carries (paid already), not the sale fee still to come.
+   */
+  positions: (Position & { lastPrice: number | null; valueEur: number; entryFeesEur: number; pnlEur: number; pnlPct: number })[];
 }
 
 /** Cash plus positions at the latest stored prices (stale or not: it is a valuation, not a decision). */
@@ -206,8 +244,12 @@ export function valuation(db: DB): Valuation {
     const last = latestPrice(db, p.asset);
     const price = last ? last.price : p.avgCost;
     const value = round2(p.quantity * price);
-    const cost = p.quantity * p.avgCost;
-    return { ...p, lastPrice: last ? last.price : null, valueEur: value, pnlEur: round2(value - cost), pnlPct: cost > 0 ? ((value - cost) / cost) * 100 : 0 };
+    const fees = carriedEntryFees(db, p.asset, p.openedAt, p.openOrderId);
+    const cost = p.quantity * p.avgCost + fees;
+    return {
+      ...p, lastPrice: last ? last.price : null, valueEur: value, entryFeesEur: round2(fees),
+      pnlEur: round2(value - cost), pnlPct: cost > 0 ? ((value - cost) / cost) * 100 : 0,
+    };
   });
   const positionsEur = round2(positions.reduce((s, p) => s + p.valueEur, 0));
   const equity = round2(cash + positionsEur);
@@ -456,17 +498,17 @@ function applyFill(db: DB, cfg: TraderConfig, order: Order, price: number, slipp
       ).run(at, fillPrice, quantity, proceeds, fee, slippage, order.id);
       addLedger(db, { at, kind: "sell", asset: order.asset, quantity, price: fillPrice, amountEur: proceeds - fee, feeEur: fee, orderId: order.id });
       if (position && quantity > 0) {
-        // Fees of the lot: the buy fees in proportion of the quantity sold, plus this sale's fee.
-        const buyFees = (db.prepare("SELECT COALESCE(SUM(fee_eur), 0) AS f, COALESCE(SUM(quantity), 0) AS q FROM trader_ledger WHERE kind = 'buy' AND asset = ? AND at >= ?")
-          .get(order.asset, position.opened_at) as { f: number; q: number });
-        const entryFeeShare = buyFees.q > 0 ? (buyFees.f * quantity) / buyFees.q : 0;
+        // Fees of the lot: the purchase fees the position carries in proportion of the quantity sold, plus this sale's fee.
+        const entryFee = (carriedEntryFees(db, order.asset, position.opened_at, position.open_order_id) * quantity) / position.quantity;
         const cost = quantity * position.avg_cost;
+        // Recorded before the purchase fee, as every trade since the first (the table is append-only):
+        // rowToTrade subtracts the purchase share, so readers get the result after every fee.
         const pnl = round2(proceeds - fee - cost);
         const tradeId = `t_${ulid()}`;
         db.prepare(
           `INSERT INTO trader_trades (id, asset, opened_at, closed_at, quantity, entry_price, exit_price, fees_eur, pnl_eur, pnl_pct, open_order_id, close_order_id, close_reason, thesis)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(tradeId, order.asset, position.opened_at, at, quantity, position.avg_cost, fillPrice, round2(entryFeeShare + fee), pnl, cost > 0 ? (pnl / cost) * 100 : 0,
+        ).run(tradeId, order.asset, position.opened_at, at, quantity, position.avg_cost, fillPrice, round2(entryFee + fee), pnl, cost > 0 ? (pnl / cost) * 100 : 0,
           position.open_order_id, order.id, order.origin === "stop" ? "stop" : "model", position.thesis);
         const left = round8(position.quantity - quantity);
         db.prepare("UPDATE trader_positions SET quantity = ?, updated_at = ? WHERE asset = ?").run(left, at, order.asset);
@@ -656,6 +698,7 @@ export function performance(db: DB, cfg: TraderConfig, inferenceSpentCents: numb
   const v = valuation(db);
   const snaps = snapshots(db);
   const trades = listTrades(db, 10_000);
+  // Results after every fee: a trade whose gain the fees ate is not a win.
   const wins = trades.filter((t) => t.pnlEur > 0).length;
   const fees = round2((db.prepare("SELECT COALESCE(SUM(fee_eur), 0) AS f FROM trader_ledger").get() as { f: number }).f);
   const change = (days: number): number | null => {
@@ -692,7 +735,7 @@ export function performance(db: DB, cfg: TraderConfig, inferenceSpentCents: numb
 /** Closed trades without a post-mortem yet (the model writes one per trade). */
 export function tradesAwaitingPostmortem(db: DB, limit = 10): Trade[] {
   return (db.prepare(
-    `SELECT t.* FROM trader_trades t
+    `${TRADE_SELECT}
      WHERE NOT EXISTS (SELECT 1 FROM trader_reflections r WHERE r.kind = 'trade' AND r.subject_id = t.id)
      ORDER BY t.closed_at ASC LIMIT ?`,
   ).all(limit) as any[]).map(rowToTrade);

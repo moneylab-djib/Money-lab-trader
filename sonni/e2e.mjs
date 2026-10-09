@@ -501,7 +501,7 @@ const statut = replies().find((m) => /SONNI/.test(m.text))?.text ?? "";
 /💶 Budget\nIA aujourd'hui : \d+,\d\d \$ sur 1,93 \$/.test(statut) ? ok("/statut shows today's spend against the cap") : fail("/statut lacks the budget line");
 !/[hp]_01[0-9A-Z]{20}/.test(statut) ? ok("/statut shows no identifiers") : fail("/statut still shows identifiers");
 // The order was filled by code at the collection after the decision session; BTC then jumped to 62 500.
-/💼 Portefeuille virtuel\nValeur 1\s?00\d,\d\d € \(\+\d,\d\d €, \+0,\d\d % sur 1\s?000,00 € versés\) · liquidités 900,00 €\nBTC : 0\.0016\d+ \(10\d,\d\d €, \+\d,\d\d €\) acheté 60\s?\d{3},\d\d €, stop 55\s?000,00 €, revoir /.test(statut)
+/💼 Portefeuille virtuel\nValeur 1\s?00\d,\d\d € \(\+\d,\d\d €, \+0,\d\d % sur 1\s?000,00 € versés\) · liquidités 900,00 €\nBTC : 0\.0016\d+ \(10\d,\d\d €, \+\d,\d\d € frais d'achat déduits\) acheté 60\s?\d{3},\d\d €, stop 55\s?000,00 €, revoir /.test(statut)
   ? ok("/statut shows the virtual portfolio: filled order, position in profit after the jump, stop and horizon") : fail("/statut lacks the filled position");
 sentAt = tgOutbox.length;
 tgSend("/portefeuille");

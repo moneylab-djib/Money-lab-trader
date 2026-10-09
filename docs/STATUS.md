@@ -1,6 +1,53 @@
 # Working status
 - Updated: 2026-10-09
-- Branch / commit: main after PR #30 (step 0.1, CI gate, merge commit of 2026-10-09); before it PR #29 (fd5916d).
+- Branch / commit: main after PR #31 (step 0.2, trade fees, merge commit of 2026-10-09); before it PR #30 (step 0.1,
+  CI gate, 0ee7f7f).
+- Step 0.2 of the owner's plan of 2026-10-09, trade statistics count every fee (branch claude/sonni-trade-fees, PR #31).
+  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on the PR's last
+  commit); merged into main through PR #31 on the owner's go of 2026-10-09 (merge commit, after the required checks
+  passed under the ruleset); not in service (the VPS has not been updated: it waits for a controlled deployment the
+  owner approves); not observed by the owner.
+  - Found: a closed trade's `pnl_eur` is stored as proceeds − sale fee − quantity × entry price, and the entry price
+    is the fill price, so the purchase fee (0.8 % taker) was left out of every trade result, the win rate, the mean
+    trade %, the day/week/month summaries, the pack and the consistency check's facts. A +1 % round trip of 100 EUR
+    showed +0.09 EUR (a win) and lost 0.71 EUR. Open positions left out their purchase fee too (−0.05 instead of
+    −0.85 EUR right after a 100 EUR buy). The purchase share booked to a sale pooled every buy since the position
+    opened, so a buy after a partial sale booked a wrong share (the review's case: a trade read +0.21 EUR and lost
+    0.19). Decisions: a rise after staying out was a missed gain even when too small to pay a round trip, and the
+    7-day decision scores (since step 1) read the last 7 days, where no 7-day score can exist yet: always 0 of 0.
+  - Change: portfolio.ts reads each trade after every fee (purchase share = `fees_eur` minus the sale order's fee,
+    subtracted from `pnl_eur`; % on the lot's cost with that fee) and never rewrites a stored row. A sale books the
+    purchase fees the position still carries (its buys' fees minus the shares booked to earlier sales) in proportion
+    of the quantity sold; open positions subtract what they carry. decisions.ts: `breakEvenMovePct` (taker fee and
+    configured slippage on both legs, 1.7211 % by default); a buy or add is profitable at 7 d only beyond it, a rise
+    after staying out a missed gain only beyond it (beyond 0 after a sale); "right side" stays the direction, so
+    lesson scoring is unchanged. The self-report and `/bilan` read the 7-day scores on decisions made 7 to 14 days
+    ago. Labels say "après frais" / "after every fee" and qualify market round trips (limit legs pay 0.4 %).
+    Fills, cash, equity, the portfolio result, caps, stops and every trading rule are unchanged; no paid call.
+  - Checks: sonni 22 files, 199 tests; Likma verify (report 9483fd1a, after the criteria were tightened): types,
+    sonni, money-lab, runtime, build and sonni-e2e (621 s) pass. Ten mutations (each fix reverted in turn: trade fee, position fee, both % bases, the old
+    pooled share, the booked shares, two decision thresholds, the 7-day window, the pack verdict) each fail a test.
+    Adversarial review (4 reviewers, each finding re-checked by a skeptic): confirmed and fixed the pooled purchase
+    share, the dead 7-day window, "a round trip costs 1.72 %" (it costs 1.69 % of the stake; 1.72 % is the rise it
+    needs), the missing "market" qualifier and two test gaps; the stale e2e expectation of `/statut` was fixed
+    after the first CI run.
+  - Limits. Old results: nothing stored is rewritten. Trades closed before the deployment are re-read after every
+    fee like new ones, from their stored fee split (which only differs when a buy followed a partial sale of the
+    same position); day/week/month summaries stored before keep sums before the purchase fee; post-mortems, notes
+    and lessons Sonni wrote from the old figures stay as written. The second brain's consistency check compares
+    only trade post-mortems with trade results, never re-checks a text already checked, and flags a gap only
+    beyond its tolerance (in euros the larger of 0.50 EUR and 3 %, in % the larger of 0.5 point and a quarter of
+    the figure), so most old figures will not be flagged. Should a sale order be missing
+    (never seen), all of the trade's fees count as purchase fees: the result can only read lower. Price rounding
+    (pre-existing, not changed here; a separate step if the owner wants it): fill prices and the average cost are
+    rounded to the cent, and nothing limits the price of a followed asset (a satellite can be any Kraken EUR pair
+    with enough volume). Below 1 EUR a fill moves away from the market price by up to 0.005 EUR / price per leg
+    (±0.58 % on USDC at 0.86 EUR, 2.5 % at 0.20 EUR) and a cost basis blended from several buys drifts the same
+    way; below 0.005 EUR the fill price rounds to 0 and the bought quantity becomes infinite. On BTC, ETH, PAXG
+    and the tokenized stocks the effect is negligible. The break-even (1.72 %) assumes market orders on both legs;
+    limit legs cost less. Likma: the 240-minute session begun at 07:46 UTC for step 0.1 reached its time limit
+    with no failure; a new one was begun deliberately for this verification (no failure budget evaded; the
+    previous one is archived under .likma/sessions/).
 - Step 0.1 of the owner's plan of 2026-10-09, GitHub CI tells the truth (branch claude/sonni-ci-gate, PR #30).
   Status: built and verified (sandbox and GitHub); merged into main through PR #30 on the owner's go of 2026-10-09
   (merge commit, after `checks`, `e2e` and `trufflehog` passed under the ruleset); not in service (the VPS has not
