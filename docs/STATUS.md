@@ -32,7 +32,8 @@
     round trips each, the result moves by exactly 1 cent in 0.10 % (BTC) and 1.1 % (ETH) of round trips, never more
     (PAXG 1.05 %, stocks 10 %): the old sale proceeds used a cent-rounded fill price, the new figure is exact.
   - Checks: sonni 23 files, 247 tests (precision.test 48, the 199 earlier ones unchanged); money-lab 110; runtime 1,646;
-    Likma verify: see the last line of this entry; the 21 other features re-verified (report b4213778). Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
+    Likma: price-precision and the 16 features sharing its files verified on the last source in one run (report
+    15abf660): types, sonni, money-lab, runtime, build and sonni-e2e (610 s) pass. Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
     portfolio result with a 0.00 EUR gap; BTC +2.77 and ETH −1.25 EUR as before.
     Mutations: 34 of 35 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
     layer: placeOrder refuses that sale too). Adversarial review (5 reviewers, each finding re-checked): fixed a stop
