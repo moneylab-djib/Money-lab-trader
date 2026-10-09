@@ -1601,7 +1601,7 @@
         "THE SYSTEM SHALL provide a strictly read-only audit of a copy of the database (never the active file) that reports non-finite rows, zero prices and averaged positions whose cost drifted under cent rounding",
         "Strategy, order rules, configured fees and slippage, the universe (no price floor), decisions and their scoring, the SQLite schema and stored history are unchanged; BTC and ETH results stay within 1 cent of before (the cent of sale proceeds a cent-rounded fill price moved); no paid call, no real trading"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "src/trader/portfolio.ts",
         "src/trader/format.ts",
@@ -1715,6 +1715,99 @@
         "notes": "Independent acceptance review (separate agent, no shared context with the implementer) of c1638c0...f4a0ad8: every criterion FR-1 to FR-8 and every owner constraint met; fill figures checked before one atomic write; corrupt legacy positions make the total unknown and suspend buys, decisions and snapshots; display, audit and conservation correct (0.00 EUR gap measured on seven assets); no schema, fee or history change. Its one minor finding (stop-isolation test failed the asset sorting last, so a break in the stops-loop catch passed) and two nits (stale counts in features.json, stale audit comment) were fixed in 1f9fffd, a test, comment and notes change only; the break mutation now fails the test.",
         "fingerprint": "ebffbc7e395efa049b103ad45a3de2dd0b2a874d254a3e6be1bc6343bbf658d4",
         "contract": "48643d996b94331d85056e306358d06fcc8439b09ed7cb453e99bacb6e9efde2"
+      },
+      "verification": {
+        "at": "2026-10-09T22:48:49.585763+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "ebffbc7e395efa049b103ad45a3de2dd0b2a874d254a3e6be1bc6343bbf658d4",
+        "scope": [
+          "src/trader/portfolio.ts",
+          "src/trader/format.ts",
+          "src/trader/status.ts",
+          "src/trader/report.ts",
+          "src/trader/pack.ts",
+          "src/trader/prompt.ts",
+          "src/trader/decisions.ts",
+          "src/trader/summaries.ts",
+          "src/trader/soul.ts",
+          "src/trader/incidents.ts",
+          "src/trader/candles.ts",
+          "src/trader/rules.ts",
+          "src/trader/brain.ts",
+          "src/trader/brainchecks.ts",
+          "src/trader/curiosity.ts",
+          "src/trader/snapshot.ts",
+          "src/trader/tools.ts",
+          "src/index.ts",
+          "sonni/vps/audit-prix.mjs",
+          "src/__tests__/trader/precision.test.ts"
+        ],
+        "criterion_checks": {
+          "1": [
+            "sonni",
+            "types"
+          ],
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni",
+          "7": "sonni",
+          "8": [
+            "sonni-e2e",
+            "money-lab",
+            "runtime"
+          ]
+        },
+        "checks_hash": "3a8ae11b70bfaaa628b2c3ae0d7a10c608dbe08289b0924b8caacec70a5aa4c6",
+        "report": ".likma/checks/46d3489fce704b24b472be6455148855.json",
+        "contract": "48643d996b94331d85056e306358d06fcc8439b09ed7cb453e99bacb6e9efde2",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 21.954,
+            "output_bytes": 29546,
+            "output_sha256": "4d775e9e93cf5c4515214798ac4c076c464ca73da96b38129cc8fdab1208abdc"
+          },
+          {
+            "name": "types",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 6.976,
+            "output_bytes": 72,
+            "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 620.774,
+            "output_bytes": 5084,
+            "output_sha256": "4ac7b32270101da6b3df5a73e071891e526d09e69b12a8c98aca32b93160d86f"
+          },
+          {
+            "name": "money-lab",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 28.786,
+            "output_bytes": 40010,
+            "output_sha256": "fcbbfcece7204caa377682a181134fb6021e9e1a507cb8cd69a36bed9b18cb27"
+          },
+          {
+            "name": "runtime",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 26.301,
+            "output_bytes": 82803,
+            "output_sha256": "a575a63281e5e1c01744405d9efb2b0e75893c4ae1952cc420cdcc4d33606217"
+          }
+        ],
+        "integrity": {
+          "base": "c1638c06cb130eedfc562e20d4a2041ae8f8fae4",
+          "flags": []
+        }
       }
     }
   ]
