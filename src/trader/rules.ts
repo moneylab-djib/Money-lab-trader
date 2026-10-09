@@ -187,6 +187,7 @@ function conditionHolds(c: Condition, s: Series, t: number, events: EventCalenda
     }
     case "range": {
       const d = s.byAsset[c.asset][t];
+      if (!(d.open > 0)) return null;
       return compare(((d.high - d.low) / d.open) * 100, c.op, c.value);
     }
     case "streak": {

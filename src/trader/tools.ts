@@ -43,6 +43,7 @@ import {
   addTrap, cancelOrder, listTraps, MAX_HORIZON_HOURS as ORDER_MAX_HORIZON_HOURS, ORDER_KINDS, ORDER_SIDES, placeOrder,
   recordTrapHit, THESIS_MAX, updatePosition, valuation,
 } from "./portfolio.js";
+import { plainPrice } from "./format.js";
 
 const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 
@@ -196,8 +197,8 @@ export function createTraderTools(): AutomatonTool[] {
         if (!result.ok) return `Prediction refused: ${result.error}`;
         const p = result.prediction;
         const lessons = recordLessonUses(ctx.db.raw, args.lesson_ids, "prediction", p.id);
-        return `Prediction ${p.id} recorded: ${p.asset} ${p.direction} ${p.threshold} EUR at ${p.horizonUntil}, ` +
-          `p=${p.probability} (reference price ${p.referencePrice} EUR at ${p.referenceTs}).` +
+        return `Prediction ${p.id} recorded: ${p.asset} ${p.direction} ${plainPrice(p.threshold)} EUR at ${p.horizonUntil}, ` +
+          `p=${p.probability} (reference price ${plainPrice(p.referencePrice)} EUR at ${p.referenceTs}).` +
           (result.odds ? ` Code's odds, kept with it: ${describeOdds(result.odds)}` : " Code's odds: not enough daily history yet.") +
           (lessons.length ? ` Lessons applied: ${lessons.join(", ")}.` : "");
       },
@@ -313,7 +314,7 @@ export function createTraderTools(): AutomatonTool[] {
           const r = recordDecision(db, cfg, { asset: d?.asset, action: d?.action, reason: d?.reason, orderId: d?.order_id });
           if (!r.ok) return `- ${String(d?.asset ?? "?")}: refused: ${r.error}`;
           const lessons = recordLessonUses(db, d?.lesson_ids, "decision", r.value.id);
-          return `- ${r.value.asset}: ${r.value.action} recorded (${r.value.id}) at ${r.value.price} EUR${lessons.length ? `, applying ${lessons.join(", ")}` : ""}.`;
+          return `- ${r.value.asset}: ${r.value.action} recorded (${r.value.id}) at ${plainPrice(r.value.price)} EUR${lessons.length ? `, applying ${lessons.join(", ")}` : ""}.`;
         });
         return `Decisions:\n${out.join("\n")}`;
       },
@@ -679,8 +680,8 @@ export function createTraderTools(): AutomatonTool[] {
         const o = r.value;
         if (o.side === "buy" && isStrongTurn(db)) clearBigOrder(db);
         const what = o.side === "buy" ? `${o.amountEur} EUR of ${o.asset}` : `${o.quantity} ${o.asset}`;
-        return `Order ${o.id} pending: ${o.kind} ${o.side} ${what}${o.limitPrice ? ` at ${o.limitPrice} EUR` : ""}` +
-          `${o.invalidation ? `, stop at ${o.invalidation} EUR` : ""}, horizon ${o.horizonUntil}. Code fills it at the next stored price; ` +
+        return `Order ${o.id} pending: ${o.kind} ${o.side} ${what}${o.limitPrice ? ` at ${plainPrice(o.limitPrice)} EUR` : ""}` +
+          `${o.invalidation ? `, stop at ${plainPrice(o.invalidation)} EUR` : ""}, horizon ${o.horizonUntil}. Code fills it at the next stored price; ` +
           "you will see the fill in your next memory pack." + strongNote;
       },
     },

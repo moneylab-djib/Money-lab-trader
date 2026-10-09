@@ -20,6 +20,7 @@ import { EVENT_LABEL_FR, type EventType } from "./events.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter, priceAtOrBefore, type PricePoint } from "./prices.js";
 import type { SoulResult } from "./soul.js";
 import { listPositions } from "./portfolio.js";
+import { plainPrice } from "./format.js";
 
 type DB = Database.Database;
 
@@ -181,7 +182,7 @@ export function setWatch(db: DB, cfg: TraderConfig, input: WatchInput, now: Date
     if (direction !== "above" && direction !== "below") return { ok: false, error: "direction must be above or below." };
     const last = latestPrice(db, asset!);
     if (last && ((direction === "above" && last.price > value!) || (direction === "below" && last.price < value!))) {
-      return { ok: false, error: `${asset} is already ${direction} ${value} EUR (${last.price} EUR): the watch would fire at once.` };
+      return { ok: false, error: `${asset} is already ${direction} ${plainPrice(value!)} EUR (${plainPrice(last.price)} EUR): the watch would fire at once.` };
     }
   } else if (kind === "move") {
     windowHours = Number(input.windowHours ?? 24);
@@ -235,7 +236,7 @@ function fireWatches(db: DB, now: Date): Trigger[] {
       if (!last) continue;
       if (w.kind === "price") {
         const hit = w.direction === "above" ? last.price > w.value! : last.price < w.value!;
-        if (hit) condition = `${w.asset} is ${w.direction} ${w.value} EUR (${last.price} EUR)`;
+        if (hit) condition = `${w.asset} is ${w.direction} ${plainPrice(w.value!)} EUR (${plainPrice(last.price)} EUR)`;
       } else {
         const past = windowReference(db, w.asset!, last, w.windowHours! * 3_600_000);
         if (past) {
@@ -273,7 +274,7 @@ export function evaluateTriggers(db: DB, cfg: TraderConfig, now: Date = new Date
     const change = ((last.price - past.price) / past.price) * 100;
     const key = `move:${asset.symbol}`;
     if (Math.abs(change) >= threshold && hoursSince(lastWakeAt(db, key), now) >= MOVE_COOLDOWN_HOURS) {
-      out.push({ key, reason: `${asset.symbol} ${pct(change)} in ${MOVE_WINDOW_MINUTES} min (${past.price} -> ${last.price} EUR)` });
+      out.push({ key, reason: `${asset.symbol} ${pct(change)} in ${MOVE_WINDOW_MINUTES} min (${plainPrice(past.price)} -> ${plainPrice(last.price)} EUR)` });
     }
   }
 

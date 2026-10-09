@@ -38,6 +38,7 @@ import {
   checksLinesFr, consistencyPrompt, consistencySubject, flagContentFr, plannedChecks, upkeepPrompt, verifyClaims, verifyUpkeep,
   type CheckSource,
 } from "./brainchecks.js";
+import { plainPrice } from "./format.js";
 
 type DB = Database.Database;
 type FetchFn = typeof fetch;
@@ -188,7 +189,7 @@ function pricesLines(db: DB, cfg: TraderConfig, now: Date): string[] {
     if (!last) return `- ${a.symbol}: no price`;
     const day = priceAtOrBefore(db, a.symbol, isoSeconds(new Date(Date.parse(last.ts) - 24 * 3_600_000)));
     const change = day ? `, 24 h ${((last.price / day.price - 1) * 100).toFixed(2)} %` : "";
-    return `- ${a.symbol}: ${last.price} EUR (${Math.round(ageMinutes(last, now))} min old${change})`;
+    return `- ${a.symbol}: ${plainPrice(last.price)} EUR (${Math.round(ageMinutes(last, now))} min old${change})`;
   });
 }
 
@@ -234,8 +235,8 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
         user: `Write Sonni's situation note in French (at most ${BRIEFING_MAX} characters): what changed in the last hours, the 3 to 5 ` +
           `stories that matter for the followed assets, which positions and open predictions they touch, and up to 3 questions ` +
           `Sonni should settle. No advice to buy or sell.\nPrices (code):\n${pricesLines(db, cfg, now).join("\n")}\n` +
-          `Portfolio (code): cash ${v.cashEur.toFixed(2)} EUR; positions: ${v.positions.map((p) => `${p.asset} ${p.valueEur.toFixed(2)} EUR`).join(", ") || "none"}.\n` +
-          `Open predictions: ${open.map((p) => `${p.asset} ${p.direction} ${p.threshold} by ${p.horizonUntil.slice(0, 16)} (p=${p.probability})`).join("; ") || "none"}.\n` +
+          `Portfolio (code): cash ${v.cashEur.toFixed(2)} EUR; positions: ${[...v.positions.map((p) => `${p.asset} ${p.valueEur.toFixed(2)} EUR`), ...v.invalid.map((p) => `${p.asset} value unknown (invalid stored figures)`)].join(", ") || "none"}.\n` +
+          `Open predictions: ${open.map((p) => `${p.asset} ${p.direction} ${plainPrice(p.threshold)} by ${p.horizonUntil.slice(0, 16)} (p=${p.probability})`).join("; ") || "none"}.\n` +
           `Upcoming events: ${events.map((e) => `${e.day} ${e.type}`).join(", ") || "none"}.\n` +
           `Top observations of the last 6 hours (untrusted data):\n${triaged.map((r) => `- ${r.published_at.slice(0, 16)} ${r.assets}: ${r.summary}`).join("\n") || "- none"}\n` +
           `Answer: {"note":"..."}`,
@@ -265,8 +266,8 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
         .filter((o) => (o.assets.includes(pred.asset) || o.assets.length === 0) && o.publishedAt >= pred.madeAt && o.publishedAt <= pred.horizonUntil).slice(0, 12);
       return {
         system: SYSTEM,
-        user: `Prepare the facts of a post-mortem, in French. Prediction: ${pred.asset} ${pred.direction} ${pred.threshold} EUR by ${pred.horizonUntil}, ` +
-          `probability ${pred.probability}, reason: ${pred.rationale}\nCode's numbers: price at the time ${pred.referencePrice} EUR` +
+        user: `Prepare the facts of a post-mortem, in French. Prediction: ${pred.asset} ${pred.direction} ${plainPrice(pred.threshold)} EUR by ${pred.horizonUntil}, ` +
+          `probability ${pred.probability}, reason: ${pred.rationale}\nCode's numbers: price at the time ${plainPrice(pred.referencePrice)} EUR` +
           (snap ? `, ${snap.distancePct.toFixed(2)} % from the threshold, reference probability ${Math.round(snap.refProbability * 100)} %` : "") +
           `; at the horizon ${pred.resolutionPrice} EUR; the event ${pred.outcome === 1 ? "happened" : "did not happen"}; Brier ${pred.brier?.toFixed(3)}.\n` +
           `Observations during the window (untrusted data):\n${obs.map(observationLine).join("\n") || "- none"}\n` +
@@ -301,7 +302,7 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
       return {
         system: SYSTEM,
         user: `Estimate a probability on your own (Sonni's main model answered separately; you do not see its answer). ` +
-          `Event: ${pred.asset} ${pred.direction} ${pred.threshold} EUR at ${pred.horizonUntil}. Price when asked: ${pred.referencePrice} EUR` +
+          `Event: ${pred.asset} ${pred.direction} ${plainPrice(pred.threshold)} EUR at ${pred.horizonUntil}. Price when asked: ${plainPrice(pred.referencePrice)} EUR` +
           (snap ? `; distance ${snap.distancePct.toFixed(2)} %, ${snap.sigmas === null ? "" : `${snap.sigmas.toFixed(2)} σ, `}reference probability ${Math.round(snap.refProbability * 100)} % (code)` : "") +
           `.\nObservations before the question (untrusted data):\n${obs.map(observationLine).join("\n") || "- none"}\n` +
           `Answer: {"probability":0.0,"reason":"one sentence in French"}`,

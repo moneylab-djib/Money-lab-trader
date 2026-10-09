@@ -49,7 +49,8 @@ export async function fetchKrakenDaily(pair: string, fetchFn: FetchFn): Promise<
     if (!Number.isFinite(time) || (Number.isFinite(last) && time > last)) continue;
     const [open, high, low, close] = [row[1], row[2], row[3], row[4]].map(Number);
     const volume = Number(row[6]);
-    if (![open, high, low, close, volume].every(Number.isFinite) || close <= 0) continue;
+    // A price of 0 or less is no price: rules divide by the open and the close (step 0.3).
+    if (![open, high, low, close, volume].every(Number.isFinite) || Math.min(open, high, low, close) <= 0) continue;
     candles.push({ day: dayOf(time), open, high, low, close, volume });
   }
   return candles;

@@ -662,6 +662,8 @@ async function run(): Promise<void> {
       for (const f of b.fills) logger.info(`[SONNI] Ordre ${f.order.id} exécuté : ${f.order.side} ${f.order.asset} ${f.order.fillQuantity} à ${f.order.fillPrice} EUR${f.trade ? ` ; opération ${f.trade.id} close, résultat après frais ${f.trade.pnlEur} EUR` : ""}.`);
       for (const o of b.expired) logger.info(`[SONNI] Ordre ${o.id} expiré : ${o.note}.`);
       for (const o of b.stops) logger.info(`[SONNI] Stop déclenché sur ${o.asset} : ordre ${o.id}.`);
+      for (const o of b.rejected) logger.info(`[SONNI] Ordre ${o.id} refusé par le courtier : ${o.note}.`);
+      for (const id of b.failed) logger.warn(`[SONNI] Ordre ${id} : échec technique, laissé en attente (incident courtier virtuel).`);
     });
     every(6 * 60 * 60_000, "Sonni historique", async () => {
       const n = await historyTick(db.raw, live());

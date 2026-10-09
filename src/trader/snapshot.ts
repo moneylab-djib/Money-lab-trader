@@ -15,6 +15,7 @@
 import type Database from "better-sqlite3";
 import { loadDaily } from "./candles.js";
 import { latestPrice } from "./prices.js";
+import { plainPrice } from "./format.js";
 
 type DB = Database.Database;
 
@@ -103,7 +104,7 @@ const signed = (v: number, digits = 2) => `${v >= 0 ? "+" : ""}${v.toFixed(digit
 
 /** For the model (tool results and the pack), in English. */
 export function describeOdds(o: Odds): string {
-  return `${o.asset} at ${o.price} EUR (${o.priceTs}): ${o.direction} ${o.threshold} EUR is ${signed(o.distancePct)} % away, ` +
+  return `${o.asset} at ${plainPrice(o.price)} EUR (${o.priceTs}): ${o.direction} ${plainPrice(o.threshold)} EUR is ${signed(o.distancePct)} % away, ` +
     `${signed(o.sigmas)} σ over ${o.horizonHours} h (volatility ${o.dailyVolPct.toFixed(2)} %/day over ${VOL_DAYS} days); ` +
     `reference probability ${Math.round(o.refProbability * 100)} % (random walk at that volatility)` +
     (o.historicalShare !== null ? `; ${Math.round(o.historicalShare * 100)} % of ${o.historicalWindows} past ${Math.max(1, Math.round(o.horizonHours / 24))}-day windows moved that far.` : ".");

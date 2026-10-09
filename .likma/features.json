@@ -1587,6 +1587,107 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "price-precision",
+      "title": "Paper broker keeps price precision and never writes non-finite figures",
+      "criteria": [
+        "WHEN code fills an order, THE SYSTEM SHALL keep fill prices and average costs to 12 significant digits, EUR amounts to the cent and quantities to 1e-8, so a 100 EUR market round trip at the configured fees and slippage gives the same EUR result at BTC, ETH, USDC and at prices below 0.01 EUR",
+        "WHEN a computed fill price, quantity or EUR amount is zero, negative, NaN or infinite, THE SYSTEM SHALL write no ledger, position or trade row, SHALL settle the order as rejected with a note, and SHALL record a broker incident in French",
+        "WHEN one order cannot be processed, THE SYSTEM SHALL still process the other orders, the stops, the horizons and the daily snapshot, and a rejected stop SHALL leave the position with its stop level restored or an explicit incident",
+        "WHEN a sale takes the whole position, THE SYSTEM SHALL leave exactly zero units, at any quantity size, and averaged buys, partial sales and full sales SHALL conserve units and euros (ledger, positions, trades and valuation agree)",
+        "WHEN a stored position holds figures code cannot use, THE SYSTEM SHALL report it explicitly, SHALL show the portfolio total as unknown rather than a partial figure, and SHALL suspend buys, decisions and snapshots while the total cannot be computed, while sales and stops of valid positions keep working",
+        "WHEN a unit price below 1 EUR is shown to the owner or the model, THE SYSTEM SHALL show at least 5 significant digits without exponent; prices from 1 EUR keep their current text",
+        "THE SYSTEM SHALL provide a strictly read-only audit of a copy of the database (never the active file) that reports non-finite rows, zero prices and averaged positions whose cost drifted under cent rounding",
+        "Strategy, order rules, configured fees and slippage, the universe (no price floor), decisions and their scoring, the SQLite schema, stored history and BTC/ETH results to the cent are unchanged; no paid call, no real trading"
+      ],
+      "status": "planned",
+      "paths": [
+        "src/trader/portfolio.ts",
+        "src/trader/format.ts",
+        "src/trader/status.ts",
+        "src/trader/report.ts",
+        "src/trader/pack.ts",
+        "src/trader/prompt.ts",
+        "src/trader/decisions.ts",
+        "src/trader/summaries.ts",
+        "src/trader/soul.ts",
+        "src/trader/incidents.ts",
+        "src/trader/candles.ts",
+        "src/trader/rules.ts",
+        "src/index.ts"
+      ],
+      "track": "deep",
+      "bug": {
+        "current": "Fill prices and average cost are rounded to the cent: below 1 EUR fills drift from the market (USDC up to ±0.58 % per leg) and averaged positions stop adding up; below 0.005 EUR the fill price is 0, the quantity Infinity, and the next add or sale writes NaN and jams the broker on every tick",
+        "unchanged": [
+          8
+        ]
+      },
+      "tasks": [
+        {
+          "id": "t1",
+          "title": "Broker numbers: roundPrice for fills and average cost, sell clamp without residue, finite guards with rejection, per-order isolation, stop restore, spread validity",
+          "criteria": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "after": [],
+          "status": "todo"
+        },
+        {
+          "id": "t2",
+          "title": "Corrupt stored positions: valuation reports them, totals unknown, buys/decisions/snapshots suspended, summaries and snapshots skip non-finite rows",
+          "criteria": [
+            5
+          ],
+          "after": [
+            "t1"
+          ],
+          "status": "todo"
+        },
+        {
+          "id": "t3",
+          "title": "Display: fmtPrice/priceEn for unit prices below 1 EUR, n.d. for non-finite, French rejection notes",
+          "criteria": [
+            6
+          ],
+          "after": [
+            "t1"
+          ],
+          "status": "todo"
+        },
+        {
+          "id": "t4",
+          "title": "Read-only price audit of a database copy (sonni/vps/audit-prix.mjs) and its guide",
+          "criteria": [
+            7
+          ],
+          "after": [],
+          "status": "todo"
+        },
+        {
+          "id": "t5",
+          "title": "Tests: precision matrix BTC/ETH/USDC/<0.01 EUR, conservation, guards, legacy rows, display, audit; docs GUARDS/MEMORY/STATUS/PLAN.fr",
+          "criteria": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "after": [
+            "t2",
+            "t3",
+            "t4"
+          ],
+          "status": "todo"
+        }
+      ]
     }
   ]
 }

@@ -21,10 +21,10 @@ import { activeConfig } from "./universe.js";
 import { getKV, getPauseState } from "../money-lab/journal.js";
 import { survivalBalance } from "../money-lab/selfhosted.js";
 import { inferenceGetDailyCost } from "../state/database.js";
-import { ago, fmtDay, fmtDayLong, fmtEur, fmtTime, fmtUsdCents, fmtWhen, plural } from "./format.js";
+import { ago, fmtDay, fmtDayLong, fmtEur, fmtPrice, fmtTime, fmtUsdCents, fmtWhen, plural, qtyText } from "./format.js";
 import { describeEvidenceFr, lessonEvidence } from "./lessonuse.js";
 import { describeRegimeFr, regimeAt } from "./analogs.js";
-import { listTrades, listTraps, type Order, pendingOrders, performance, recentOrders, valuation } from "./portfolio.js";
+import { listTrades, listTraps, type Order, pendingOrders, performance, POSITION_PROBLEM_FR, recentOrders, rejectionNoteFr, suspensionFr, valuation } from "./portfolio.js";
 
 type DB = Database.Database;
 
@@ -57,13 +57,13 @@ function sens(direction: string): string {
 }
 
 export function describePredictionFr(p: Prediction, tz: string): string {
-  return `${p.asset} ${sens(p.direction)} ${fmtEur(p.threshold)} d'ici ${fmtWhen(p.horizonUntil, tz)} — ${Math.round(p.probability * 100)} %`;
+  return `${p.asset} ${sens(p.direction)} ${fmtPrice(p.threshold)} d'ici ${fmtWhen(p.horizonUntil, tz)} — ${Math.round(p.probability * 100)} %`;
 }
 
 export function describeResolutionFr(p: Prediction): string {
-  if (p.voidReason) return `${p.asset} ${sens(p.direction)} ${fmtEur(p.threshold)} : annulée, pas de prix à l'échéance`;
-  return `${p.asset} ${sens(p.direction)} ${fmtEur(p.threshold)} : ${p.outcome === 1 ? "VRAI" : "FAUX"} ` +
-    `(prix ${fmtEur(p.resolutionPrice!)}), annoncé à ${Math.round(p.probability * 100)} %, score ${p.brier!.toFixed(3).replace(".", ",")}`;
+  if (p.voidReason) return `${p.asset} ${sens(p.direction)} ${fmtPrice(p.threshold)} : annulée, pas de prix à l'échéance`;
+  return `${p.asset} ${sens(p.direction)} ${fmtPrice(p.threshold)} : ${p.outcome === 1 ? "VRAI" : "FAUX"} ` +
+    `(prix ${fmtPrice(p.resolutionPrice!)}), annoncé à ${Math.round(p.probability * 100)} %, score ${p.brier!.toFixed(3).replace(".", ",")}`;
 }
 
 // ─── Budget, from the Money Lab ledger ──────────────────────────
@@ -116,7 +116,7 @@ export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new
     if (!last) return `${asset.symbol} : aucun prix encore`;
     const age = Math.round(ageMinutes(last, now));
     const stale = age > cfg.staleMinutes ? " — PÉRIMÉ" : "";
-    return `${asset.symbol} ${fmtEur(last.price)} (${ago(last.ts, now)})${stale}`;
+    return `${asset.symbol} ${fmtPrice(last.price)} (${ago(last.ts, now)})${stale}`;
   });
   out.push(prices.join(" · "));
   const next = upcomingEvents(db, now, 30)[0];
@@ -175,10 +175,12 @@ export function formatSonniStatus(db: DB, baseCfg: TraderConfig, now: Date = new
 // ─── Portfolio, for the owner ───────────────────────────────────
 
 function signed(v: number): string {
+  if (!Number.isFinite(v)) return "n.d.";
   return `${v >= 0 ? "+" : "−"}${fmtEur(Math.abs(v))}`;
 }
 
 function signedPct(v: number): string {
+  if (!Number.isFinite(v)) return "n.d.";
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 }
 
@@ -190,16 +192,16 @@ export function orderNoteFr(note: string | null): string {
     "cancelled by model": "annulé par Sonni",
     "cancelled by owner": "annulé par toi",
   };
-  return note === null ? "" : known[note] ?? note;
+  return note === null ? "" : rejectionNoteFr(note) ?? known[note] ?? note;
 }
 
 function orderLineFr(o: Order, tz: string): string {
-  const what = o.side === "buy" ? `achat de ${fmtEur(o.amountEur ?? 0)} de ${o.asset}` : `vente de ${o.quantity} ${o.asset}`;
-  const kind = o.kind === "limit" ? ` à ${fmtEur(o.limitPrice!)} (limite)` : "";
+  const what = o.side === "buy" ? `achat de ${fmtEur(o.amountEur ?? 0)} de ${o.asset}` : `vente de ${qtyText(o.quantity)} ${o.asset}`;
+  const kind = o.kind === "limit" ? ` à ${fmtPrice(o.limitPrice!)} (limite)` : "";
   const who = o.origin === "stop" ? " [stop automatique]" : "";
   if (o.status === "pending") return `${what}${kind}${who}, en attente du prochain prix`;
   if (o.status === "filled") {
-    return `${what}${who} : exécuté le ${fmtWhen(o.settledAt!, tz)} à ${fmtEur(o.fillPrice!)} (${o.fillQuantity} ${o.asset}, frais ${fmtEur(o.feeEur!)})`;
+    return `${what}${who} : exécuté le ${fmtWhen(o.settledAt!, tz)} à ${fmtPrice(o.fillPrice!)} (${qtyText(o.fillQuantity)} ${o.asset}, frais ${fmtEur(o.feeEur!)})`;
   }
   const status = o.status === "cancelled" ? "annulé" : o.status === "expired" ? "expiré" : "refusé";
   return `${what}${who} : ${status}${o.note ? ` (${orderNoteFr(o.note)})` : ""}`;
@@ -214,11 +216,19 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
     lines.push(`Pas encore ouvert : ${fmtEur(cfg.portfolio.startEur)} de capital virtuel au premier relevé de prix, puis ${fmtEur(cfg.portfolio.monthlyEur)} par mois.`);
     return lines;
   }
-  lines.push(`Valeur ${fmtEur(v.equityEur)} (${signed(v.pnlEur)}, ${signedPct(v.pnlPct)} sur ${fmtEur(v.contributedEur)} versés) · liquidités ${fmtEur(v.cashEur)}`);
-  if (v.positions.length === 0) lines.push("Aucune position : tout en liquide.");
+  const suspended = suspensionFr(v);
+  if (suspended) {
+    // Step 0.3: a corrupt stored position makes the total unknown; no partial sum is shown as the value.
+    lines.push(`⚠️ Valeur non fiable, total inconnu : ${suspended}`);
+    lines.push(`Liquidités ${fmtEur(v.cashEur)} · ${fmtEur(v.contributedEur)} versés`);
+    for (const p of v.invalid) lines.push(`${p.asset} : chiffres invalides (${POSITION_PROBLEM_FR[p.problem]}), non évaluée ; ni vendue ni stoppée par le code`);
+  } else {
+    lines.push(`Valeur ${fmtEur(v.equityEur)} (${signed(v.pnlEur)}, ${signedPct(v.pnlPct)} sur ${fmtEur(v.contributedEur)} versés) · liquidités ${fmtEur(v.cashEur)}`);
+  }
+  if (v.positions.length === 0 && v.invalid.length === 0) lines.push("Aucune position : tout en liquide.");
   for (const p of v.positions) {
-    lines.push(`${p.asset} : ${p.quantity} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)} frais d'achat déduits) acheté ${fmtEur(p.avgCost)}` +
-      `${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}${p.horizonUntil ? `, revoir ${fmtWhen(p.horizonUntil, tz)}` : ""}` +
+    lines.push(`${p.asset} : ${p.quantity} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)} frais d'achat déduits) acheté ${fmtPrice(p.avgCost)}` +
+      `${p.invalidation !== null ? `, stop ${fmtPrice(p.invalidation)}` : ""}${p.horizonUntil ? `, revoir ${fmtWhen(p.horizonUntil, tz)}` : ""}` +
       (short ? "" : `
   Raison : ${p.thesis}`));
   }
@@ -230,6 +240,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   lines.push(`- ${plural(perf.tradesClosed, "opération close", "opérations closes")}` +
     (perf.winRate !== null ? `, ${Math.round(perf.winRate * 100)} % gagnantes, ${signedPct(perf.avgTradePct!)} en moyenne (après tous les frais)` : "") +
     ` · frais payés ${fmtEur(perf.feesEur)}${perf.stops ? ` · ${plural(perf.stops, "stop déclenché", "stops déclenchés")}` : ""}`);
+  if (!perf.complete) lines.push("- valeur, variations et pire recul : inconnus tant que la position invalide n'est pas réparée");
   if (perf.change7dPct !== null) {
     lines.push(`- 7 jours ${signedPct(perf.change7dPct)}${perf.change30dPct !== null ? ` · 30 jours ${signedPct(perf.change30dPct)}` : ""}` +
       `${perf.maxDrawdownPct !== null ? ` · pire recul ${signedPct(-perf.maxDrawdownPct)}` : ""}${perf.firstDay ? ` (depuis le ${fmtDay(perf.firstDay)})` : ""}`);
@@ -243,7 +254,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   if (trades.length) {
     lines.push("", "Dernières opérations closes (résultat après tous les frais) :");
     for (const t of trades) {
-      lines.push(`- ${t.asset} : ${signed(t.pnlEur)} (${signedPct(t.pnlPct)}), acheté ${fmtEur(t.entryPrice)} vendu ${fmtEur(t.exitPrice)} le ${fmtWhen(t.closedAt, tz)}` +
+      lines.push(`- ${t.asset} : ${signed(t.pnlEur)} (${signedPct(t.pnlPct)}), acheté ${fmtPrice(t.entryPrice)} vendu ${fmtPrice(t.exitPrice)} le ${fmtWhen(t.closedAt, tz)}` +
         `${t.closeReason === "stop" ? ", par le stop" : ""} — ${t.thesis.slice(0, 140)}`);
     }
   }

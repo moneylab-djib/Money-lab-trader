@@ -17,7 +17,8 @@ import { containsInjectionPatterns } from "../soul/validator.js";
 import type { TraderConfig } from "./config.js";
 import { activeAssets } from "./universe.js";
 import { ageMinutes, isoSeconds, latestPrice, priceAtOrAfter } from "./prices.js";
-import { valuation } from "./portfolio.js";
+import { suspensionReason, valuation } from "./portfolio.js";
+import { plainPrice } from "./format.js";
 import type { SoulResult } from "./soul.js";
 
 type DB = Database.Database;
@@ -88,6 +89,9 @@ export function recordDecision(db: DB, cfg: TraderConfig, input: DecisionInput, 
   if (!last) return { ok: false, error: `No ${asset} price stored yet.` };
   if (ageMinutes(last, now) > cfg.staleMinutes) return { ok: false, error: `The last ${asset} price is stale: no decision on a stale price.` };
   const v = valuation(db);
+  // A decision stores the portfolio value; while a corrupt stored position makes it unknown, none is recorded.
+  const suspended = suspensionReason(v);
+  if (suspended) return { ok: false, error: `Decisions are suspended: ${suspended}.` };
   const held = v.positions.find((p) => p.asset === asset);
   const positionEur = held ? held.valueEur : 0;
   if ((action === "reduce" || action === "sell" || action === "add") && positionEur <= 0) {
@@ -120,8 +124,9 @@ export function listDecisions(db: DB, since?: string, asset?: string): Decision[
     .all(...params) as any[]).map(rowToDecision);
 }
 
-/** Followed assets without a decision in the last DECISION_HOURS. */
+/** Followed assets without a decision in the last DECISION_HOURS; none while decisions are suspended (no paid turn asked for nothing). */
 export function decisionsDue(db: DB, cfg: TraderConfig, now: Date = new Date()): string[] {
+  if (suspensionReason(valuation(db))) return [];
   const since = isoSeconds(new Date(now.getTime() - DECISION_HOURS * 3_600_000));
   return activeAssets(db, cfg).map((a) => a.symbol)
     .filter((s) => !db.prepare("SELECT 1 FROM trader_decisions WHERE asset = ? AND made_at >= ?").get(s, since));
@@ -213,10 +218,12 @@ export function decisionsPackLines(db: DB, cfg: TraderConfig, now: Date = new Da
     if (!d) { lines.push(`- ${a.symbol}: no decision yet.`); continue; }
     const o = decisionOutcome(db, d, 24);
     const entry = d.action === "buy" || d.action === "add";
-    lines.push(`- ${a.symbol}: ${d.action} at ${d.price} EUR on ${d.madeAt.slice(0, 16).replace("T", " ")} UTC` +
+    lines.push(`- ${a.symbol}: ${d.action} at ${plainPrice(d.price)} EUR on ${d.madeAt.slice(0, 16).replace("T", " ")} UTC` +
       (o ? `; 24 h later ${o.movePct >= 0 ? "+" : ""}${o.movePct.toFixed(2)} % (${o.good ? "right side" : "wrong side"}` +
         `${entry ? `, ${o.movePct > breakEven ? "beyond" : "not beyond"} the ${breakEven.toFixed(2)} % rise a market round trip needs to pay its fees and slippage` : ""})` : "; not scored yet"));
   }
+  const suspended = suspensionReason(valuation(db));
+  if (suspended) lines.push(`Decisions are suspended: ${suspended}.`);
   const due = decisionsDue(db, cfg, now);
   if (due.length) lines.push(`Due now (no decision in ${DECISION_HOURS} h): ${due.join(", ")}.`);
   return lines;
