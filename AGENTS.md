@@ -35,13 +35,20 @@ Checks (configured in likma.project.json; `likma project check --path .`, or
   - types: pnpm run typecheck
   - sonni: pnpm exec vitest run src/__tests__/trader
   - money-lab: pnpm exec vitest run src/__tests__/money-lab (imported runtime regression suite)
+  - runtime: the rest of src/__tests__ (vitest run excluding trader/ and money-lab/); the three test checks
+    together are the whole suite (plain `pnpm test`, about 1 min)
   - build: pnpm run build
-  - sonni-e2e: node sonni/e2e.mjs (requires `build`, which Likma runs first; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~9 min incl. the outage scenario)
+  - sonni-e2e: node sonni/e2e.mjs (requires `build`, which Likma runs first; real process, fake Kraken/Anthropic/Telegram/reader/sources, ~10 min incl. the outage scenario, plus up to 12 min when started just before Paris midnight; limit 1500 s)
+  - deps: pnpm audit --prod --audit-level critical (needs registry access)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/; the owner's PC (second brain,
 nightly memory copy): sonni/GUIDE-PC.fr.md and sonni/pc/, scripts tested in pc-scripts.test (keep them in sync
 with config keys and commands).
-src/__tests__/context-hardening.test.ts hangs on unmodified upstream: plain `pnpm test` never finishes.
+GitHub CI (.github/workflows/ci.yml) runs every check above exactly as configured, each under its time limit, with
+poppler-utils, pwsh and a browser present so no test skips itself; a failure, an error or a time limit fails the
+run, and ci-workflow.test keeps the workflow in step with likma.project.json. main is protected (ruleset "main
+protégée"): no direct push, no force push; merging needs a pull request with `checks`, `e2e` and `trufflehog` green
+on a branch up to date with main.
 No start command is configured: starting runs a paid agent and requires owner approval.
 After a merge or broad edit: `likma project feature reverify --path .` re-runs each check once for all stale
 features. Bot guards are mapped to their tests in likma.project.json (`bot_guards`, checked by `project audit`).

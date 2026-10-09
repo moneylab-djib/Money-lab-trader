@@ -128,6 +128,29 @@ function formatCacheKey(text: string, model?: string): string {
   return `${model ?? "default"}::${text}`;
 }
 
+// js-tiktoken's merges are quadratic in the length of one pre-token: an unbroken run of
+// letters, spaces or punctuation (8,000 characters take about 6 s) stalled every caller.
+// Such runs are estimated instead: like the fallback below, and one token per byte outside
+// ASCII (the most a byte can cost), so Chinese or emoji runs are never under-counted. No
+// ordinary word comes near this length. A run is replaced by "0", which digits split into
+// pieces of at most three, so its neighbours (spaces on both sides) cannot join into a long one.
+const LONG_RUN = /\p{L}{256,}|[^\s\p{L}\p{N}]{256,}|\s{256,}/gu;
+
+function estimatedRun(run: string): number {
+  let ascii = 0;
+  for (let i = 0; i < run.length; i++) if (run.charCodeAt(i) < 0x80) ascii++;
+  return Math.max(Math.ceil(run.length / 3.5), Buffer.byteLength(run, "utf8") - ascii);
+}
+
+function encodedLength(encoder: Tiktoken, text: string): number {
+  let estimated = 0;
+  const rest = text.replace(LONG_RUN, (run) => {
+    estimated += estimatedRun(run);
+    return "0";
+  });
+  return encoder.encode(rest).length + estimated;
+}
+
 export function createTokenCounter(): TokenCounter {
   const cache = new Map<string, number>();
   let encoder: Tiktoken | null = null;
@@ -152,7 +175,7 @@ export function createTokenCounter(): TokenCounter {
     let count: number;
     if (encoder) {
       try {
-        count = encoder.encode(normalizedText).length;
+        count = encodedLength(encoder, normalizedText);
       } catch {
         count = Math.ceil(normalizedText.length / 3.5);
       }

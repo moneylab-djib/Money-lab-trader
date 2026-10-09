@@ -24,6 +24,7 @@
           "typecheck"
         ],
         "env": [],
+        "timeout_seconds": 600,
         "description": "TypeScript typecheck"
       },
       "sonni": {
@@ -50,6 +51,21 @@
         "timeout_seconds": 600,
         "description": "Imported Money Lab runtime regression suite"
       },
+      "runtime": {
+        "argv": [
+          "pnpm",
+          "exec",
+          "vitest",
+          "run",
+          "--exclude",
+          "src/__tests__/trader/**",
+          "--exclude",
+          "src/__tests__/money-lab/**"
+        ],
+        "env": [],
+        "timeout_seconds": 600,
+        "description": "The rest of the imported runtime's tests (all of src/__tests__ outside trader/ and money-lab/)"
+      },
       "build": {
         "argv": [
           "pnpm",
@@ -57,6 +73,7 @@
           "build"
         ],
         "env": [],
+        "timeout_seconds": 600,
         "description": "Compile dist/"
       },
       "sonni-e2e": {
@@ -65,7 +82,7 @@
           "sonni/e2e.mjs"
         ],
         "env": [],
-        "timeout_seconds": 900,
+        "timeout_seconds": 1500,
         "description": "Real process against fake Kraken/Anthropic/Telegram/readers/sources, incl. outage scenario",
         "requires": [
           "build"

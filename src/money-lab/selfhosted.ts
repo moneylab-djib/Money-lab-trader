@@ -336,7 +336,7 @@ export async function runAutostart(env: NodeJS.ProcessEnv = scrubbedEnv()): Prom
  */
 export const BOT_CREDENTIAL_VARS = ["GH_TOKEN", "GOATCOUNTER_TOKEN"] as const;
 
-const BROWSER_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"];
+export const BROWSER_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"];
 
 /** Headless browser for screenshots: MONEY_LAB_BROWSER, else the first one on PATH. */
 export function findBrowser(env: NodeJS.ProcessEnv = process.env): string | null {

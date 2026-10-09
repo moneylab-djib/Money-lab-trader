@@ -1,6 +1,49 @@
 # Working status
-- Updated: 2026-10-08
-- Branch / commit: main after PRs #20 to #28 (plan of 2026-10-08, steps 1 to 4, field fixes, /cerveau recompter, Likma 0.13.0); claude/sonni-brain-coherence-night holds the second brain's memory checks below
+- Updated: 2026-10-09
+- Branch / commit: main after PR #30 (step 0.1, CI gate, merge commit of 2026-10-09); before it PR #29 (fd5916d).
+- Step 0.1 of the owner's plan of 2026-10-09, GitHub CI tells the truth (branch claude/sonni-ci-gate, PR #30).
+  Status: built and verified (sandbox and GitHub); merged into main through PR #30 on the owner's go of 2026-10-09
+  (merge commit, after `checks`, `e2e` and `trufflehog` passed under the ruleset); not in service (the VPS has not
+  been updated, and only the token counter there would change); not observed by the owner.
+  - Found in the CI logs of main (run 37843427737, fd5916d): ci.yml ran `timeout 300 pnpm test` and turned exit
+    124 into success. Both test steps hit their limit (5:00 and 3:00): the suite never finished, because
+    context-hardening.test builds 50,000-character unbroken turns and js-tiktoken is quadratic on one long
+    pre-token (8,000 characters about 6 s). Two failures were hidden: money-lab.test "simulated first cycle"
+    (assumed HOME=/root) and money-lab-vps.test view_page print (pdftoppm missing on the runner). Build and
+    sonni-e2e never ran in CI; the audit was `|| true`; the "security tests" step passed `--grep`, which vitest 2
+    does not have. Every "GitHub CI green" recorded below this entry before 2026-10-09 is therefore no evidence.
+  - Change: ci.yml runs every likma.project.json check exactly as configured under `timeout -k 30 <limit>`
+    (bash -e -o pipefail, Node 22, no condition, no shell override, no trigger filter), job `checks` (with
+    poppler-utils, pwsh and a browser required, so the five tests that skip without them run) and job `e2e`;
+    release.yml reuses ci.yml. New Likma check `runtime` (src/__tests__ outside trader/ and money-lab/): the three
+    test checks are the whole suite. Limits: types and build 600 s, sonni-e2e 1500 s (it waits up to 12 min when
+    started just before Paris midnight). Token counter (src/memory/context-manager.ts): unbroken runs of 256+
+    letters, spaces or punctuation are estimated (chars / 3.5, at least one token per byte outside ASCII) and
+    replaced by "0" so neighbours cannot join; ordinary text keeps its exact count (checked on French, English,
+    JSON, code, CJK, emoji, URLs). money-lab.test: the worklog path follows the sandbox home. ci-workflow.test
+    keeps ci.yml in step with likma.project.json and refuses `|| true`, `|| :`, `|| echo`, `set +e`,
+    `set +o errexit`, `exit 0`, `$?`, continue-on-error, conditions, shell overrides and trigger filters.
+  - Checks: whole suite 88 files, 1,941 tests (sonni 185, money-lab 110, runtime 1,646) pass with a non-root HOME;
+    plain `pnpm test` finishes in about 1 min for the first time. Likma verify (report 0e660b1b): sonni, runtime,
+    build and sonni-e2e (622 s) pass; types pass. GitHub CI runs 37901165628 and 37903675214 green (checks about
+    2 min, e2e about 10.5 min); Likma audit and secret scan green.
+  - Proofs. Local: a failing test exits 1; a test that never ends exits 124 at the limit (the old step logic gave
+    0 on the same test); a test that never resolves fails at 30 s; a killed worker and process.exit(0) exit 1;
+    ci-workflow.test fails on each of five bypasses (`if: false` on a check, `|| :` on a tool probe, a condition
+    on the e2e job, a paths filter, the e2e job deleted). GitHub: a deliberately broken test made `checks` fail
+    (run 37904871922, "1 failed | 22 passed", exit 1); a test that never ends made it fail at the 600 s limit
+    (run 37905860524); both are removed in the commit carrying this entry, whose CI run is in PR #30.
+  - main is protected since 2026-10-09 10:36 UTC by the owner's ruleset "main protégée" (id 24783336, active,
+    empty bypass list, checked through the API): no deletion, no force push, no creation of main, a pull request is
+    required (0 approvals: GitHub forbids approving one's own pull request), and the checks `checks`, `e2e` and
+    `trufflehog` (GitHub Actions) must pass on a branch up to date with main. The Likma audit is not required (its
+    token can expire and would then block every merge). Emergency: the owner sets the ruleset to Disabled for one
+    merge, then back to Active. A pull request that edits .github/workflows/ or ci-workflow.test needs a close look:
+    required checks only check job names.
+  - Limits: the Likma audit passes with a warning when LIKMA_REPO_TOKEN is missing (pull requests from forks):
+    to fix in Likma's workflow template, not here; money-lab/e2e/harness.mjs and chaos.mjs are run neither by CI
+    nor by Likma (they never were); setup-node and pnpm/action-setup are pinned by tag, not by commit; Node 20
+    (end of life) is no longer tested.
 - Likma 0.13.0 and agent posture (2026-10-08, branch claude/stoic-hawking-cpjn87), mirroring Money Lab 8e81318:
   `project upgrade` 0.10.1 -> 0.13.0 (AGENTS.md Likma block, docs/LIKMA.md); removed the unused direct dependency
   simple-git (its 2 critical advisories are fixed only in 3.32.3/4.x; nothing in the repository imports it); new
