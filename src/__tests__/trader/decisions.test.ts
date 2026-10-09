@@ -21,8 +21,8 @@ import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
 import { addHypothesis } from "../../trader/hypotheses.js";
 import { recordPrediction, resolveDuePredictions } from "../../trader/predictions.js";
-import { brokerTick, pendingOrders } from "../../trader/portfolio.js";
-import { decisionOutcome, decisionStats, decisionsDue, listDecisions, recordDecision } from "../../trader/decisions.js";
+import { brokerTick, pendingOrders, placeOrder } from "../../trader/portfolio.js";
+import { breakEvenMovePct, decisionOutcome, decisionStats, decisionsDue, listDecisions, recordDecision } from "../../trader/decisions.js";
 import { describeOdds, getPredictionSnapshot, marketOdds, normalCdf, skillBetween } from "../../trader/snapshot.js";
 import { isBigOrder, readPendingBigOrder, STRONG_DAILY_SHARE, strongBudgetLeft } from "../../trader/strong.js";
 import { formatSelfReport, formatSelfReportFr, selfReport } from "../../trader/soul.js";
@@ -151,7 +151,7 @@ describe("Explicit decisions per asset", () => {
     expect(decisionOutcome(db.raw, btc, 168)).toBeNull();
     storePrice(db, "BTC", hours(168), 57_000);
     storePrice(db, "ETH", hours(168), 1_900);
-    const stats = decisionStats(db.raw, isoSeconds(hours(-1)));
+    const stats = decisionStats(db.raw, TRADER, isoSeconds(hours(-1)));
     expect(stats).toMatchObject({ total: 2, scored24h: 2, good24h: 1, scored7d: 2, good7d: 1, flatAvoided: 1, flatMissed: 0, byAction: { stay_out: 1, buy: 1 } });
     db.close();
   });
@@ -256,6 +256,56 @@ describe("The loop and the pack", () => {
   });
 });
 
+describe("Decisions and fees (step 0.2)", () => {
+  // A round trip costs about 1.72 % (taker fee and slippage, both ways): a smaller rise pays nobody.
+  function scenario(move: number) {
+    const db = openDb();
+    storePrice(db, "BTC", T0, 60_000);
+    storePrice(db, "ETH", T0, 2_000);
+    brokerTick(db.raw, TRADER, T0);
+    expect(recordDecision(db.raw, TRADER, { asset: "BTC", action: "stay_out", reason: REASON }, T0).ok).toBe(true);
+    expect(recordDecision(db.raw, TRADER, { asset: "ETH", action: "buy", reason: "L'ETH rebondit sur son support ; petite position d'essai pour apprendre." }, T0).ok).toBe(true);
+    storePrice(db, "BTC", hours(168), 60_000 * (1 + move / 100));
+    storePrice(db, "ETH", hours(168), 2_000 * (1 + move / 100));
+    return { db, stats: decisionStats(db.raw, TRADER, isoSeconds(hours(-1))) };
+  }
+
+  it("a rise inside the fees is the right side for a buy but not a profit, and no missed gain after staying out", () => {
+    const { db, stats } = scenario(1);
+    expect(stats).toMatchObject({ scored7d: 2, good7d: 1, entries7d: 1, entriesPaid7d: 0, flatAvoided: 1, flatSmallRises: 1, flatMissed: 0 });
+    expect(stats.breakEvenPct).toBeCloseTo(breakEvenMovePct(TRADER), 10);
+    const fr = formatSelfReportFr(selfReport(db.raw, TRADER, 193, hours(168)));
+    expect(fr).toContain("du bon côté (sens du marché, hors frais) à 24 h");
+    expect(fr).toContain("achats rentables après frais à 7 jours : 0 sur 1 (un aller-retour coûte 1,72 %)");
+    expect(fr).toContain("rester en dehors : 1 perte évitée (dont 1 hausse trop faible pour payer les frais), 0 gain manqué au-delà des frais.");
+    db.close();
+  });
+
+  it("a rise beyond the fees is a profitable buy and a real missed gain after staying out", () => {
+    const { db, stats } = scenario(3);
+    expect(stats).toMatchObject({ good7d: 1, entries7d: 1, entriesPaid7d: 1, flatAvoided: 0, flatSmallRises: 0, flatMissed: 1 });
+    expect(formatSelfReport(selfReport(db.raw, TRADER, 193, hours(168)))).toContain("buys and adds profitable after fees at 7 d 1/1 (a round trip costs 1.72 %)");
+    db.close();
+  });
+
+  it("after a sale, any rise is a missed gain: the sale fee was paid either way", () => {
+    const db = openDb();
+    storePrice(db, "BTC", T0, 60_000);
+    brokerTick(db.raw, TRADER, T0);
+    expect(placeOrder(db.raw, TRADER, { asset: "BTC", side: "buy", amountEur: 100, invalidation: 30_000, thesis: "Petite position de test pour mesurer une vente." }, T0).ok).toBe(true);
+    storePrice(db, "BTC", hours(0.1), 60_000);
+    brokerTick(db.raw, TRADER, hours(0.1));
+    expect(recordDecision(db.raw, TRADER, { asset: "BTC", action: "sell", reason: "Je vends ma position de test : la fourchette tient, pas de raison de rester." }, hours(0.1)).ok).toBe(true);
+    storePrice(db, "BTC", hours(168.1), 60_600);
+    const stats = decisionStats(db.raw, TRADER, isoSeconds(hours(-1)));
+    expect(stats).toMatchObject({ scored7d: 1, good7d: 0, flatMissed: 1, flatAvoided: 0 });
+    // The decision itself and its score's direction are untouched: lesson scoring reads the same outcome.
+    const [d] = listDecisions(db.raw, undefined, "BTC");
+    expect(decisionOutcome(db.raw, d, 168)).toEqual({ movePct: expect.closeTo(1, 6), good: false });
+    db.close();
+  });
+});
+
 describe("Is Sonni learning? (self-report and /bilan)", () => {
   it("shows skill against the reference, its trend, decision outcomes and lessons", () => {
     const db = openDb();
@@ -280,10 +330,10 @@ describe("Is Sonni learning? (self-report and /bilan)", () => {
     expect(r.decisions7d).toMatchObject({ total: 1, scored24h: 1, good24h: 0 });
     const fr = formatSelfReportFr(r);
     expect(fr).toMatch(/Justesse face à la référence \(le hasard, à la volatilité récente\) : Brier 0,010 contre 0,00\d sur 1 prédiction : moins bien que la référence \(−\d+ %\)\./);
-    expect(fr).toContain("Décisions par actif (7 derniers jours) : 1 ; du bon côté à 24 h : 0 sur 1");
+    expect(fr).toContain("Décisions par actif (7 derniers jours) : 1 ; du bon côté (sens du marché, hors frais) à 24 h : 0 sur 1");
     const en = formatSelfReport(r);
     expect(en).toMatch(/- Skill vs code's reference .*: all n=1, Brier 0\.010 vs reference 0\.00\d, skill -\d/);
-    expect(en).toContain("- Decisions, last 7 d: 1 (stay_out 1); right side at 24 h 0/1");
+    expect(en).toContain("- Decisions, last 7 d: 1 (stay_out 1); right side (direction, fees aside) at 24 h 0/1");
     db.close();
   });
 });

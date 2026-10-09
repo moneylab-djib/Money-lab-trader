@@ -477,8 +477,8 @@ export function selfReport(db: DB, cfg: TraderConfig, dailyCapCents: number | nu
     dailyCapCents,
     portfolio: performance(db, cfg, summarizeFinances(db).inferenceConsumedCents, now),
     skill: { all: skillBetween(db, null, null), last7d: skillBetween(db, since(7), null), prev7d: skillBetween(db, since(14), since(7)) },
-    decisions7d: decisionStats(db, since(7)),
-    decisions30d: decisionStats(db, since(30)),
+    decisions7d: decisionStats(db, cfg, since(7)),
+    decisions30d: decisionStats(db, cfg, since(30)),
     lessonsAdded7d: (db.prepare("SELECT COUNT(*) AS n FROM trader_lessons WHERE recorded_at >= ?").get(since(7)) as { n: number }).n,
     lessonsRetired7d: (db.prepare("SELECT COUNT(*) AS n FROM trader_lessons WHERE retired_at >= ?").get(since(7)) as { n: number }).n,
   };
@@ -492,8 +492,9 @@ function skillEn(w: SkillWindow): string {
 function decisionsEn(d: DecisionStats): string {
   if (d.total === 0) return "none";
   const actions = Object.entries(d.byAction).map(([k, v]) => `${k} ${v}`).join(", ");
-  return `${d.total} (${actions}); right side at 24 h ${d.good24h}/${d.scored24h}, at 7 d ${d.good7d}/${d.scored7d}; ` +
-    `staying out at 7 d: ${d.flatAvoided} loss(es) avoided, ${d.flatMissed} gain(s) missed`;
+  return `${d.total} (${actions}); right side (direction, fees aside) at 24 h ${d.good24h}/${d.scored24h}, at 7 d ${d.good7d}/${d.scored7d}; ` +
+    `buys and adds profitable after fees at 7 d ${d.entriesPaid7d}/${d.entries7d} (a round trip costs ${d.breakEvenPct.toFixed(2)} %); ` +
+    `staying out at 7 d: ${d.flatAvoided} loss(es) avoided (${d.flatSmallRises} of them rises the fees would have eaten), ${d.flatMissed} gain(s) missed beyond the fees`;
 }
 
 const f2fr = (v: number) => v.toFixed(3).replace(".", ",");
@@ -514,8 +515,11 @@ export function learningScoreboardFr(r: SelfReport): string[] {
     `- Tendance : 7 derniers jours — ${skillFr(r.skill.last7d)} ; 7 jours d'avant — ${skillFr(r.skill.prev7d)}.`,
     d.total === 0
       ? "- Décisions par actif (7 derniers jours) : aucune encore."
-      : `- Décisions par actif (7 derniers jours) : ${d.total} ; du bon côté à 24 h : ${d.good24h} sur ${d.scored24h} ; à 7 jours : ${d.good7d} sur ${d.scored7d} ; ` +
-        `rester en dehors : ${d.flatAvoided} perte${d.flatAvoided > 1 ? "s" : ""} évitée${d.flatAvoided > 1 ? "s" : ""}, ${d.flatMissed} gain${d.flatMissed > 1 ? "s" : ""} manqué${d.flatMissed > 1 ? "s" : ""}.`,
+      : `- Décisions par actif (7 derniers jours) : ${d.total} ; du bon côté (sens du marché, hors frais) à 24 h : ${d.good24h} sur ${d.scored24h} ; à 7 jours : ${d.good7d} sur ${d.scored7d} ; ` +
+        `achats rentables après frais à 7 jours : ${d.entriesPaid7d} sur ${d.entries7d} (un aller-retour coûte ${d.breakEvenPct.toFixed(2).replace(".", ",")} %) ; ` +
+        `rester en dehors : ${d.flatAvoided} perte${d.flatAvoided > 1 ? "s" : ""} évitée${d.flatAvoided > 1 ? "s" : ""}` +
+        `${d.flatSmallRises ? ` (dont ${d.flatSmallRises} hausse${d.flatSmallRises > 1 ? "s" : ""} trop faible${d.flatSmallRises > 1 ? "s" : ""} pour payer les frais)` : ""}, ` +
+        `${d.flatMissed} gain${d.flatMissed > 1 ? "s" : ""} manqué${d.flatMissed > 1 ? "s" : ""} au-delà des frais.`,
     `- Leçons cette semaine : ${r.lessonsAdded7d} ajoutée${r.lessonsAdded7d > 1 ? "s" : ""}, ${r.lessonsRetired7d} retirée${r.lessonsRetired7d > 1 ? "s" : ""} (${r.lessonsActive} active${r.lessonsActive > 1 ? "s" : ""}).`,
     "Ton rituel : lis ce bilan une fois par semaine et laisse une /note si quelque chose te frappe ; tes notes pèsent dans ce qu'il apprend.",
   ];
@@ -566,7 +570,7 @@ export function formatSelfReport(r: SelfReport): string {
     lines.push(`- Portfolio: equity ${p.equityEur.toFixed(2)} EUR on ${p.contributedEur.toFixed(2)} contributed (${pctSigned(p.pnlPct)} after fees` +
       `${p.change7dPct !== null ? `, 7 d ${pctSigned(p.change7dPct)}` : ""}${p.change30dPct !== null ? `, 30 d ${pctSigned(p.change30dPct)}` : ""}` +
       `${p.maxDrawdownPct !== null ? `, max drawdown ${p.maxDrawdownPct.toFixed(2)} %` : ""}).`);
-    lines.push(`- Trades closed: ${p.tradesClosed}${p.winRate !== null ? `, win rate ${Math.round(p.winRate * 100)} %, mean ${pctSigned(p.avgTradePct!)} per trade` : ""}; ` +
+    lines.push(`- Trades closed: ${p.tradesClosed}${p.winRate !== null ? `, win rate ${Math.round(p.winRate * 100)} %, mean ${pctSigned(p.avgTradePct!)} per trade (after every fee)` : ""}; ` +
       `fees ${p.feesEur.toFixed(2)} EUR; stops hit ${p.stops}; ` +
       `self-funding ratio ${p.selfFundingRatio === null ? "n/a" : p.selfFundingRatio.toFixed(2)} (virtual gain / inference spend; 1 = paid for itself).`);
   }
@@ -607,7 +611,7 @@ export function formatSelfReportFr(r: SelfReport): string {
     lines.push(`- Rendement après frais : ${pctSignedFr(p.pnlPct)} (${eurFr(p.pnlEur)} sur ${eurFr(p.contributedEur)} versés)` +
       `${p.change30dPct !== null ? `, ${pctSignedFr(p.change30dPct)} sur 30 jours` : ""}${p.maxDrawdownPct !== null ? `, pire recul ${pctSignedFr(-p.maxDrawdownPct)}` : ""}.`);
     lines.push(`- Erreurs : ${p.tradesClosed} opération${p.tradesClosed > 1 ? "s" : ""} close${p.tradesClosed > 1 ? "s" : ""}` +
-      `${p.winRate !== null ? `, ${Math.round(p.winRate * 100)} % gagnantes, ${pctSignedFr(p.avgTradePct!)} en moyenne` : ""}, ${p.stops} stop${p.stops > 1 ? "s" : ""} déclenché${p.stops > 1 ? "s" : ""}, frais ${eurFr(p.feesEur)}.`);
+      `${p.winRate !== null ? `, ${Math.round(p.winRate * 100)} % gagnantes, ${pctSignedFr(p.avgTradePct!)} en moyenne (après tous les frais)` : ""}, ${p.stops} stop${p.stops > 1 ? "s" : ""} déclenché${p.stops > 1 ? "s" : ""}, frais ${eurFr(p.feesEur)}.`);
     lines.push(`- Autofinancement : ${p.selfFundingRatio === null ? "pas encore mesurable" : `${p.selfFundingRatio.toFixed(2).replace(".", ",")} (gain virtuel / coût de l'IA ; 1 = il paie sa propre IA)`}.`);
   }
   return lines.join("\n");

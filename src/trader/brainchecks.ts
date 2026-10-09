@@ -218,8 +218,8 @@ function tradeFacts(db: DB, sheet: Sheet, tradeId: string): void {
   sheet.add("entry", `${t.asset} entry price`, `prix d'entrée (${t.asset})`, t.entryPrice, "eur");
   sheet.add("exit", `${t.asset} exit price`, `prix de sortie (${t.asset})`, t.exitPrice, "eur");
   sheet.add("fees", "fees of the trade", "frais de l'opération", t.feesEur, "eur");
-  sheet.add("pnl", "result of the trade in EUR", "résultat de l'opération en euros", t.pnlEur, "eur", true);
-  sheet.add("pnl", "result of the trade in %", "résultat de l'opération en %", t.pnlPct, "pct", true);
+  sheet.add("pnl", "result of the trade after every fee, in EUR", "résultat de l'opération après tous les frais, en euros", t.pnlEur, "eur", true);
+  sheet.add("pnl", "result of the trade after every fee, in %", "résultat de l'opération après tous les frais, en %", t.pnlPct, "pct", true);
 }
 
 /** Code's figures for one text, in a fixed order; empty when code holds none for it. */

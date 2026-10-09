@@ -15,6 +15,7 @@ import type Database from "better-sqlite3";
 import type { TraderConfig } from "./config.js";
 import { activeAssets } from "./universe.js";
 import { skillBetween } from "./snapshot.js";
+import { listTrades } from "./portfolio.js";
 
 type DB = Database.Database;
 
@@ -80,7 +81,8 @@ export function summarize(db: DB, cfg: TraderConfig, period: SummaryPeriod, star
   const orders = rows<{ id: string; side: string; asset: string }>(
     "SELECT id, side, asset FROM trader_orders WHERE origin = 'model' AND placed_at >= ? AND placed_at < ? ORDER BY placed_at",
   );
-  const trades = rows<{ id: string; asset: string; pnl_eur: number }>("SELECT id, asset, pnl_eur FROM trader_trades WHERE closed_at >= ? AND closed_at < ? ORDER BY closed_at");
+  // Through portfolio.ts: each trade's result after every fee (the stored pnl_eur leaves out the purchase fee).
+  const trades = listTrades(db, 100_000, from).filter((t) => t.closedAt < to).reverse();
   const added = rows<{ id: string }>("SELECT id FROM trader_lessons WHERE recorded_at >= ? AND recorded_at < ?");
   const retired = rows<{ id: string }>("SELECT id FROM trader_lessons WHERE retired_at >= ? AND retired_at < ?");
   const reflections = rows<{ id: string; kind: string }>("SELECT id, kind FROM trader_reflections WHERE recorded_at >= ? AND recorded_at < ?");
@@ -122,7 +124,7 @@ export function summarize(db: DB, cfg: TraderConfig, period: SummaryPeriod, star
   if (orders.length || trades.length) {
     const buys = orders.filter((o) => o.side === "buy").length;
     let line = `ordres : ${buys} achat(s), ${orders.length - buys} vente(s)`;
-    if (trades.length) line += ` ; ${trades.length} opération(s) close(s), ${eur(trades.reduce((s, t) => s + t.pnl_eur, 0))}`;
+    if (trades.length) line += ` ; ${trades.length} opération(s) close(s), ${eur(trades.reduce((s, t) => s + t.pnlEur, 0))} après frais`;
     parts.push(line);
   }
   if (hasTable(db, "trader_portfolio_days")) {

@@ -33,6 +33,8 @@ import { buildMemoryPack } from "../../trader/pack.js";
 import { formatPortfolioFr, formatSonniStatus } from "../../trader/status.js";
 import { buildSonniEveningSummary } from "../../trader/report.js";
 import { runSonniCommand } from "../../trader/cli.js";
+import { summarize } from "../../trader/summaries.js";
+import { breakEvenMovePct } from "../../trader/decisions.js";
 import { createTraderTools } from "../../trader/tools.js";
 import { createTestConfig, createTestIdentity, MockConwayClient, MockInferenceClient } from "../mocks.js";
 
@@ -187,9 +189,14 @@ describe("Paper broker", () => {
     expect(closed).toHaveLength(1);
     const trade = closed[0].trade!;
     expect(trade).toMatchObject({ asset: "BTC", closeReason: "model", openOrderId: o1.id, entryPrice: pos.avgCost, exitPrice: 65_967, thesis: THESIS });
-    expect(trade.pnlEur).toBeGreaterThan(8);
-    expect(trade.pnlPct).toBeGreaterThan(8);
-    expect(trade.feesEur).toBeCloseTo(0.8 + closed[0].order.feeEur!, 2);
+    // The result counts every fee: what the round trip brought back (sale minus its fee) minus the 100 EUR spent.
+    const sold = closed[0].order;
+    expect(trade).toMatchObject({ entryFeeEur: 0.8, exitFeeEur: sold.feeEur });
+    expect(trade.pnlEur).toBe(Math.round((sold.fillEur! - sold.feeEur! - 100) * 100) / 100);
+    expect(trade.pnlEur).toBe(7.96);
+    expect(trade.recordedPnlEur).toBeCloseTo(7.96 + 0.8, 2);
+    expect(trade.pnlPct).toBeCloseTo(7.96, 1);
+    expect(trade.feesEur).toBeCloseTo(0.8 + sold.feeEur!, 2);
     expect(getPosition(db.raw, "BTC")).toBeUndefined();
     expect(valuation(db.raw).cashEur).toBeCloseTo(850 + closed[0].order.fillEur! - closed[0].order.feeEur!, 2);
     expect(() => db.raw.prepare("UPDATE trader_trades SET pnl_eur = 999").run()).toThrow(/append-only/);
@@ -259,7 +266,7 @@ describe("Paper broker", () => {
     expect(fr).toContain("Aucune position : tout en liquide.");
     expect(fr).toContain("- 2 opérations closes, 50 % gagnantes");
     expect(fr).toMatch(/1 stop déclenché/);
-    expect(fr).toMatch(/Dernières opérations closes :\n- ETH : −\d+,\d\d € \(−\d+,\d\d %\), acheté 2\s?200,00 € vendu [\d\s]+,\d\d € le jeu\. 8 oct\. 17:06, par le stop — /);
+    expect(fr).toMatch(/Dernières opérations closes \(résultat après tous les frais\) :\n- ETH : −\d+,\d\d € \(−\d+,\d\d %\), acheté 2\s?200,00 € vendu [\d\s]+,\d\d € le jeu\. 8 oct\. 17:06, par le stop — /);
     expect(fr).toContain("Pièges qu'il a nommés :\n- « Stop trop serré » (1 fois) : Je place le stop");
     expect(fr).toContain("- achat de 30,00 € de ETH : expiré (aucun prix reçu en 24 h)");
     expect(fr).toContain("Règles : au comptant seulement, au plus 30 % du portefeuille par actif, frais Kraken 0,8 % (marché) / 0,4 % (limite)");
@@ -270,7 +277,7 @@ describe("Paper broker", () => {
     expect(evening).toMatch(/^🌙 Sonni — jeudi 8 octobre, résumé du jour\n\nPortefeuille :\n- valeur [\d\s]+,\d\d € \([+−][\d\s]+,\d\d € sur la journée\), [+−][\d\s]+,\d\d € depuis le départ · liquidités/);
     expect(evening).toMatch(/Opérations du jour :\n([^\n]*\n)*- 17:00 vente de 0\.02263636 ETH \[stop automatique\] : exécuté à 1\s?939,03 €/);
     expect(evening).toContain("  Raison : Objectif atteint, je prends mon gain de test.");
-    expect(evening).toMatch(/- opération close sur BTC : \+\d+,\d\d € \(\+\d+,\d\d %\)\n- opération close sur ETH : −\d+,\d\d € \(−\d+,\d\d %\), par le stop/);
+    expect(evening).toMatch(/- opération close sur BTC : \+\d+,\d\d € après frais \(\+\d+,\d\d %\)\n- opération close sur ETH : −\d+,\d\d € après frais \(−\d+,\d\d %\), par le stop/);
     expect(evening).toContain("Écrit : 1 note de journal, 0 leçon");
     const out: string[] = [];
     expect(runSonniCommand(["portefeuille"], db.raw, TRADER, (t) => out.push(t))).toBe(0);
@@ -352,6 +359,144 @@ describe("Evening summary on Telegram", () => {
     expect(channel.handleOwnerText("/journee", 1)).toContain("🌙 Sonni — ");
     expect(channel.handleOwnerText("/portefeuille", 2)).toContain("💼 Portefeuille virtuel de Sonni");
     expect(channel.handleOwnerText("/aide", 3)).toContain("/portefeuille");
+    db.close();
+  });
+});
+
+// Step 0.2 (2026-10-09): a trade's result counted its sale fee but not its purchase fee (the entry price is
+// the fill price), so a trade could read as a win while the portfolio lost money on it.
+describe("Trade results after every fee", () => {
+  const cents = (v: number) => Math.round(v * 100) / 100;
+  /** Funds the portfolio, buys `amount` EUR of BTC at `entry`, sells `share` of it at `exit`; slippage 5 bps, taker 0.8 %. */
+  function roundTrip(entry: number, exit: number, amount = 100) {
+    const db = openDb();
+    storePrice(db, "BTC", T0, entry);
+    brokerTick(db.raw, TRADER, T0);
+    const buy = placeOrder(db.raw, TRADER, { asset: "BTC", side: "buy", amountEur: amount, invalidation: entry / 2, thesis: THESIS }, T0);
+    expect(buy.ok).toBe(true);
+    storePrice(db, "BTC", hours(0.1), entry);
+    brokerTick(db.raw, TRADER, hours(0.1));
+    storePrice(db, "BTC", hours(1), exit);
+    const sell = placeOrder(db.raw, TRADER, { asset: "BTC", side: "sell", quantity: "all", thesis: "Je ferme cette position de test pour mesurer les frais." }, hours(1));
+    expect(sell.ok).toBe(true);
+    storePrice(db, "BTC", hours(1.1), exit);
+    const fill = brokerTick(db.raw, TRADER, hours(1.1)).fills[0];
+    return { db, sold: fill.order, trade: fill.trade! };
+  }
+
+  it("a 1 % rise is a loss once both fees are paid; the result is cash back minus cash spent", () => {
+    const { db, sold, trade } = roundTrip(60_000, 60_600);
+    expect(trade.recordedPnlEur).toBe(0.09); // what was stored, and shown before: a win
+    expect(trade).toMatchObject({ entryFeeEur: 0.8, exitFeeEur: 0.8, feesEur: 1.6, pnlEur: -0.71 });
+    expect(trade.pnlEur).toBe(cents(sold.fillEur! - sold.feeEur! - 100));
+    expect(trade.pnlPct).toBeCloseTo(-0.71, 2); // on the 100 EUR the lot cost, fee included
+    expect(performance(db.raw, TRADER, 0, hours(2))).toMatchObject({ tradesClosed: 1, winRate: 0, pnlEur: -0.71 });
+    db.close();
+  });
+
+  it("a real gain keeps its size minus the purchase fee, and a loss grows by it", () => {
+    const up = roundTrip(60_000, 66_000);
+    expect(up.trade.pnlEur).toBe(cents(up.sold.fillEur! - up.sold.feeEur! - 100));
+    expect(up.trade.pnlEur).toBe(cents(up.trade.recordedPnlEur - 0.8));
+    expect(up.trade.pnlEur).toBeGreaterThan(8);
+    up.db.close();
+    const down = roundTrip(60_000, 57_000);
+    expect(down.trade.pnlEur).toBe(cents(down.sold.fillEur! - down.sold.feeEur! - 100));
+    expect(down.trade.pnlEur).toBe(cents(down.trade.recordedPnlEur - 0.8));
+    expect(down.trade.pnlEur).toBeLessThan(-6);
+    down.db.close();
+  });
+
+  it("break-even is the round-trip move code states: just below loses, at it nothing, just above gains", () => {
+    const be = breakEvenMovePct(TRADER);
+    expect(be).toBeCloseTo(((1 + 0.0005) / ((1 - 0.008) ** 2 * (1 - 0.0005)) - 1) * 100, 10);
+    expect(be).toBeCloseTo(1.7211, 4);
+    const at = roundTrip(60_000, 60_000 * (1 + be / 100));
+    expect(Math.abs(at.trade.pnlEur)).toBeLessThanOrEqual(0.02);
+    at.db.close();
+    const below = roundTrip(60_000, 60_000 * (1 + (be - 0.2) / 100));
+    expect(below.trade.pnlEur).toBeLessThan(0);
+    expect(below.trade.recordedPnlEur).toBeGreaterThan(0);
+    below.db.close();
+    const above = roundTrip(60_000, 60_000 * (1 + (be + 0.2) / 100));
+    expect(above.trade.pnlEur).toBeGreaterThan(0);
+    above.db.close();
+  });
+
+  it("partial sales share the purchase fee; an open position counts the fee it carries; equity is unchanged", () => {
+    const db = openDb();
+    storePrice(db, "BTC", T0, 60_000);
+    brokerTick(db.raw, TRADER, T0);
+    expect(placeOrder(db.raw, TRADER, { asset: "BTC", side: "buy", amountEur: 100, invalidation: 30_000, thesis: THESIS }, T0).ok).toBe(true);
+    storePrice(db, "BTC", hours(0.1), 60_000);
+    brokerTick(db.raw, TRADER, hours(0.1));
+    // Right after the buy, at the same price: the purchase fee and the slippage are already lost.
+    const v0 = valuation(db.raw);
+    const qty = v0.positions[0].quantity;
+    expect(v0.positions[0]).toMatchObject({ entryFeesEur: 0.8, pnlEur: -0.85 });
+    expect(v0.equityEur).toBe(cents(v0.cashEur + qty * 60_000));
+    expect(v0.pnlEur).toBe(cents(v0.equityEur - 1000));
+    // Half sold at +5 %, then the rest: each trade carries half the purchase fee.
+    const half = Math.round((qty / 2) * 1e8) / 1e8;
+    storePrice(db, "BTC", hours(1), 63_000);
+    expect(placeOrder(db.raw, TRADER, { asset: "BTC", side: "sell", quantity: half, thesis: "Je prends la moitié du gain de test." }, hours(1)).ok).toBe(true);
+    storePrice(db, "BTC", hours(1.1), 63_000);
+    const first = brokerTick(db.raw, TRADER, hours(1.1)).fills[0];
+    expect(first.trade!.entryFeeEur).toBe(0.4);
+    expect(valuation(db.raw).positions[0].entryFeesEur).toBe(0.4);
+    storePrice(db, "BTC", hours(2), 63_000);
+    expect(placeOrder(db.raw, TRADER, { asset: "BTC", side: "sell", quantity: "all", thesis: "Je ferme le reste de la position de test." }, hours(2)).ok).toBe(true);
+    storePrice(db, "BTC", hours(2.1), 63_000);
+    const second = brokerTick(db.raw, TRADER, hours(2.1)).fills[0];
+    expect(second.trade!.entryFeeEur).toBe(0.4);
+    const cashBack = first.order.fillEur! - first.order.feeEur! + second.order.fillEur! - second.order.feeEur!;
+    expect(Math.abs(first.trade!.pnlEur + second.trade!.pnlEur - (cashBack - 100))).toBeLessThanOrEqual(0.02);
+    // The portfolio's own result never depended on this: equity minus contributions.
+    expect(valuation(db.raw).pnlEur).toBe(cents(cashBack - 100));
+    db.close();
+  });
+
+  it("stored rows are never rewritten: the correction is applied when reading", () => {
+    const { db, sold, trade } = roundTrip(60_000, 60_600);
+    const row = db.raw.prepare("SELECT * FROM trader_trades WHERE id = ?").get(trade.id) as any;
+    // As every trade has been stored since the first: proceeds − sale fee − quantity × entry price.
+    expect(row.pnl_eur).toBe(cents(sold.fillEur! - sold.feeEur! - row.quantity * row.entry_price));
+    expect(row.pnl_eur).toBe(trade.recordedPnlEur);
+    expect(row.fees_eur).toBe(1.6);
+    expect(() => db.raw.prepare("UPDATE trader_trades SET pnl_eur = ? WHERE id = ?").run(trade.pnlEur, trade.id)).toThrow(/append-only/);
+    expect(listTrades(db.raw)[0]).toEqual(trade);
+    expect(tradesAwaitingPostmortem(db.raw)[0]).toEqual(trade);
+    db.close();
+  });
+
+  it("win rate, mean trade, the day summary and every view use the results after fees", () => {
+    const db = openDb();
+    storePrice(db, "BTC", T0, 60_000);
+    brokerTick(db.raw, TRADER, T0);
+    const trade = (at: number, exit: number) => {
+      storePrice(db, "BTC", hours(at), 60_000);
+      expect(placeOrder(db.raw, TRADER, { asset: "BTC", side: "buy", amountEur: 100, invalidation: 30_000, thesis: THESIS }, hours(at)).ok).toBe(true);
+      storePrice(db, "BTC", hours(at + 0.1), 60_000);
+      brokerTick(db.raw, TRADER, hours(at + 0.1));
+      storePrice(db, "BTC", hours(at + 1), exit);
+      expect(placeOrder(db.raw, TRADER, { asset: "BTC", side: "sell", quantity: "all", thesis: "Je ferme cette position de test pour mesurer les frais." }, hours(at + 1)).ok).toBe(true);
+      storePrice(db, "BTC", hours(at + 1.1), exit);
+      return brokerTick(db.raw, TRADER, hours(at + 1.1)).fills[0].trade!;
+    };
+    const small = trade(0.5, 60_600); // +1 %: a win before, a loss after fees
+    const big = trade(3, 66_000); // +10 %
+    expect(small.recordedPnlEur).toBeGreaterThan(0);
+    expect(small.pnlEur).toBeLessThan(0);
+    const perf = performance(db.raw, TRADER, 0, hours(5));
+    expect(perf).toMatchObject({ tradesClosed: 2, winRate: 0.5 });
+    expect(perf.avgTradePct).toBeCloseTo((small.pnlPct + big.pnlPct) / 2, 6);
+    const day = summarize(db.raw, TRADER, "day", "2026-10-07", "2026-10-08")!;
+    expect(day.content).toContain(`2 opération(s) close(s), +${(small.pnlEur + big.pnlEur).toFixed(2).replace(".", ",")} € après frais`);
+    const fr = formatPortfolioFr(db.raw, TRADER, hours(5));
+    expect(fr).toContain("50 % gagnantes");
+    expect(fr).toContain(`- BTC : −${Math.abs(small.pnlEur).toFixed(2).replace(".", ",")} € (−`);
+    const pack = buildMemoryPack(db.raw, TRADER, hours(5));
+    expect(pack).toContain(`${small.pnlEur.toFixed(2)} EUR after fees`);
     db.close();
   });
 });

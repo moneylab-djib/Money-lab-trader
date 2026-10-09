@@ -72,7 +72,7 @@ export function exportNotebooks(db: DB, cfg: TraderConfig, dir: string, now: Dat
 
   const trades = listTrades(db, 10_000);
   files["portefeuille.md"] = header("Portefeuille virtuel de Sonni", now, tz) + formatPortfolioFr(db, cfg, now) + "\n" +
-    (trades.length ? "\n## Toutes les opérations closes\n\n" + trades.map((t) =>
+    (trades.length ? "\n## Toutes les opérations closes (résultat après tous les frais)\n\n" + trades.map((t) =>
       `- ${fmtWhen(t.closedAt, tz)} ${t.asset} : ${t.pnlEur >= 0 ? "+" : "−"}${Math.abs(t.pnlEur).toFixed(2)} € (${t.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.pnlPct).toFixed(2)} %)${t.closeReason === "stop" ? ", par le stop" : ""} — ${t.thesis}`).join("\n") + "\n" : "");
 
   files["cycles.md"] = header("Cycles de Sonni", now, tz) + formatCyclesFr(db, cfg) + "\n";
@@ -87,7 +87,7 @@ export function exportNotebooks(db: DB, cfg: TraderConfig, dir: string, now: Dat
       `## Version ${d.version} — ${fmtWhen(d.recordedAt, tz)} (${d.source === "owner" ? "toi" : "Sonni"})\n\n${d.content}\n\n_Raison : ${d.reason}_\n`).join("\n");
     body += `\n## Prédictions (${predictions.length})\n\n` + (predictions.length === 0 ? "Aucune.\n" : predictions.map((p) =>
       `- ${p.resolvedAt ? describeResolutionFr(p) : describePredictionFr(p, tz)}`).join("\n") + "\n");
-    body += `\n## Opérations closes (${assetTrades.length})\n\n` + (assetTrades.length === 0 ? "Aucune.\n" : assetTrades.map((t) =>
+    body += `\n## Opérations closes (${assetTrades.length}, résultat après tous les frais)\n\n` + (assetTrades.length === 0 ? "Aucune.\n" : assetTrades.map((t) =>
       `- ${fmtWhen(t.closedAt, tz)} : ${t.pnlEur >= 0 ? "+" : "−"}${Math.abs(t.pnlEur).toFixed(2)} €${t.closeReason === "stop" ? ", par le stop" : ""} — ${t.thesis}`).join("\n") + "\n");
     files[`${a.symbol.toLowerCase()}.md`] = body;
   }

@@ -659,7 +659,7 @@ async function run(): Promise<void> {
       const b = brokerTick(db.raw, live());
       if (b.funded.capital) logger.info(`[SONNI] Portefeuille virtuel ouvert avec ${traderBase.portfolio.startEur} EUR.`);
       if (b.funded.contribution) logger.info(`[SONNI] Versement virtuel mensuel de ${traderBase.portfolio.monthlyEur} EUR.`);
-      for (const f of b.fills) logger.info(`[SONNI] Ordre ${f.order.id} exécuté : ${f.order.side} ${f.order.asset} ${f.order.fillQuantity} à ${f.order.fillPrice} EUR${f.trade ? ` ; opération ${f.trade.id} close, résultat ${f.trade.pnlEur} EUR` : ""}.`);
+      for (const f of b.fills) logger.info(`[SONNI] Ordre ${f.order.id} exécuté : ${f.order.side} ${f.order.asset} ${f.order.fillQuantity} à ${f.order.fillPrice} EUR${f.trade ? ` ; opération ${f.trade.id} close, résultat après frais ${f.trade.pnlEur} EUR` : ""}.`);
       for (const o of b.expired) logger.info(`[SONNI] Ordre ${o.id} expiré : ${o.note}.`);
       for (const o of b.stops) logger.info(`[SONNI] Stop déclenché sur ${o.asset} : ordre ${o.id}.`);
     });

@@ -192,7 +192,7 @@ export function buildSonniEveningSummary(db: DB, baseCfg: TraderConfig, lab: Mon
   } else {
     lines.push(`- valeur ${fmtEur(v.equityEur)}${dayChange !== null ? ` (${dayChange >= 0 ? "+" : "−"}${fmtEur(Math.abs(dayChange))} sur la journée)` : ""}, ` +
       `${v.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(v.pnlEur))} depuis le départ · liquidités ${fmtEur(v.cashEur)}`);
-    for (const p of v.positions) lines.push(`- ${p.asset} : ${fmtEur(p.valueEur)} (${p.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(p.pnlEur))})${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}`);
+    for (const p of v.positions) lines.push(`- ${p.asset} : ${fmtEur(p.valueEur)} (${p.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(p.pnlEur))} frais d'achat déduits)${p.invalidation !== null ? `, stop ${fmtEur(p.invalidation)}` : ""}`);
   }
   // Chronological, the way the owner reads a day.
   const orders = recentOrders(db, 20, sinceIso).filter((o) => o.placedAt >= sinceIso || (o.settledAt ?? "") >= sinceIso).reverse();
@@ -205,7 +205,7 @@ export function buildSonniEveningSummary(db: DB, baseCfg: TraderConfig, lab: Mon
     if (o.origin !== "stop") lines.push(`  Raison : ${o.thesis}`);
   }
   const trades = listTrades(db, 10, sinceIso).reverse();
-  for (const t of trades) lines.push(`- opération close sur ${t.asset} : ${t.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(t.pnlEur))} (${t.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.pnlPct).toFixed(2).replace(".", ",")} %)${t.closeReason === "stop" ? ", par le stop" : ""}`);
+  for (const t of trades) lines.push(`- opération close sur ${t.asset} : ${t.pnlEur >= 0 ? "+" : "−"}${fmtEur(Math.abs(t.pnlEur))} après frais (${t.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.pnlPct).toFixed(2).replace(".", ",")} %)${t.closeReason === "stop" ? ", par le stop" : ""}`);
   const resolved = (db.prepare("SELECT id FROM trader_predictions WHERE resolved_at >= ? ORDER BY resolved_at ASC").all(sinceIso) as { id: string }[]).map((r) => getPrediction(db, r.id)!);
   const made = count(db, "SELECT COUNT(*) AS n FROM trader_predictions WHERE made_at >= ?", sinceIso);
   lines.push("", "Prédictions :");

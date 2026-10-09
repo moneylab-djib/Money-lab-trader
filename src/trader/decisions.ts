@@ -143,21 +143,45 @@ export function decisionOutcome(db: DB, d: Decision, horizonHours: number): Deci
   return { movePct, good: isLong(d) ? movePct > 0 : movePct <= 0 };
 }
 
+/**
+ * The rise a market buy needs before its sale pays back what it cost: the taker fee on both legs and the
+ * configured slippage on both fills, in %. A fresh order-book spread can make a real fill cheaper or dearer.
+ */
+export function breakEvenMovePct(cfg: TraderConfig): number {
+  const fee = cfg.portfolio.takerFeePct / 100;
+  const slip = cfg.portfolio.slippageBps / 10_000;
+  return ((1 + slip) / ((1 - fee) ** 2 * (1 - slip)) - 1) * 100;
+}
+
 export interface DecisionStats {
   total: number;
+  /** Right side: the direction of the move matched the exposure the decision left (fees aside). */
   scored24h: number;
   good24h: number;
   scored7d: number;
   good7d: number;
-  /** Flat decisions scored at 7 days: losses avoided (price fell) and gains missed (price rose). */
+  /** Buys and adds scored at 7 days, and those whose move beat the round-trip break-even (profitable after fees). */
+  entries7d: number;
+  entriesPaid7d: number;
+  /**
+   * Flat decisions scored at 7 days. A rise counts as a missed gain only when a buy would have paid its fees:
+   * beyond the break-even move after staying out, beyond 0 after selling or reducing (the sale was paid either
+   * way). Every other move is a loss avoided; flatSmallRises counts the rises inside the fees among them.
+   */
   flatAvoided: number;
   flatMissed: number;
+  flatSmallRises: number;
+  breakEvenPct: number;
   byAction: Partial<Record<DecisionAction, number>>;
 }
 
-export function decisionStats(db: DB, since: string): DecisionStats {
+export function decisionStats(db: DB, cfg: TraderConfig, since: string): DecisionStats {
   const ds = listDecisions(db, since);
-  const s: DecisionStats = { total: ds.length, scored24h: 0, good24h: 0, scored7d: 0, good7d: 0, flatAvoided: 0, flatMissed: 0, byAction: {} };
+  const breakEven = breakEvenMovePct(cfg);
+  const s: DecisionStats = {
+    total: ds.length, scored24h: 0, good24h: 0, scored7d: 0, good7d: 0, entries7d: 0, entriesPaid7d: 0,
+    flatAvoided: 0, flatMissed: 0, flatSmallRises: 0, breakEvenPct: breakEven, byAction: {},
+  };
   for (const d of ds) {
     s.byAction[d.action] = (s.byAction[d.action] ?? 0) + 1;
     const o1 = decisionOutcome(db, d, 24);
@@ -166,7 +190,12 @@ export function decisionStats(db: DB, since: string): DecisionStats {
     if (o7) {
       s.scored7d++;
       if (o7.good) s.good7d++;
-      if (!isLong(d)) { if (o7.movePct <= 0) s.flatAvoided++; else s.flatMissed++; }
+      if (d.action === "buy" || d.action === "add") { s.entries7d++; if (o7.movePct > breakEven) s.entriesPaid7d++; }
+      if (!isLong(d)) {
+        const threshold = d.action === "sell" || d.action === "reduce" ? 0 : breakEven;
+        if (o7.movePct > threshold) s.flatMissed++;
+        else { s.flatAvoided++; if (o7.movePct > 0) s.flatSmallRises++; }
+      }
     }
   }
   return s;
@@ -175,12 +204,15 @@ export function decisionStats(db: DB, since: string): DecisionStats {
 /** For the memory pack (English): the latest decision per asset with code's score, and which are due. */
 export function decisionsPackLines(db: DB, cfg: TraderConfig, now: Date = new Date()): string[] {
   const lines: string[] = [];
+  const breakEven = breakEvenMovePct(cfg);
   for (const a of activeAssets(db, cfg)) {
     const d = listDecisions(db, undefined, a.symbol)[0];
     if (!d) { lines.push(`- ${a.symbol}: no decision yet.`); continue; }
     const o = decisionOutcome(db, d, 24);
+    const entry = d.action === "buy" || d.action === "add";
     lines.push(`- ${a.symbol}: ${d.action} at ${d.price} EUR on ${d.madeAt.slice(0, 16).replace("T", " ")} UTC` +
-      (o ? `; 24 h later ${o.movePct >= 0 ? "+" : ""}${o.movePct.toFixed(2)} % (${o.good ? "right side" : "wrong side"})` : "; not scored yet"));
+      (o ? `; 24 h later ${o.movePct >= 0 ? "+" : ""}${o.movePct.toFixed(2)} % (${o.good ? "right side" : "wrong side"}` +
+        `${entry ? `, ${o.movePct > breakEven ? "beyond" : "not beyond"} the ${breakEven.toFixed(2)} % a round trip costs in fees` : ""})` : "; not scored yet"));
   }
   const due = decisionsDue(db, cfg, now);
   if (due.length) lines.push(`Due now (no decision in ${DECISION_HOURS} h): ${due.join(", ")}.`);

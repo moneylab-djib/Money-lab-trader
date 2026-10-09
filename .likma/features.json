@@ -1462,6 +1462,40 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "trade-fees",
+      "title": "Trade results, win rate and decision profitability count every fee",
+      "criteria": [
+        "1. WHEN a trade is read, THE SYSTEM SHALL report its result after the purchase fee share and the sale fee, so that a full round trip's result equals cash received minus cash spent (within one cent), and its % on the lot's cost including the purchase fee",
+        "2. THE SYSTEM SHALL count a trade as won only when that result is above zero, and SHALL average trade % on those results; /portefeuille, /bilan, the evening summary, notebooks, the day/week/month summaries, the pack and the consistency check's facts SHALL show the same figures",
+        "3. WHEN an open position is valued, THE SYSTEM SHALL subtract the purchase fees it still carries from its result, while equity and the portfolio result (equity minus contributions) stay exactly as before",
+        "4. WHEN decisions are scored, THE SYSTEM SHALL keep 'right side' as the direction of the move, and SHALL count a buy or add as profitable and a rise after staying out as a missed gain only beyond the round-trip break-even move computed from the configured fees and slippage",
+        "5. Tests SHALL cover gains, losses, fees, small moves, moves at and around break-even, partial sales and stored rows",
+        "Stored trades, orders, ledger rows and decisions are never rewritten (append-only); the recorded pnl_eur keeps its meaning and the correction is applied when reading",
+        "Fills, cash, equity, the portfolio result, order caps, stops, lesson scoring and every trading rule are unchanged; no paid call"
+      ],
+      "status": "planned",
+      "paths": [
+        "src/trader/portfolio.ts",
+        "src/trader/decisions.ts",
+        "src/trader/summaries.ts",
+        "src/trader/status.ts",
+        "src/trader/soul.ts",
+        "src/trader/pack.ts",
+        "src/trader/report.ts",
+        "src/trader/notebooks.ts",
+        "src/trader/brainchecks.ts",
+        "src/__tests__/trader/portfolio.test.ts",
+        "src/__tests__/trader/decisions.test.ts"
+      ],
+      "bug": {
+        "current": "A closed trade's result left out its purchase fee (avg_cost = fill price), so per-trade P&L, win rate and mean trade % read about 0.8 % of the stake too high; an open position's result left out its purchase fee; decisions counted any rise after staying out as a missed gain, even one too small to pay a round trip's fees",
+        "unchanged": [
+          6,
+          7
+        ]
+      }
     }
   ]
 }

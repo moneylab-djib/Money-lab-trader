@@ -427,7 +427,7 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
   if (v.positions.length === 0) lines.push("- No open position: all in cash.");
   for (const p of v.positions) {
     const s = p.pnlEur >= 0 ? "+" : "";
-    lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} %); ` +
+    lines.push(`- ${p.asset}: ${p.quantity} at avg ${eur(p.avgCost)}, now ${p.lastPrice === null ? "no price" : eur(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling costs ${pc.takerFeePct} % more); ` +
       `stop ${p.invalidation === null ? "none" : eur(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
     // Step 3 (2026-10-08): the second brain's devil's advocate on this position, if fresh.
     const against = latestOutput(db, "counter_case", p.asset, new Date(now.getTime() - 36 * 3_600_000));
@@ -444,7 +444,7 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
       (o.origin === "stop" ? " [stop]" : ""));
   }
   const awaiting = tradesAwaitingPostmortem(db, 5);
-  if (awaiting.length) lines.push(`- Closed trades waiting for your post-mortem (write_reflection kind trade): ${awaiting.map((t) => `${t.id} ${t.asset} ${t.pnlEur >= 0 ? "+" : ""}${t.pnlEur.toFixed(2)} EUR`).join(", ")}`);
+  if (awaiting.length) lines.push(`- Closed trades waiting for your post-mortem (write_reflection kind trade): ${awaiting.map((t) => `${t.id} ${t.asset} ${t.pnlEur >= 0 ? "+" : ""}${t.pnlEur.toFixed(2)} EUR after fees`).join(", ")}`);
   // The traps' names stay in front of the model at decision time; their signs are in the detail view.
   const traps = listTraps(db);
   if (traps.length) lines.push(`- Your traps (check each before an order): ${traps.map((t) => `« ${t.name} » (${t.hits})`).join(", ")}`);
@@ -455,8 +455,8 @@ function tradesSection(db: DB, limit: number): Section {
   const trades = listTrades(db, limit);
   const lines = trades.length === 0 ? ["- none closed yet"] : trades.map((t) =>
     `- ${t.id} ${t.asset} ${t.closedAt.slice(0, 16).replace("T", " ")}: ${t.quantity} bought ${eur(t.entryPrice)} sold ${eur(t.exitPrice)}, ` +
-      `${t.pnlEur >= 0 ? "+" : ""}${eur(t.pnlEur)} (${t.pnlPct >= 0 ? "+" : ""}${t.pnlPct.toFixed(2)} %, fees ${eur(t.feesEur)}), closed by ${t.closeReason === "stop" ? "the stop" : "you"}; thesis: ${short(t.thesis, 140)}`);
-  return { title: `Closed trades (${trades.length} most recent; profit and loss computed by code):`, lines, detail: "trades" };
+      `${t.pnlEur >= 0 ? "+" : ""}${eur(t.pnlEur)} after every fee (${t.pnlPct >= 0 ? "+" : ""}${t.pnlPct.toFixed(2)} %, fees ${eur(t.feesEur)}), closed by ${t.closeReason === "stop" ? "the stop" : "you"}; thesis: ${short(t.thesis, 140)}`);
+  return { title: `Closed trades (${trades.length} most recent; profit and loss after every fee, computed by code):`, lines, detail: "trades" };
 }
 
 function trapsSection(db: DB): Section {
