@@ -167,9 +167,10 @@ try {
     say("");
 
     // 3. Open positions averaged from several buys below 10 EUR: stored average cost against the ledger replay.
-    say(`3. Positions ouvertes moyennées sous ${CENT_SENSITIVE} € (coût moyen enregistré comparé au registre)`);
+    say("3. Positions ouvertes moyennées (coût moyen enregistré comparé au registre)");
     let averaged = 0;
-    for (const p of rows("SELECT asset, quantity, avg_cost, opened_at, open_order_id FROM trader_positions WHERE quantity > 0 AND quantity <= ? AND avg_cost > 0 AND avg_cost < ? ORDER BY asset", HUGE, CENT_SENSITIVE)) {
+    // Every price: a cent-rounded average drifts by up to 0.005 EUR a unit, which passes a cent above about 2 units.
+    for (const p of rows("SELECT asset, quantity, avg_cost, opened_at, open_order_id FROM trader_positions WHERE quantity > 0 AND quantity <= ? AND avg_cost > 0 AND avg_cost <= ? ORDER BY asset", HUGE, HUGE)) {
       // From the ledger row of the order that opened this position (append-only, so rowid is the order of
       // writing): a sale of the previous position in the same tick is not part of it.
       const start = db.prepare("SELECT rowid AS r FROM trader_ledger WHERE kind = 'buy' AND order_id = ?").get(p.open_order_id);

@@ -266,7 +266,7 @@ export function createTraderTools(): AutomatonTool[] {
         if (thresholds.length === 0) return "thresholds: give 1 to 5 positive prices in EUR.";
         const lines = thresholds.map((t) => {
           const o = marketOdds(ctx.db.raw, asset, direction, t, horizon);
-          return o ? `- ${describeOdds(o)}` : `- ${asset} ${direction} ${t}: no price or fewer than 20 days of history yet.`;
+          return o ? `- ${describeOdds(o)}` : `- ${asset} ${direction} ${plainPrice(t)}: no price or fewer than 20 days of history yet.`;
         });
         return `Code's odds (data, not advice):\n${lines.join("\n")}`;
       },

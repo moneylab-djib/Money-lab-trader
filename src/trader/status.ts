@@ -227,7 +227,7 @@ export function portfolioLinesFr(db: DB, cfg: TraderConfig, now: Date, short: bo
   }
   if (v.positions.length === 0 && v.invalid.length === 0) lines.push("Aucune position : tout en liquide.");
   for (const p of v.positions) {
-    lines.push(`${p.asset} : ${p.quantity} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)} frais d'achat déduits) acheté ${fmtPrice(p.avgCost)}` +
+    lines.push(`${p.asset} : ${qtyText(p.quantity)} (${fmtEur(p.valueEur)}, ${signed(p.pnlEur)} frais d'achat déduits) acheté ${fmtPrice(p.avgCost)}` +
       `${p.invalidation !== null ? `, stop ${fmtPrice(p.invalidation)}` : ""}${p.horizonUntil ? `, revoir ${fmtWhen(p.horizonUntil, tz)}` : ""}` +
       (short ? "" : `
   Raison : ${p.thesis}`));

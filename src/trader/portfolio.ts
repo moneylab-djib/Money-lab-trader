@@ -774,14 +774,17 @@ export function restoreStopLevel(db: DB, order: Order, now: Date): void {
   const day = now.toISOString().slice(0, 10);
   const key = `sonni.stop_restored.${order.asset}`;
   if (positive(level) && getKV(db, key) !== day) {
-    setKV(db, key, day);
-    const nowIso = isoSeconds(now);
-    db.prepare("UPDATE trader_positions SET invalidation = ?, updated_at = ? WHERE asset = ? AND invalidation IS NULL").run(level, nowIso, order.asset);
-    db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', NULL, ?, ?, 'code')")
-      .run(`u_${ulid()}`, order.asset, nowIso, String(level), `stop order ${order.id} rejected by the broker: level restored, the stop is placed again at the next tick`);
-    recordIncident(db, "broker", `stop de ${order.asset} refusé par le courtier virtuel : niveau ${fmtPrice(level)} rétabli, le code le replace au prochain relevé.`, now);
+    // One transaction: the level, its update row and the once-a-day mark are written together or not at all.
+    db.transaction(() => {
+      setKV(db, key, day);
+      const nowIso = isoSeconds(now);
+      db.prepare("UPDATE trader_positions SET invalidation = ?, updated_at = ? WHERE asset = ? AND invalidation IS NULL").run(level, nowIso, order.asset);
+      db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', NULL, ?, ?, 'code')")
+        .run(`u_${ulid()}`, order.asset, nowIso, String(level), `stop order ${order.id} rejected by the broker: level restored, the stop is placed again at the next tick`);
+      recordIncident(db, "broker", `stop de ${order.asset} refusé par le courtier virtuel : niveau ${fmtPrice(level)} rétabli, le code le replace au prochain relevé.`, now);
+    })();
   } else {
-    recordIncident(db, "broker", `stop de ${order.asset} refusé par le courtier virtuel : la position reste sans stop jusqu'à demain (niveau déjà rétabli une fois aujourd'hui). Vérifie /portefeuille.`, now);
+    recordIncident(db, "broker", `stop de ${order.asset} refusé par le courtier virtuel une deuxième fois aujourd'hui : la position reste sans stop tant qu'aucun niveau n'est remis (manage_position, ou ta demande à Sonni). Vérifie /portefeuille.`, now);
   }
 }
 
@@ -809,7 +812,14 @@ export function brokerTick(db: DB, cfg: TraderConfig, now: Date = new Date()): B
         if ("fill" in result) out.fills.push(result.fill);
         else {
           out.rejected.push(result.rejected);
-          if (order.origin === "stop") restoreStopLevel(db, order, now);
+          if (order.origin === "stop") {
+            try {
+              restoreStopLevel(db, order, now);
+            } catch (err) {
+              brokerIncidentOnce(db, `sonni.stop_restore_failed.${order.asset}`,
+                `stop de ${order.asset} refusé et niveau non rétabli (échec technique : ${String(err instanceof Error ? err.message : err).slice(0, 120)}) ; la position est sans stop, vérifie /portefeuille.`, now);
+            }
+          }
         }
         continue;
       }
@@ -841,16 +851,26 @@ export function brokerTick(db: DB, cfg: TraderConfig, now: Date = new Date()): B
     const last = latestPrice(db, p.asset);
     if (!last || ageMinutes(last, now) > cfg.staleMinutes || last.price > p.invalidation) continue;
     if (pendingOrders(db, p.asset).some((o) => o.side === "sell")) continue;
-    const stop = placeOrder(db, cfg, {
-      asset: p.asset, side: "sell", kind: "market", quantity: "all",
-      thesis: `Stop: ${p.asset} reached the invalidation level ${plainPrice(p.invalidation)} EUR (last price ${plainPrice(last.price)} EUR); the thesis was: ${p.thesis}`.slice(0, THESIS_MAX),
-      horizonHours: 24,
-    }, now, "stop");
-    if (stop.ok) {
-      db.prepare("UPDATE trader_positions SET invalidation = NULL, updated_at = ? WHERE asset = ?").run(nowIso, p.asset);
-      db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', ?, NULL, ?, 'code')")
-        .run(`u_${ulid()}`, p.asset, nowIso, String(p.invalidation), `stop triggered at ${plainPrice(last.price)} EUR (order ${stop.value.id})`);
-      out.stops.push(stop.value);
+    try {
+      // One transaction: the stop order and the cleared level are written together or not at all.
+      const stop = db.transaction(() => {
+        const placed = placeOrder(db, cfg, {
+          asset: p.asset, side: "sell", kind: "market", quantity: "all",
+          thesis: `Stop: ${p.asset} reached the invalidation level ${plainPrice(p.invalidation!)} EUR (last price ${plainPrice(last.price)} EUR); the thesis was: ${p.thesis}`.slice(0, THESIS_MAX),
+          horizonHours: 24,
+        }, now, "stop");
+        if (placed.ok) {
+          db.prepare("UPDATE trader_positions SET invalidation = NULL, updated_at = ? WHERE asset = ?").run(nowIso, p.asset);
+          db.prepare("INSERT INTO trader_position_updates (id, asset, at, field, old_value, new_value, reason, by) VALUES (?, ?, ?, 'invalidation', ?, NULL, ?, 'code')")
+            .run(`u_${ulid()}`, p.asset, nowIso, String(p.invalidation), `stop triggered at ${plainPrice(last.price)} EUR (order ${placed.value.id})`);
+        }
+        return placed;
+      })();
+      if (stop.ok) out.stops.push(stop.value);
+    } catch (err) {
+      // One position's stop failing must not keep the others from being placed; retried at the next tick.
+      brokerIncidentOnce(db, `sonni.stop_failed.${p.asset}`,
+        `stop de ${p.asset} : échec technique au placement, nouvel essai au prochain relevé (${String(err instanceof Error ? err.message : err).slice(0, 120)}).`, now);
     }
   }
   // Horizons: once per position horizon, the model is asked what to do (the position stays).

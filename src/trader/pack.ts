@@ -440,7 +440,7 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
   if (v.positions.length === 0 && v.invalid.length === 0) lines.push("- No open position: all in cash.");
   for (const p of v.positions) {
     const s = p.pnlEur >= 0 ? "+" : "";
-    lines.push(`- ${p.asset}: ${p.quantity} at avg ${price(p.avgCost)}, now ${p.lastPrice === null ? "no price" : price(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling at market costs ${pc.takerFeePct} % more, ${pc.makerFeePct} % with a limit); ` +
+    lines.push(`- ${p.asset}: ${qtyText(p.quantity)} at avg ${price(p.avgCost)}, now ${p.lastPrice === null ? "no price" : price(p.lastPrice)} = ${eur(p.valueEur)} (${s}${eur(p.pnlEur)}, ${s}${p.pnlPct.toFixed(2)} % after its purchase fees; selling at market costs ${pc.takerFeePct} % more, ${pc.makerFeePct} % with a limit); ` +
       `stop ${p.invalidation === null ? "none" : price(p.invalidation)}; horizon ${p.horizonUntil ?? "none"}${p.horizonUntil && p.horizonUntil <= isoSeconds(now) ? " (REACHED: decide)" : ""}; thesis: ${short(p.thesis, 160)}`);
     // Step 3 (2026-10-08): the second brain's devil's advocate on this position, if fresh.
     const against = latestOutput(db, "counter_case", p.asset, new Date(now.getTime() - 36 * 3_600_000));
@@ -467,7 +467,7 @@ function portfolioSection(db: DB, cfg: TraderConfig, now: Date): Section {
 function tradesSection(db: DB, limit: number): Section {
   const trades = listTrades(db, limit);
   const lines = trades.length === 0 ? ["- none closed yet"] : trades.map((t) =>
-    `- ${t.id} ${t.asset} ${t.closedAt.slice(0, 16).replace("T", " ")}: ${t.quantity} bought ${price(t.entryPrice)} sold ${price(t.exitPrice)}, ` +
+    `- ${t.id} ${t.asset} ${t.closedAt.slice(0, 16).replace("T", " ")}: ${qtyText(t.quantity)} bought ${price(t.entryPrice)} sold ${price(t.exitPrice)}, ` +
       `${t.pnlEur >= 0 ? "+" : ""}${eur(t.pnlEur)} after every fee (${t.pnlPct >= 0 ? "+" : ""}${t.pnlPct.toFixed(2)} %, fees ${eur(t.feesEur)}), closed by ${t.closeReason === "stop" ? "the stop" : "you"}; thesis: ${short(t.thesis, 140)}`);
   return { title: `Closed trades (${trades.length} most recent; profit and loss after every fee, computed by code):`, lines, detail: "trades" };
 }

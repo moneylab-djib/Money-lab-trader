@@ -16,7 +16,8 @@
     negative or non-finite one settles the order as `rejected` (an existing status; note for the model, `broker`
     incident in French) with nothing else written; the ledger refuses such a row as a last line of defence; an
     unexpected error on one order leaves it pending (one incident a day) and the other orders, stops, horizons and the
-    snapshot go on; a rejected stop gets its level back once a day (on a valid position only); a sale of everything
+    snapshot go on; a stop that cannot be placed keeps its level for the next tick without stopping the other stops;
+    a rejected stop gets its level back once a day (on a valid position only, in one transaction); a sale of everything
     leaves exactly 0. A stored position code cannot value (only a pre-0.3 fill could write one) is reported once a day,
     never valued, sold, stopped or managed: the total becomes unknown (NaN, shown as "non fiable", never a partial sum),
     buys (new and pending), decisions, decision requests, its horizon wake and snapshots are suspended; sales and stops
@@ -30,16 +31,19 @@
     `rejected`, which the schema already allowed). BTC and ETH: existing tests pass unchanged; over 20,000 random
     round trips each, the result moves by exactly 1 cent in 0.10 % (BTC) and 1.1 % (ETH) of round trips, never more
     (PAXG 1.05 %, stocks 10 %): the old sale proceeds used a cent-rounded fill price, the new figure is exact.
-  - Checks: sonni 23 files, 244 tests (precision.test 45, the 199 earlier ones unchanged); money-lab 110; runtime 1,646; Likma verify (report
-    47bd54ba): types, sonni, money-lab, runtime, build and sonni-e2e (620 s) pass; the 21 other features re-verified
-    (report b4213778). Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
+  - Checks: sonni 23 files, 247 tests (precision.test 48, the 199 earlier ones unchanged); money-lab 110; runtime 1,646;
+    Likma verify: see the last line of this entry; the 21 other features re-verified (report b4213778). Averaged buys then partial and full sales (USDC, ADA, BTC, ETH, PUMP): trades add up to the
     portfolio result with a 0.00 EUR gap; BTC +2.77 and ETH −1.25 EUR as before.
-    Mutations: 30 of 31 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
+    Mutations: 34 of 35 reverts fail a test (the remaining one, no code stop on an invalid position, is a second
     layer: placeOrder refuses that sale too). Adversarial review (5 reviewers, each finding re-checked): fixed a stop
     "restored" on a corrupt legacy position (it rewrote the row and promised a stop), pending buys filling while buys
     were suspended, a paid horizon wake and position management on a corrupt position, a share fact from an infinite
     equity, 4-decimal small-price facts, English details in French notes, the audit replay counting the previous
-    position's sale, and the audit's temporary copy left on Ctrl+C.
+    position's sale, and the audit's temporary copy left on Ctrl+C. Independent acceptance review (Likma `feature
+    review`): pass, with six minor points, all applied: one failing stop no longer blocks the other stops, a level
+    restore is all or nothing, the second-rejection incident says what puts the stop back, quantities never show an
+    exponent, get_odds shows small prices in full, the audit compares averaged positions at every price, and FR-2 states
+    that a dust sale whose proceeds round to 0.00 EUR is a valid fill (tested).
   - Risks left: Kraken quotes that are positive but absurd are used as they are (capping them is a separate step the
     owner deferred); the consistency check's 0.50 EUR tolerance cannot flag a wrong price below about 0.5 EUR; French
     quantities keep a decimal point; a corrupt position stays until an owner-approved repair (none is automatic).

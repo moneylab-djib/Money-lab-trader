@@ -36,9 +36,11 @@ export function plainPrice(value: number): string {
   return value.toLocaleString("en-US", { useGrouping: false, maximumSignificantDigits: 12 });
 }
 
-/** A quantity as stored (decimal point, every digit); "n.d." for one a pre-0.3 fill left non-finite. */
+/** A quantity as stored (decimal point, every digit, never an exponent); "n.d." for one a pre-0.3 fill left non-finite. */
 export function qtyText(value: number | null): string {
-  return value === null ? "?" : Number.isFinite(value) ? String(value) : "n.d.";
+  if (value === null) return "?";
+  if (!Number.isFinite(value)) return "n.d.";
+  return value !== 0 && Math.abs(value) < 1e-6 ? value.toLocaleString("en-US", { useGrouping: false, maximumSignificantDigits: 12 }) : String(value);
 }
 
 /** A unit price for the model, in English without the unit: "0.0048874" below 1 EUR, exactly value.toFixed(2) from 1 EUR. */

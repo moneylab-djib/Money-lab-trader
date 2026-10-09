@@ -11,7 +11,7 @@ import os from "os";
 import path from "path";
 import { spawnSync } from "child_process";
 import { createDatabase } from "../../state/database.js";
-import { ensureMoneyLabSchema } from "../../money-lab/journal.js";
+import { ensureMoneyLabSchema, getKV } from "../../money-lab/journal.js";
 import { applyMoneyLabProfile } from "../../money-lab/profile.js";
 import type { AutomatonConfig, AutomatonDatabase } from "../../types.js";
 import { applyTraderProfile, DEFAULT_PORTFOLIO, parseTraderConfig, type TraderConfig } from "../../trader/config.js";
@@ -23,7 +23,7 @@ import {
 import { describeWatch, evaluateTriggers } from "../../trader/curiosity.js";
 import { consistencySubject, factValueFr } from "../../trader/brainchecks.js";
 import { decisionsDue, decisionsPackLines, recordDecision } from "../../trader/decisions.js";
-import { fmtEur, fmtPrice, plainPrice, priceEn } from "../../trader/format.js";
+import { fmtEur, fmtPrice, plainPrice, priceEn, qtyText } from "../../trader/format.js";
 import { listIncidents } from "../../trader/incidents.js";
 import { formatPortfolioFr, formatSonniStatus } from "../../trader/status.js";
 import { buildSonniEveningSummary } from "../../trader/report.js";
@@ -333,6 +333,25 @@ describe("Nothing invalid is written: a bad fill is rejected and the rest goes o
     db.close();
   });
 
+  it("one stop that cannot be placed does not keep the others from being placed", () => {
+    const db = funded();
+    trade(db, 1, "ETH", 2_000, { side: "buy", amountEur: 100, invalidation: 1_900 });
+    trade(db, 2, "BTC", 60_000, buy(100, 60_000));
+    db.raw.exec("CREATE TEMP TRIGGER fail_eth_stop BEFORE INSERT ON main.trader_position_updates WHEN NEW.asset = 'ETH' BEGIN SELECT RAISE(ABORT, 'disk full (test)'); END;");
+    storePrice(db, "ETH", hours(3), 1_890);
+    storePrice(db, "BTC", hours(3), 41_000);
+    const out = brokerTick(db.raw, TRADER, hours(3));
+    expect(out.stops.map((o) => o.asset)).toEqual(["BTC"]);
+    expect(out.snapshot).toBe(false); // already taken today; the tick went on to it without throwing
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_orders WHERE asset = 'ETH' AND origin = 'stop'").get()).toEqual({ n: 0 }); // nothing half written
+    expect(getPosition(db.raw, "ETH")!.invalidation).toBe(1_900); // kept: retried at the next tick
+    expect(listIncidents(db.raw).some((i) => i.message.startsWith("stop de ETH : échec technique au placement"))).toBe(true);
+    db.raw.exec("DROP TRIGGER fail_eth_stop");
+    storePrice(db, "ETH", hours(3.1), 1_890);
+    expect(brokerTick(db.raw, TRADER, hours(3.1)).stops.map((o) => o.asset)).toEqual(["ETH"]);
+    db.close();
+  });
+
   it("a rejected stop puts its level back once a day, and says so when it cannot (a last resort)", () => {
     const db = funded();
     trade(db, 1, "ETH", 2_000, { side: "buy", amountEur: 100, invalidation: 1_900 });
@@ -352,7 +371,37 @@ describe("Nothing invalid is written: a bad fill is rejected and the rest goes o
     db.raw.prepare("UPDATE trader_orders SET status = 'rejected', settled_at = ?, note = 'rejected by code (amount): test' WHERE id = ?").run(isoSeconds(hours(2.3)), again.id);
     restoreStopLevel(db.raw, getOrder(db.raw, again.id)!, hours(2.3));
     expect(getPosition(db.raw, "ETH")!.invalidation).toBeNull(); // the second time that day: no loop
-    expect(listIncidents(db.raw).some((i) => i.message.includes("reste sans stop jusqu'à demain"))).toBe(true);
+    expect(listIncidents(db.raw).some((i) => i.message.includes("une deuxième fois aujourd'hui : la position reste sans stop tant qu'aucun niveau n'est remis"))).toBe(true);
+    db.close();
+  });
+
+  it("a sale of dust whose proceeds round to 0.00 EUR is a valid fill, not a rejection", () => {
+    const db = funded();
+    trade(db, 1, "BTC", 60_000, buy(100, 60_000));
+    trade(db, 2, "BTC", 60_000, { side: "sell", quantity: round8(getPosition(db.raw, "BTC")!.quantity - 1e-8) });
+    expect(getPosition(db.raw, "BTC")!.quantity).toBe(1e-8); // dust left: worth 0.0006 EUR
+    const out = trade(db, 3, "BTC", 60_000, sellAll);
+    expect(out.rejected).toEqual([]);
+    expect(out.fills[0].order).toMatchObject({ status: "filled", fillQuantity: 1e-8, feeEur: 0 });
+    expect(db.raw.prepare("SELECT amount_eur, fee_eur FROM trader_ledger WHERE order_id = ?").get(out.fills[0].order.id)).toEqual({ amount_eur: 0, fee_eur: 0 });
+    expect(getPosition(db.raw, "BTC")).toBeUndefined(); // closed, exactly 0 left
+    db.close();
+  });
+
+  it("a stop rejected at fill whose level cannot be put back writes nothing half and tells the owner", () => {
+    const db = funded();
+    trade(db, 1, "ETH", 2_000, { side: "buy", amountEur: 100, invalidation: 1_900 });
+    storePrice(db, "ETH", hours(2), 1_890);
+    const [stop] = brokerTick(db.raw, TRADER, hours(2)).stops;
+    // A legacy-style infinite price (the CHECK lets 9e999 through) makes the stop's fill invalid: rejected, not filled.
+    db.raw.prepare("INSERT INTO trader_prices (asset, ts, price, source) VALUES ('ETH', ?, 9e999, 'test')").run(isoSeconds(hours(2.5)));
+    db.raw.exec("CREATE TEMP TRIGGER fail_restore BEFORE INSERT ON main.trader_position_updates WHEN NEW.new_value IS NOT NULL BEGIN SELECT RAISE(ABORT, 'disk full (test)'); END;");
+    const out = brokerTick(db.raw, TRADER, hours(2.6));
+    expect(out.rejected.map((o) => o.id)).toEqual([stop.id]);
+    expect(getOrder(db.raw, stop.id)!.note).toMatch(/^rejected by code \(price\):/);
+    expect(getPosition(db.raw, "ETH")!.invalidation).toBeNull(); // the level, its row and the daily mark: all or nothing
+    expect(getKV(db.raw, "sonni.stop_restored.ETH")).toBeUndefined();
+    expect(listIncidents(db.raw).some((i) => i.message.startsWith("stop de ETH refusé et niveau non rétabli (échec technique : disk full (test))"))).toBe(true);
     db.close();
   });
 
@@ -557,6 +606,9 @@ describe("Small prices are readable for the owner and the model (prices from 1 E
     db.close();
     expect(plainPrice(0.0048874425)).toBe("0.0048874425");
     expect(plainPrice(55_000)).toBe("55000");
+    expect(qtyText(1e-8)).toBe("0.00000001"); // dust left by a partial sale, never "1e-8"
+    expect(qtyText(28475136.35485532)).toBe("28475136.35485532");
+    expect(qtyText(9e999)).toBe("n.d.");
   });
 
   it("/portefeuille, /statut, the evening summary and the pack show PUMP's real price; BTC lines keep their text", () => {
@@ -594,6 +646,10 @@ describe("Read-only price audit of a database copy (sonni/vps/audit-prix.mjs)", 
     db.raw.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_u1', ?, 'buy', 'USDC', 115.34883721, 0.86, -100, 0.8, 'o_u1', NULL)").run(isoSeconds(hours(3)));
     db.raw.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_u2', ?, 'buy', 'USDC', 57.01149425, 0.87, -50, 0.4, 'o_u2', NULL)").run(isoSeconds(hours(4)));
     db.raw.prepare("INSERT INTO trader_positions (asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at) VALUES ('USDC', 172.36033146, 0.86, ?, 'o_u1', NULL, NULL, ?, ?)").run(isoSeconds(hours(3)), THESIS, isoSeconds(hours(4)));
+    // SPY at 12.35 then 12.90 (an average above 10 EUR rounded to the cent drifts too): 8.03238866 + 7.68992248 units.
+    db.raw.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_s1', ?, 'buy', 'SPY', 8.03238866, 12.35, -100, 0.8, 'o_s1', NULL)").run(isoSeconds(hours(5)));
+    db.raw.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_s2', ?, 'buy', 'SPY', 7.68992248, 12.9, -100, 0.8, 'o_s2', NULL)").run(isoSeconds(hours(6)));
+    db.raw.prepare("INSERT INTO trader_positions (asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at) VALUES ('SPY', 15.72231114, ?, ?, 'o_s1', NULL, NULL, ?, ?)").run(Math.round((198.4 / 15.72231114) * 100) / 100 + 0.01, isoSeconds(hours(5)), THESIS, isoSeconds(hours(6)));
     db.close();
     return file;
   }
@@ -607,7 +663,8 @@ describe("Read-only price audit of a database copy (sonni/vps/audit-prix.mjs)", 
     expect(r.stdout).toMatch(/1 ligne du registre :\n  · l_pump buy PUMP .* quantité non finie, prix 0,00 €/);
     expect(r.stdout).toMatch(/1 position ouverte :\n  · PUMP : quantité non finie, coût moyen 0,00 €/);
     expect(r.stdout).toMatch(/USDC : 2 achats, coût moyen enregistré 0,86 € contre 0,8633\d* € d'après le registre, écart -0,57 € sur la position/);
-    expect(r.stdout).toContain("3 points à examiner. Rien n'a été modifié");
+    expect(r.stdout).toMatch(/SPY : 2 achats, coût moyen enregistré 12,63 € contre 12,62 € d'après le registre, écart 0,17 € sur la position/);
+    expect(r.stdout).toContain("4 points à examiner. Rien n'a été modifié");
     expect(r.stdout).toContain("Fichier audité inchangé (SHA-256 identique avant et après).");
     expect(sha(file)).toBe(before);
   });
