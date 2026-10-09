@@ -193,15 +193,19 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    du passage au réel. Pour toi : `/portefeuille`, `/journee`, et un résumé chaque soir à 20 h (ton
    choix : un résumé par jour plutôt qu'un message par ordre). Aucun compte, aucun argent réel : le
    portefeuille n'existe que dans sa base de données.
-   Depuis le 9 octobre (étape 0.2, PR #31) le résultat de chaque opération, le taux d'opérations
-   gagnantes et le gain moyen comptent vraiment tous les frais : avant, les frais d'achat étaient
-   oubliés (un aller-retour de 100 € à +1 % affichait +0,09 €, un gain, pour une perte réelle de
-   0,71 €). Une position ouverte déduit ses frais d'achat ; la valeur du portefeuille ne change pas.
-   Un aller-retour au marché demande une hausse de plus de 1,72 % pour rapporter : en dessous, un
-   achat est « du bon côté » mais pas rentable, et rester en dehors n'a rien fait manquer. Limites :
-   rien n'est réécrit, donc les opérations, résumés et autopsies enregistrés avant gardent leurs
-   chiffres d'origine ; les prix d'exécution et le coût moyen sont arrondis au centime, ce qui peut
-   fausser de quelques dixièmes de % un actif à moins d'1 € (USDC) — une étape séparée si tu le décides.
+   Étape 0.2 (fusionnée le 9 octobre, PR #31 ; pas encore en service : le VPS n'est pas mis à jour).
+   Une fois déployée, le résultat de chaque opération, le taux d'opérations gagnantes et le gain moyen
+   compteront vraiment tous les frais : jusqu'ici les frais d'achat étaient oubliés (un aller-retour de
+   100 € à +1 % affichait +0,09 €, un gain, pour une perte réelle de 0,71 €). Le résultat d'une position
+   ouverte déduira ses frais d'achat ; la valeur du portefeuille ne change pas. Un aller-retour au marché
+   demande une hausse de plus de 1,72 % pour rapporter : en dessous, un achat est « du bon côté » mais
+   pas rentable, et rester en dehors n'a rien fait manquer. Dans `/bilan`, les notes à 7 jours des
+   décisions porteront sur celles d'il y a 7 à 14 jours (avant, elles affichaient toujours 0 sur 0).
+   Limites : rien de ce qui est enregistré n'est réécrit ; les anciennes opérations seront relues après
+   frais, mais les résumés et autopsies déjà écrits gardent leurs chiffres d'origine (avant frais
+   d'achat). Les prix d'exécution et le coût moyen sont arrondis au centime : pour un actif à moins de
+   1 € le résultat peut s'écarter de plusieurs dixièmes de %, et sous 0,005 € le prix arrondi tomberait
+   à 0 (défaut ancien, à corriger dans une étape séparée si tu le décides).
 3. **Actualité et calendrier** ✅ (voir 1 ter).
 4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :
    - *C1 — Dossiers et carnets* ✅ construit le 7 octobre : un dossier par actif suivi, écrit par Sonni

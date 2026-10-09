@@ -24,23 +24,28 @@
     lesson scoring is unchanged. The self-report and `/bilan` read the 7-day scores on decisions made 7 to 14 days
     ago. Labels say "après frais" / "after every fee" and qualify market round trips (limit legs pay 0.4 %).
     Fills, cash, equity, the portfolio result, caps, stops and every trading rule are unchanged; no paid call.
-  - Checks: sonni 22 files, 199 tests; Likma verify (report a090c65c): types, sonni, money-lab, runtime, build and
-    sonni-e2e (621 s) pass. Ten mutations (each fix reverted in turn: trade fee, position fee, both % bases, the old
+  - Checks: sonni 22 files, 199 tests; Likma verify (report 9483fd1a, after the criteria were tightened): types,
+    sonni, money-lab, runtime, build and sonni-e2e (621 s) pass. Ten mutations (each fix reverted in turn: trade fee, position fee, both % bases, the old
     pooled share, the booked shares, two decision thresholds, the 7-day window, the pack verdict) each fail a test.
     Adversarial review (4 reviewers, each finding re-checked by a skeptic): confirmed and fixed the pooled purchase
     share, the dead 7-day window, "a round trip costs 1.72 %" (it costs 1.69 % of the stake; 1.72 % is the rise it
     needs), the missing "market" qualifier and two test gaps; the stale e2e expectation of `/statut` was fixed
     after the first CI run.
-  - Limits. Old results: nothing stored is rewritten, so trades stored before the deployment keep their stored fee
-    split (it only differs when a buy followed a partial sale of the same position); day/week/month summaries
-    stored before keep sums before the purchase fee; post-mortems, notes and lessons Sonni wrote from the old
-    figures stay as written, and the second brain's consistency check flags each such text once (code's figure is
-    now after every fee). Should a sale order be missing (never seen), all of the trade's fees count as purchase
-    fees: the result can only read lower. Price rounding (pre-existing, not changed here; a separate step if the
-    owner wants it): fill prices and the average cost are rounded to the cent, so on an asset below 1 EUR (USDC,
-    about 0.86 EUR) a market fill can be off by up to ±0.58 % per leg instead of the 5 bps of slippage, and a cost
-    basis blended from two buys by about 0.5 %; on BTC, ETH, PAXG and the tokenized stocks the effect is
-    negligible. The break-even (1.72 %) assumes market orders on both legs; limit legs cost less. Likma: the 240-minute session begun at 07:46 UTC for step 0.1 reached its time limit
+  - Limits. Old results: nothing stored is rewritten. Trades closed before the deployment are re-read after every
+    fee like new ones, from their stored fee split (which only differs when a buy followed a partial sale of the
+    same position); day/week/month summaries stored before keep sums before the purchase fee; post-mortems, notes
+    and lessons Sonni wrote from the old figures stay as written. The second brain's consistency check compares
+    only trade post-mortems with trade results, never re-checks a text already checked, and flags a gap only
+    beyond its tolerance (in euros the larger of 0.50 EUR and 3 %, in % the larger of 0.5 point and a quarter of
+    the figure), so most old figures will not be flagged. Should a sale order be missing
+    (never seen), all of the trade's fees count as purchase fees: the result can only read lower. Price rounding
+    (pre-existing, not changed here; a separate step if the owner wants it): fill prices and the average cost are
+    rounded to the cent, and nothing limits the price of a followed asset (a satellite can be any Kraken EUR pair
+    with enough volume). Below 1 EUR a fill moves away from the market price by up to 0.005 EUR / price per leg
+    (±0.58 % on USDC at 0.86 EUR, 2.5 % at 0.20 EUR) and a cost basis blended from several buys drifts the same
+    way; below 0.005 EUR the fill price rounds to 0 and the bought quantity becomes infinite. On BTC, ETH, PAXG
+    and the tokenized stocks the effect is negligible. The break-even (1.72 %) assumes market orders on both legs;
+    limit legs cost less. Likma: the 240-minute session begun at 07:46 UTC for step 0.1 reached its time limit
     with no failure; a new one was begun deliberately for this verification (no failure budget evaded; the
     previous one is archived under .likma/sessions/).
 - Step 0.1 of the owner's plan of 2026-10-09, GitHub CI tells the truth (branch claude/sonni-ci-gate, PR #30).
