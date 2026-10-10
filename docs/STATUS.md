@@ -117,6 +117,13 @@
       - a duplicate entry in the mission header.
   - Checks after the round: sonni 30 files, 399 tests; typecheck; build; contre-verification 28/28 on Linux. Not run
     on Windows (the mission's purpose).
+  - Second fresh-context acceptance review, of 9c09e77: CONCERNS. MAJOR 2 and the minors were confirmed closed.
+    MAJOR 1 was only partly closed: `rev-parse HEAD` = COMMIT does not prove dist/ is the new build after a failed
+    install. Fixed:
+    - the new version may only be restarted for pending buys when step 9 ran and its post-start check gave
+      code=0 (also in restauration.mjs's next steps);
+    - verifier-pause --copie refuses while a state.db-wal is beside the live database;
+    - its RÉSULTAT line gives copie_a_jour.
   - Likma after the round:
     - deploy-prep verified on 9c09e77 (report 52217dc5: sonni, types, money-lab, runtime, build, sonni-e2e 619 s);
     - the 14 features sharing its files re-verified (report 73a50a4e, sonni-e2e 635 s);

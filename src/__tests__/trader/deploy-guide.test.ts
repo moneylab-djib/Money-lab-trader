@@ -145,8 +145,10 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     const option = r4.slice(r4.indexOf("ordre(s) d'achat en attente"));
     expect(option.indexOf("git -C /opt/sonni rev-parse HEAD")).toBeGreaterThan(-1);
     expect(option.indexOf("git -C /opt/sonni rev-parse HEAD")).toBeLessThan(option.indexOf("systemctl start sonni"));
-    expect(option).toContain("si la ligne affiche exactement `COMMIT`");
-    expect(option).toMatch(/sinon \(l'ancienne version est installée[^)]*\), \*\*ne\s+démarre pas\*\*/);
+    // HEAD only says which source is checked out: a failed install or build leaves the old compiled program in dist/.
+    expect(option).toContain("ls -l /root/sonni-demarrage.txt");
+    expect(option).toMatch(/exactement `COMMIT`, que le fichier `\/root\/sonni-demarrage\.txt` existe\s+\(l'étape 9 a eu lieu\) \*\*et\*\* que le contrôle après démarrage de la Phase 3 a fini par `code=0`/);
+    expect(option).toMatch(/installation ou compilation en échec[^)]*\), \*\*ne démarre pas\*\*/);
     const r5 = section.slice(step(5), step(6));
     expect(r5).toContain("sudo -u sonni -H git rev-parse HEAD\ncat /root/sonni-commit-avant.txt");
   });

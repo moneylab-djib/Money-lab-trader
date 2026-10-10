@@ -216,6 +216,12 @@ The owner asked for five changes before the merge. This section records what was
     - the guide lets a pending buy wait on the new version only when `rev-parse HEAD` is COMMIT;
     - R5 confirms the rollback commit;
     - restauration.mjs's next steps no longer send an old version straight to a start.
+  - The second acceptance review (9c09e77) showed that `rev-parse HEAD` = COMMIT is not enough: a failed
+    `pnpm install` or build leaves the old compiled program in dist/. Restarting the new version for pending
+    buys now also needs step 9 to have run and its post-start check to have given code=0.
+    - `--copie` refuses while a -wal is beside the live database.
+    - Every version's `--money-lab pause` closes the database (src/index.ts moneyLabCommand, `finally
+      db.close()`, also at 4c015b0 and fd5916d), so R3 leaves no -wal.
   - Residual risks, not covered:
     - a server reboot during the window starts sonni.service (enabled, Restart=always) in whatever state it
       is. The guide asks not to reboot during the window;

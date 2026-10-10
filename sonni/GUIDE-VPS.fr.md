@@ -664,12 +664,16 @@ comme la sauvegarde du jour ou `COPIE`, est refusée. Il faut `code=0`. Sinon **
   échéance. Regarde d'abord quelle version est installée :
   ```sh
   sudo -u sonni -H git -C /opt/sonni rev-parse HEAD
+  ls -l /root/sonni-demarrage.txt
   ```
-  - si la ligne affiche exactement `COMMIT`, la nouvelle version est installée. Au choix : redémarre-la,
-    toujours en pause (`systemctl start sonni`), jusqu'à l'exécution ou l'échéance de ces ordres, puis
-    reprends à R1 ; ou laisse Sonni arrêté et envoie-moi la sortie ;
-  - sinon (l'ancienne version est installée : Phase 2 arrêtée avant l'étape 8, ou R5 déjà fait), **ne
-    démarre pas** : laisse Sonni arrêté et envoie-moi la sortie.
+  - si la première ligne affiche exactement `COMMIT`, que le fichier `/root/sonni-demarrage.txt` existe
+    (l'étape 9 a eu lieu) **et** que le contrôle après démarrage de la Phase 3 a fini par `code=0`, la
+    nouvelle version est installée et compilée. Au choix : redémarre-la, toujours en pause
+    (`systemctl start sonni`), jusqu'à l'exécution ou l'échéance de ces ordres, puis reprends à R1 ; ou
+    laisse Sonni arrêté et envoie-moi la sortie ;
+  - sinon (Phase 2 arrêtée avant l'étape 9, installation ou compilation en échec, ou R5 déjà fait : le
+    programme compilé peut être l'ancien, même si `git` affiche `COMMIT`), **ne démarre pas** : laisse Sonni
+    arrêté et envoie-moi la sortie.
 
   Aucune version n'a de commande pour annuler un ordre à ta place : en ajouter une serait un changement
   séparé, à ta demande ;

@@ -409,7 +409,7 @@ export function restaurer(copieArg, {
     // (guide R3 to R6), and the restored memory carries the copy's own pause state.
     say("Étapes suivantes :");
     say("  - Si l'ancienne version est installée, ou si tu reviens aussi sur le code : ne démarre pas encore, suis R3 à R6 du guide (pause enregistrée et vérifiée).");
-    say("  - Seulement si la version approuvée est installée (git -C /opt/sonni rev-parse HEAD affiche COMMIT) et que tu la gardes : note l'heure, démarre, puis contrôle après 10 à 15 minutes :");
+    say("  - Seulement si la version approuvée a déjà tourné (étape 9 faite, contrôle après démarrage à code=0, git -C /opt/sonni rev-parse HEAD affiche COMMIT) et que tu la gardes : note l'heure, démarre, puis contrôle après 10 à 15 minutes :");
     say("    date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-demarrage.txt");
     say("    systemctl start sonni");
     say("    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis \"$(cat /root/sonni-demarrage.txt)\" --commit-attendu COMMIT");

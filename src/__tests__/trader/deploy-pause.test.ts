@@ -115,7 +115,7 @@ function runCopy(file: string, args: string[] = [], home = homeWithOlderLive()) 
   return r;
 }
 
-const RESULT_UNKNOWN = "RÉSULTAT : code=2 pause=inconnue achats_en_attente=inconnu ventes_a_risque=inconnu positions_sans_prix=inconnu bloquants=inconnu achats_depuis=non vérifié ventes_depuis=non vérifié";
+const RESULT_UNKNOWN = "RÉSULTAT : code=2 pause=inconnue achats_en_attente=inconnu ventes_a_risque=inconnu positions_sans_prix=inconnu bloquants=inconnu achats_depuis=non vérifié ventes_depuis=non vérifié copie_a_jour=non vérifié";
 
 describe("Pause check before a rollback (sonni/vps/verifier-pause.mjs), on a copy", () => {
   it("refuses the rollback when no pause is recorded: exit 1, pause=non", () => {
@@ -123,7 +123,7 @@ describe("Pause check before a rollback (sonni/vps/verifier-pause.mjs), on a cop
     expect(r.status, r.stdout).toBe(1);
     expect(r.stdout).toContain("ÉCHEC : aucune pause enregistrée");
     expect(r.stdout).toContain("ne démarre pas l'ancienne version");
-    expect(r.last).toBe("RÉSULTAT : code=1 pause=non achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=non vérifié ventes_depuis=non vérifié");
+    expect(r.last).toBe("RÉSULTAT : code=1 pause=non achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=non vérifié ventes_depuis=non vérifié copie_a_jour=oui");
   });
 
   it("refuses a copy older than Sonni's database (a daily backup, an earlier copy), and a run without the live database", () => {
@@ -137,11 +137,14 @@ describe("Pause check before a rollback (sonni/vps/verifier-pause.mjs), on a cop
     r = runCopy(file, [], home);
     expect(r.status, r.stdout).toBe(1);
     expect(r.stdout).toContain("ÉCHEC : copie plus ancienne que la base de Sonni (state.db modifié après la copie)");
-    // A -wal newer than the copy counts too.
+    expect(r.last).toContain("copie_a_jour=non");
+    // A -wal beside the live database (Sonni runs, or stopped without closing it), even an old one: refused.
     fs.utimesSync(live, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z"));
     fs.writeFileSync(`${live}-wal`, "");
+    fs.utimesSync(`${live}-wal`, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z"));
     r = runCopy(file, [], home);
-    expect(r.stdout).toContain("(state.db-wal modifié après la copie)");
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("ÉCHEC : un fichier state.db-wal est à côté de la base de Sonni");
     // No live database in HOME: cannot tell, refused.
     r = runCopy(file, [], tmp("sonni-pause-sans-base-"));
     expect(r.status).toBe(1);
@@ -163,7 +166,7 @@ describe("Pause check before a rollback (sonni/vps/verifier-pause.mjs), on a cop
     expect(r.stdout).toContain("OK : aucune vente à risque d'arrondi sans ton accord (1 position(s) ouverte(s), 0 vente(s) en attente)");
     expect(r.stdout).toContain("OK : aucune anomalie BLOQUANT du contrôle avant déploiement");
     expect(r.stdout).not.toContain("ÉCHEC");
-    expect(r.last).toBe("RÉSULTAT : code=0 pause=oui achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=non vérifié ventes_depuis=non vérifié");
+    expect(r.last).toBe("RÉSULTAT : code=0 pause=oui achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=non vérifié ventes_depuis=non vérifié copie_a_jour=oui");
   });
 
   it("counts an unreadable pause record as a pause, as the runtime does (fail closed)", () => {
@@ -284,7 +287,7 @@ describe("Pause check after the old version started (--en-marche), on the live d
     expect(r.stdout).toContain("OK : aucun achat passé ni exécuté depuis le 07/10/2026 13:00 UTC");
     expect(r.stdout).toContain("OK : aucune vente sous 1 € sans ton accord depuis le 07/10/2026 13:00 UTC");
     expect(r.stdout).toContain("Conclusion : la pause tient");
-    expect(r.last).toBe("RÉSULTAT : code=0 pause=oui achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=0 ventes_depuis=0");
+    expect(r.last).toBe("RÉSULTAT : code=0 pause=oui achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=0 ventes_depuis=0 copie_a_jour=non vérifié");
     expect(counts(db)).toEqual(before);
   });
 

@@ -21,8 +21,9 @@
  *   6. with --en-marche (after the old version started; --depuis is then required): no buy placed or filled since
  *      that moment, no sale filled since under 1 EUR on an asset the GO did not name, and a pause recorded before
  *      that moment (a later one means it was lifted, then set again);
- *   7. with --copie: the copy is not older than Sonni's database (its file and -wal), so a daily backup or an earlier
- *      copy cannot stand in for a fresh one; the live database must be there (its modification time only is read).
+ *   7. with --copie: Sonni is stopped cleanly (no -wal beside its database) and the copy is not older than its
+ *      database, so a daily backup or an earlier copy cannot stand in for a fresh one; the live database must be there
+ *      (its modification time only is read).
  * On the live database every check reads inside one read transaction: a broker fill cannot fall between two of them.
  *
  * Safety: --copie reads a private copy of a copy (copie-privee.mjs, never the live file); --en-marche opens the live
@@ -32,7 +33,7 @@
  * Exit codes: 0 every check OK (the rollback may go on); 1 at least one ÉCHEC (do not start the old version, or stop
  * it); 2 refused, too early or usage error (nothing read); 3 technical error. The last line of stdout is
  * `RÉSULTAT : code=<n> pause=<oui|non> achats_en_attente=<n> ventes_a_risque=<n> positions_sans_prix=<n>
- * bloquants=<n> achats_depuis=<n|non vérifié> ventes_depuis=<n|non vérifié>`.
+ * bloquants=<n> achats_depuis=<n|non vérifié> ventes_depuis=<n|non vérifié> copie_a_jour=<oui|non|non vérifié>`.
  *
  * Usage:
  *   node sonni/vps/verifier-pause.mjs --copie <copie> [--accepter-arrondi <actif,…>]       (Sonni arrêté)
@@ -227,7 +228,7 @@ export function verifier(db, { depuis = null, accepted = [], gateCtx = null, fre
       for (const o of risky) info(`${o.id} : vente${o.origin === "stop" ? " (stop)" : ""} de ${o.asset} exécutée le ${when(o.settled_at)} à ${price(o.fill_price)}`);
     }
   }
-  return { lines, failures, counts: { paused: !!raw, pendingBuys: pendingBuys.length, atRisk, noPrice, blocking, buysSince, sellsSince } };
+  return { lines, failures, counts: { paused: !!raw, pendingBuys: pendingBuys.length, atRisk, noPrice, blocking, buysSince, sellsSince, fresh: freshness ? freshness.ok : null } };
 }
 
 /**
@@ -241,25 +242,26 @@ export function copyFreshness(copyFile, liveFile) {
   } catch {
     return { ok: false, text: `copie illisible : ${copyFile}` };
   }
-  const times = [];
-  for (const f of [liveFile, `${liveFile}-wal`]) {
-    try {
-      times.push({ f, t: fs.statSync(f).mtimeMs });
-    } catch { /* absent */ }
-  }
-  if (!times.some((x) => x.f === liveFile)) {
+  let liveTime;
+  try {
+    liveTime = fs.statSync(liveFile).mtimeMs;
+  } catch {
     return { ok: false, text: `base de Sonni introuvable (${liveFile}) : impossible de savoir si la copie est à jour. Lance la vérification en sonni (sudo -u sonni -H) sur la copie que la sauvegarde vient de faire.` };
   }
-  const newer = times.filter((x) => x.t > copyTime);
-  if (newer.length === 0) return { ok: true, text: "copie à jour : la base de Sonni n'a pas changé depuis qu'elle a été faite" };
-  return { ok: false, text: `copie plus ancienne que la base de Sonni (${newer.map((x) => path.basename(x.f)).join(", ")} modifié après la copie) : elle ne dit pas l'état actuel. Refais la sauvegarde (étape R4) et vérifie la nouvelle copie (COPIE_RETOUR).` };
+  // A -wal beside the database: Sonni runs, or stopped without closing it; its state can still move.
+  if (fs.existsSync(`${liveFile}-wal`)) {
+    return { ok: false, text: "un fichier state.db-wal est à côté de la base de Sonni : il tourne, ou s'est arrêté sans fermer sa base. Arrête-le (systemctl stop sonni), vérifie qu'il ne reste que state.db, refais la sauvegarde et vérifie la nouvelle copie." };
+  }
+  if (liveTime <= copyTime) return { ok: true, text: "copie à jour : la base de Sonni n'a pas changé depuis qu'elle a été faite" };
+  return { ok: false, text: "copie plus ancienne que la base de Sonni (state.db modifié après la copie) : elle ne dit pas l'état actuel. Refais la sauvegarde (étape R4) et vérifie la nouvelle copie (COPIE_RETOUR)." };
 }
 
 export function resultLine(code, counts) {
   const n = (v) => (v === null || v === undefined ? "non vérifié" : v);
-  if (!counts) return `RÉSULTAT : code=${code} pause=inconnue achats_en_attente=inconnu ventes_a_risque=inconnu positions_sans_prix=inconnu bloquants=inconnu achats_depuis=non vérifié ventes_depuis=non vérifié`;
+  if (!counts) return `RÉSULTAT : code=${code} pause=inconnue achats_en_attente=inconnu ventes_a_risque=inconnu positions_sans_prix=inconnu bloquants=inconnu achats_depuis=non vérifié ventes_depuis=non vérifié copie_a_jour=non vérifié`;
   return `RÉSULTAT : code=${code} pause=${counts.paused ? "oui" : "non"} achats_en_attente=${counts.pendingBuys} ventes_a_risque=${counts.atRisk} `
-    + `positions_sans_prix=${counts.noPrice} bloquants=${n(counts.blocking)} achats_depuis=${n(counts.buysSince)} ventes_depuis=${n(counts.sellsSince)}`;
+    + `positions_sans_prix=${counts.noPrice} bloquants=${n(counts.blocking)} achats_depuis=${n(counts.buysSince)} ventes_depuis=${n(counts.sellsSince)} `
+    + `copie_a_jour=${counts.fresh === null || counts.fresh === undefined ? "non vérifié" : counts.fresh ? "oui" : "non"}`;
 }
 
 /** Runs the whole check; returns the exit code and never exits. `clock` is the real time (tests may fix it). */
