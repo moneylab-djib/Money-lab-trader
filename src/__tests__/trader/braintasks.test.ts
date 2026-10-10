@@ -1,7 +1,7 @@
 /**
  * Owner's request of 2026-10-10: Claude hands batches of tasks to the second brain, sleeps, and code wakes it once
  * the answers are ready. A fake llama.cpp server stands in for the PC: no network, no inference. Covers the
- * refusals and limits, the PC's prompt (code's data only), the answers' checks, the wake (once per batch, behind
+ * refusals and limits (none per day since the owner's decision), the PC's prompt (code's data only), the answers' checks, the wake (once per batch, behind
  * the shared gate, its own cap and spacing, not for answers already read nor for a batch nobody answered), what
  * Claude sees (wake message, pack, section) and what the owner sees (/cerveau).
  */
@@ -18,9 +18,9 @@ import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
 import { insertObservation } from "../../trader/readers.js";
 import { setBrainMode } from "../../trader/brainstate.js";
-import { brainTick, delegateToBrain, formatBrainFr } from "../../trader/brain.js";
+import { brainTick, delegateToBrain, enqueueJob, formatBrainFr } from "../../trader/brain.js";
 import {
-  MAX_OPEN_TASKS, MAX_TASK_WAKES_PER_DAY, MAX_TASKS_PER_CALL, MAX_TASKS_PER_DAY, settleBatches, TASK_WAKE_GAP_MINUTES, TASK_WAKE_SOURCE,
+  MAX_TASK_WAKES_PER_DAY, MAX_TASKS_PER_CALL, settleBatches, TASK_WAKE_GAP_MINUTES, TASK_WAKE_SOURCE,
   markBatchesRead, markVisibleBatchesRead, taskAnswersForWake, taskRuleLine, unreadBatches, WAKE_ANSWER_MAX, WAKE_TASKS_BUDGET, TASK_ANSWER_MAX,
 } from "../../trader/braintasks.js";
 import { isSonniWake } from "../../trader/curiosity.js";
@@ -115,23 +115,22 @@ describe("delegate_to_second_brain refuses what it cannot do", () => {
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_brain_batches").get()).toEqual({ n: 0 });
   });
 
-  it("keeps at most MAX_OPEN_TASKS waiting and MAX_TASKS_PER_DAY a UTC day", () => {
+  it("has no daily or waiting limit (owner's decision), and the owner's question, news triage and situation note still run first", async () => {
     const db = setup();
     const batch = (n: number) => Array.from({ length: n }, (_, i) => ({ question: `Tâche numéro ${i} sur le marché` }));
-    expect(delegate(db, { tasks: batch(8) })).toMatch(/^Queued 8 task\(s\)/);
-    expect(delegate(db, { tasks: batch(8) })).toMatch(/^Queued 8 task\(s\)/);
-    expect(delegate(db, { tasks: batch(1) })).toMatch(new RegExp(`16 task\\(s\\) are still waiting .* at most ${MAX_OPEN_TASKS}`));
-    // Done tasks free the queue, but still count for the day.
-    db.raw.prepare("UPDATE trader_brain_jobs SET status = 'done', finished_at = ?").run(T0.toISOString());
-    expect(delegate(db, { tasks: batch(8) })).toMatch(/^Queued 8/);
-    db.raw.prepare("UPDATE trader_brain_jobs SET status = 'done', finished_at = ?").run(T0.toISOString());
-    expect(delegate(db, { tasks: batch(8) })).toMatch(/^Queued 8/);
-    db.raw.prepare("UPDATE trader_brain_jobs SET status = 'done', finished_at = ?").run(T0.toISOString());
-    expect(delegate(db, { tasks: batch(8) })).toMatch(/^Queued 8/);
-    db.raw.prepare("UPDATE trader_brain_jobs SET status = 'done', finished_at = ?").run(T0.toISOString());
-    expect(delegate(db, { tasks: batch(1) })).toMatch(new RegExp(`Daily limit: ${MAX_TASKS_PER_DAY} of ${MAX_TASKS_PER_DAY}`));
-    // A new UTC day starts afresh.
-    expect(delegate(db, { tasks: batch(1) }, new Date("2026-10-11T00:05:00Z"))).toMatch(/^Queued 1/);
+    for (let i = 0; i < 4; i++) expect(delegate(db, { tasks: batch(MAX_TASKS_PER_CALL) })).toMatch(new RegExp(`^Queued ${MAX_TASKS_PER_CALL} task\\(s\\)`));
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE kind = 'task' AND status = 'queued'").get()).toEqual({ n: 4 * MAX_TASKS_PER_CALL });
+    // Time-bound work queued after 80 tasks is not held back by them.
+    enqueueJob(db.raw, "question", "question:test", { question: "Que pense Sonni du BTC ?", context: "" }, 30, T0);
+    enqueueJob(db.raw, "briefing", "briefing:test", {}, 45, T0);
+    const ran: (string | null)[] = [];
+    for (let i = 0; i < 40 && !ran.includes("task"); i++) ran.push((await brainTick(db.raw, TRADER, ENV, fakePc(), () => minutes(i * 0.25), gate())).ran);
+    const firstTask = ran.indexOf("task");
+    expect(firstTask).toBeGreaterThan(0);
+    for (const kind of ["question", "triage", "briefing"]) {
+      expect(ran.indexOf(kind), `${kind} in ${ran.join(",")}`).toBeGreaterThanOrEqual(0);
+      expect(ran.indexOf(kind)).toBeLessThan(firstTask);
+    }
   });
 });
 
@@ -345,12 +344,12 @@ describe("What Claude and the owner see", () => {
     const db = setup();
     delegate(db, { tasks: [{ question: "Résume les nouvelles du BTC" }] });
     expect(taskRuleLine(db.raw, true, T0)).toBe(
-      `Second brain: online; delegated tasks today 1 of ${MAX_TASKS_PER_DAY}, 1 waiting; answers woke you 0 of ${MAX_TASK_WAKES_PER_DAY} times today. ` +
+      `Second brain: online; delegated tasks today 1 (no limit), 1 waiting; answers woke you 0 of ${MAX_TASK_WAKES_PER_DAY} times today. ` +
         "Delegate reading, summaries and memory digging with delegate_to_second_brain (free), then sleep instead of waiting awake.",
     );
     expect(taskRuleLine(db.raw, false, T0)).toMatch(/^Second brain: OFFLINE \(tasks wait, then expire\);/);
     expect(formatBrainFr(db.raw, TRADER, ENV, T0)).toContain(
-      `- Tâches confiées par Sonni aujourd'hui : 1 sur ${MAX_TASKS_PER_DAY} au maximum (1 lot(s)), 0 répondue(s), 1 en attente ; réveils de Sonni pour lire les réponses : 0 sur ${MAX_TASK_WAKES_PER_DAY}.`,
+      `- Tâches confiées par Sonni aujourd'hui : 1, sans limite (1 lot(s)), 0 répondue(s), 1 en attente ; réveils de Sonni pour lire les réponses : 0 sur ${MAX_TASK_WAKES_PER_DAY}.`,
     );
     expect(buildMemoryPack(db.raw, TRADER, T0)).toMatch(/Batch bt_\w+ still with the second brain: 0 of 1 answered so far; code wakes you when it is finished\./);
   });
