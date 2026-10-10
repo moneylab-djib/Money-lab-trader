@@ -1868,8 +1868,8 @@
             "t1"
           ],
           "status": "done",
-          "done_at": "2026-10-10T04:51:35.918149+00:00",
-          "note": "sauvegarde.mjs and restauration.mjs (--essai, --restaurer --confirmer with quarantine); deploy-backup.test.ts 22 tests incl. hot backup under concurrent writes, cold copy, refusals, failure-after-move recovery run through the printed commands; reviewed (2 major, 4 minor fixed)"
+          "done_at": "2026-10-10T06:12:10.376796+00:00",
+          "note": "sauvegarde.mjs and restauration.mjs (--essai; --restaurer --confirmer with quarantine, refusals as root without --cible and on a missing target, no-follow ownership changes); deploy-backup.test.ts 32 tests incl. hot backup under concurrent writes, cold copy, refusals, failure-after-move recovery run through the printed commands, a link swapped in during a root restore"
         },
         {
           "id": "t3",
@@ -1884,8 +1884,8 @@
             "t1"
           ],
           "status": "done",
-          "done_at": "2026-10-10T04:51:36.061890+00:00",
-          "note": "controle-predeploiement.mjs: audit, reconciliation, first-tick simulation; deploy-predeploy.test.ts 33 tests incl. fidelity against the real brokerTick (time bounds, TTL, horizon, stale stop price); reviewed (1 major, 3 minor fixed)"
+          "done_at": "2026-10-10T06:12:10.558413+00:00",
+          "note": "controle-predeploiement.mjs: audit, two-way reconciliation, first-tick simulation, points to decide accepted by key only; deploy-predeploy.test.ts 40 tests incl. fidelity against the real brokerTick (time bounds, TTL, horizon, stale stop price)"
         },
         {
           "id": "t4",
@@ -1899,8 +1899,8 @@
             "t1"
           ],
           "status": "done",
-          "done_at": "2026-10-10T04:51:36.203117+00:00",
-          "note": "controle-apres-demarrage.mjs and envoi-telegram.mjs; deploy-poststart.test.ts 38 tests incl. read-only open while a writer runs, health thresholds, --ordres-acceptes, local 127.0.0.1 Telegram server, token never printed; reviewed (1 major, 5 minor fixed)"
+          "done_at": "2026-10-10T06:12:10.729252+00:00",
+          "note": "controle-apres-demarrage.mjs and envoi-telegram.mjs (only TELEGRAM_BOT_TOKEN, run from a root-owned SHA-checked copy, repeats the report's code); deploy-poststart.test.ts 40 tests incl. read-only open while a writer runs, health thresholds, --ordres-acceptes, a local 127.0.0.1 Telegram server, token never printed"
         },
         {
           "id": "t5",
@@ -1915,13 +1915,13 @@
             "t4"
           ],
           "status": "done",
-          "done_at": "2026-10-10T04:51:36.358420+00:00",
-          "note": "GUIDE-VPS controlled deployment in French with deploy-guide.test.ts (commands and options exist, order stop<install<backup<drill<gate<start<check); rollback rehearsed on fd5916d and 4c015b0 builds (docs/research/deploy-prep.md); STATUS, PLAN.fr, MEMORY, AGENTS, CODEMAP updated"
+          "done_at": "2026-10-10T06:12:10.881489+00:00",
+          "note": "GUIDE-VPS controlled deployment and rollback in French with deploy-guide.test.ts 7 tests (commands and options exist, order stop<install<backup<drill<gate<start<check, root-owned Telegram copy, cd lines); rollback rehearsed on fd5916d and 4c015b0 builds; STATUS, PLAN.fr, MEMORY, AGENTS, CODEMAP updated"
         }
       ],
       "implementation": {
-        "at": "2026-10-10T04:51:36.550563+00:00",
-        "note": "Five owner-run scripts in sonni/vps (Node + better-sqlite3, French output, exit codes 0/1/2/3/130, RÉSULTAT line) sharing copie-privee.mjs; 98 tests in four files; no runtime, config, schema or history change; audit-prix output identical"
+        "at": "2026-10-10T06:12:11.092885+00:00",
+        "note": "Five owner-run scripts in sonni/vps (Node + better-sqlite3, French output, exit codes 0/1/2/3/130, RÉSULTAT line) sharing copie-privee.mjs; 119 tests in four files (366 in the sonni check); no runtime, config, schema or history change; audit-prix output identical; reviewed by three adversarial reviews, a three-lens final review and a fresh acceptance review, all findings fixed"
       }
     }
   ]

@@ -316,7 +316,7 @@ export async function sauvegarde(options = {}) {
   pending.add(cleanup);
   const hot = fs.existsSync(`${source}-wal`);
   say("Sauvegarde de la mémoire de Sonni avant déploiement");
-  say(`Mode : ${hot ? "à chaud (Sonni en marche)" : "à froid (Sonni arrêté)"}`);
+  say(`Mode : ${hot ? "à chaud (Sonni en marche, ou arrêté sans fermer sa base : un fichier -wal est à côté)" : "à froid (Sonni arrêté)"}`);
   say(`Source : ${source}`);
   try {
     let live = null;

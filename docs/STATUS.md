@@ -62,6 +62,16 @@
       - the start time is noted before the start;
       - an incomplete report gives `rapport=code inconnu`;
       - three missing tests were added.
+    - Fresh-context acceptance review (Likma `feature review`) of 9481152: all 11 criteria and the owner's 5
+      points met (366 tests, no runtime diff, audit-prix output byte-identical, hands-on runs). It raised 5 minor
+      guide points, all fixed:
+      - /pause before a rollback (the old code honours a stored pause at start);
+      - a fresh backup and gate when Sonni is stopped, with each pending order now showing its asset's last price;
+      - COMMIT wording in phase 1;
+      - the hot-backup label after an unclean stop;
+      - stale counts in the Likma notes.
+    - The Likma work-session limit ran out again during this work (0 failures, known cost 0 EUR). A new session
+      was begun deliberately after reviewing progress; no check makes a paid call.
     - Likma verify: pending.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last

@@ -338,7 +338,7 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     const r = run(file);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toContain("[INFO] o_ada_frais : achat au marché ADA passé le 07/10/2026 17:48 UTC : exécuté au prix enregistré du 07/10/2026 17:55 UTC (0,4 € ; prix d'exécution 0,4002 €)");
-    expect(r.stdout).toMatch(/\[INFO\] o_spy_60min : achat au marché SPY passé le 07\/10\/2026 16:30 UTC : exécuté au prix enregistré du 07\/10\/2026 17:00 UTC \(500,00 € ; prix d'exécution 500,25 €\)\n/);
+    expect(r.stdout).toMatch(/\[INFO\] o_spy_60min : achat au marché SPY passé le 07\/10\/2026 16:30 UTC : exécuté au prix enregistré du 07\/10\/2026 17:00 UTC \(500,00 € ; prix d'exécution 500,25 €\) ; dernier prix connu de SPY : 500,00 € \(07\/10\/2026 17:00 UTC\)\n/);
     expect(r.stdout).toContain("[INFO] ADA : stop à 0,3 €, 25,00 % sous le dernier prix (0,4 € le 07/10/2026 17:55 UTC) ; position ouverte au premier relevé par un achat en attente");
     expect(r.stdout).not.toContain("prix ancien");
     expect(r.last).toMatch(/^RÉSULTAT : code=0 bloquants=0 a_decider=0 infos=\d+$/);

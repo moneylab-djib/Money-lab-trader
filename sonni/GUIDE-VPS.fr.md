@@ -311,8 +311,8 @@ Règles pour tout ce qui suit :
 - **ne répare rien toi-même**. Une réparation de l'historique demande une procédure séparée et ton accord.
 
 Les valeurs à remplacer dans les commandes :
-- `COMMIT` : le numéro de version que ton GO de déploiement approuve. Il contient les étapes 0.1 à 0.3 et
-  les outils de cette procédure ;
+- `COMMIT` : le numéro de version que je te donne avec mon rapport, et que ton GO de déploiement approuvera.
+  Il contient les étapes 0.1 à 0.3 et les outils de cette procédure ;
 - `COPIE` : le chemin qu'affiche la sauvegarde ;
 - `EMPREINTE_ENVOI` : l'empreinte de l'outil d'envoi Telegram, que je te donne avec `COMMIT`.
 
@@ -563,14 +563,19 @@ Ce que tu verras de nouveau avec l'ancienne version :
 
 **Attention.** L'ancienne version ramène aussi le défaut que l'étape 0.3 corrige. Pendant qu'elle tourne, un
 achat à moins de 0,005 € redeviendrait une quantité infinie, et l'historique serait abîmé pour de bon.
-Donc :
-- **avant** le retour arrière, regarde les ordres d'achat en attente sur un actif à moins de 1 € :
+Donc, **avant** le retour arrière :
+- **si Sonni répond sur Telegram, envoie `/pause`.** La pause est gardée dans sa mémoire et l'ancienne version
+  la respecte dès son démarrage. En pause, il ne place plus d'ordre ; le courtier exécute seulement ceux déjà en
+  attente. Garde-le en pause jusqu'à ce qu'on corrige : `/reprendre` relance un cycle payé.
+- **Regarde les ordres d'achat en attente sur un actif à moins de 1 €** :
   - si Sonni tourne, dans `/portefeuille` ;
-  - s'il est arrêté, dans la section E du dernier contrôle avant démarrage.
+  - s'il est arrêté, la nouvelle version est encore installée : fais une sauvegarde
+    (`sudo -u sonni -H node sonni/vps/sauvegarde.mjs`), puis le contrôle avant démarrage sur cette copie
+    (`sudo -u sonni -H node sonni/vps/controle-predeploiement.mjs COPIE`). Sa section E liste chaque ordre en
+    attente avec le dernier prix connu de son actif.
 
-  S'il y en a, dis-le-moi d'abord ;
-- **après**, mets Sonni en pause avec `/pause`, le temps qu'on corrige. En pause, il ne place plus d'ordre ;
-  le courtier exécute seulement ceux déjà en attente.
+  S'il y en a, dis-le-moi d'abord.
+- **Si Sonni était arrêté** et ne pouvait pas recevoir `/pause`, envoie-la dès qu'il répond après R4.
 
 R1. **Restaurer la base seulement en cas de corruption, et seulement sur ta décision.** La restauration
 efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres et dépenses d'IA déjà

@@ -692,27 +692,35 @@ export function controle(db, ctx) {
     say("   ou qui expirerait peut alors s'exécuter à ce nouveau prix)");
     sim = simulateFirstTick(db, { now, staleMinutes, portfolio: ctx.portfolio, assets: ctx.assets });
     if (sim.orders.length === 0) say("   - aucun ordre en attente");
+    // The asset's last stored price closes each line: the owner judges from it whether a pending buy is on an asset
+    // under 1 EUR, which a rollback to the old broker would fill without precision (guide, "Retour arrière").
+    const lastPrice = (asset) => (hasTable(db, "trader_prices")
+      ? get("SELECT ts, price FROM trader_prices WHERE asset = ? ORDER BY ts DESC LIMIT 1", asset) : undefined);
+    const addOrder = (level, text, key, asset) => {
+      const p = lastPrice(asset);
+      add(level, `${text} ; dernier prix connu de ${asset} : ${p ? `${price(p.price)} (${when(p.ts)})` : "aucun"}`, key);
+    };
     for (const o of sim.orders) {
       const head = `${o.id} : ${sideFr(o.side)} ${kindFr(o.kind)} ${o.asset}${o.origin === "stop" ? " (stop)" : ""} passé le ${when(o.placedAt)}`;
       if (o.outcome === "fill") {
         const old = now.getTime() - Date.parse(o.priceTs) > OLD_FILL_MINUTES * 60_000;
         const text = `${head} : exécuté au prix enregistré du ${when(o.priceTs)} (${price(o.price)} ; prix d'exécution ${price(o.fillPrice)})`;
-        if (old) add("D", `${text} : exécution à un prix ancien du ${when(o.priceTs)} (${ago(o.priceTs, now)})`, pointKey("prix-ancien", o.id));
-        else add("I", text);
+        if (old) addOrder("D", `${text} : exécution à un prix ancien du ${when(o.priceTs)} (${ago(o.priceTs, now)})`, pointKey("prix-ancien", o.id), o.asset);
+        else addOrder("I", text, undefined, o.asset);
       } else if (o.outcome === "reject") {
         const detail = detailFr(o.reason, o.detail);
-        add("D", `${head} : refusé (${REJECT_FR[o.reason] ?? o.reason}${detail ? ` : ${detail}` : ""}) ; rien n'est inscrit au registre, un incident « courtier virtuel » est noté`,
-          pointKey("ordre-refuse", o.id));
+        addOrder("D", `${head} : refusé (${REJECT_FR[o.reason] ?? o.reason}${detail ? ` : ${detail}` : ""}) ; rien n'est inscrit au registre, un incident « courtier virtuel » est noté`,
+          pointKey("ordre-refuse", o.id), o.asset);
       } else if (o.outcome === "expire") {
-        add("D", o.kind === "market"
+        addOrder("D", o.kind === "market"
           ? `${head} : expiré (aucun prix enregistré dans les ${MARKET_ORDER_TTL_HOURS} h suivant l'ordre)`
-          : `${head} : expiré (limite ${price(o.limitPrice)} non atteinte avant l'échéance du ${when(o.horizonUntil)})`, pointKey("ordre-expire", o.id));
+          : `${head} : expiré (limite ${price(o.limitPrice)} non atteinte avant l'échéance du ${when(o.horizonUntil)})`, pointKey("ordre-expire", o.id), o.asset);
       } else if (o.reason === "error") {
-        add("D", `${head} : la prévision échoue (${technicalFr(o.detail)}) ; le courtier le laisserait en attente avec un incident`, pointKey("prevision-echouee", o.id));
+        addOrder("D", `${head} : la prévision échoue (${technicalFr(o.detail)}) ; le courtier le laisserait en attente avec un incident`, pointKey("prevision-echouee", o.id), o.asset);
       } else {
-        add("I", o.kind === "market"
+        addOrder("I", o.kind === "market"
           ? `${head} : attend un prix (exécuté au premier prix relevé, expiré après le ${when(o.until)})`
-          : `${head} : attend que le prix atteigne ${price(o.limitPrice)} (jusqu'au ${when(o.horizonUntil)})`);
+          : `${head} : attend que le prix atteigne ${price(o.limitPrice)} (jusqu'au ${when(o.horizonUntil)})`, undefined, o.asset);
       }
     }
   });

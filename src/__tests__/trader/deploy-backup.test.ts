@@ -284,7 +284,7 @@ describe("Consistent backup of the live database (sonni/vps/sauvegarde.mjs)", ()
       expect(spy.n % 20).toBe(0);
       if (spy.n > 0) expect([spy.lo, spy.hi]).toEqual([1_000, 1_000 + spy.n - 1]);
     });
-    expect(r.stdout).toContain("Mode : à chaud (Sonni en marche)");
+    expect(r.stdout).toContain("Mode : à chaud (Sonni en marche, ou arrêté sans fermer sa base : un fichier -wal est à côté)");
     expect(r.stdout).toContain(`Source : ${live}`);
     expect(r.stdout).toContain(`Copie : ${copy}`);
     expect(r.stdout).toContain(`SHA-256 : ${sha(copy)}`);
@@ -397,7 +397,7 @@ describe("Consistent backup of the live database (sonni/vps/sauvegarde.mjs)", ()
     };
     const check = (r: Run, dossier: string, hot: boolean) => {
       expect(r.status, r.stdout + r.stderr).toBe(0);
-      expect(r.stdout).toContain(hot ? "Mode : à chaud (Sonni en marche)" : "Mode : à froid (Sonni arrêté)");
+      expect(r.stdout).toContain(hot ? "Mode : à chaud (Sonni en marche, ou arrêté sans fermer sa base : un fichier -wal est à côté)" : "Mode : à froid (Sonni arrêté)");
       expect(r.stderr).toContain("OBSERVE umask 77\n");
       expect(r.stdout).toContain(`Dossier ${dossier} : droits 755 ramenés à 700 (la copie contient toute la mémoire de Sonni).`);
       const copy = /^RÉSULTAT : code=0 copie=(.+)$/.exec(lastLine(r.stdout))![1];
@@ -445,7 +445,7 @@ describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this 
     const r = await sauvegarde({ env: { HOME: h }, say: (l = "") => lines.push(l), warn: (l: string) => lines.push(l) });
     db.close();
     expect(r.code, lines.join("\n")).toBe(0);
-    expect(lines).toContain("Mode : à chaud (Sonni en marche)");
+    expect(lines).toContain("Mode : à chaud (Sonni en marche, ou arrêté sans fermer sa base : un fichier -wal est à côté)");
     // better-sqlite3 first transfers no page, asks the callback once, then copies what it answered: every page.
     expect(steps).toHaveLength(1);
     expect(steps[0].total).toBeGreaterThan(100);
