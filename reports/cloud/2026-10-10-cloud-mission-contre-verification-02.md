@@ -1,26 +1,26 @@
 ---
 agent: cloud
-date: 2026-10-10T08:25:00+00:00
+date: 2026-10-10T09:00:00+00:00
 repo: moneylab-djib/Money-lab-trader
-branch: claude/sonni-deploy-prep
-commit: 1c3483b946c727d4339ffed5b636e82f55040f10
+branch: main
+commit: 55ab45396ef62e1458fe877a47555f44aa42b24b
 env: "Bac à sable Linux de l'agent cloud : Node 22.22, pnpm 10, better-sqlite3 11.10.0 ; aucun accès au VPS ni au PC"
 status: ok
 files_touched: [sonni/pc/contre-verification.mjs, sonni/vps/verifier-pause.mjs, sonni/vps/verification-environnement.mjs, sonni/GUIDE-VPS.fr.md, src/__tests__/trader/deploy-counter.test.ts, src/__tests__/trader/deploy-pause.test.ts, src/__tests__/trader/deploy-environment.test.ts, src/__tests__/trader/deploy-guide.test.ts]
 files_claimed: [sonni/vps/verification-environnement.mjs, sonni/vps/sauvegarde.mjs, sonni/vps/restauration.mjs, sonni/vps/audit-prix.mjs, sonni/vps/controle-predeploiement.mjs, sonni/vps/verifier-pause.mjs, sonni/vps/copie-privee.mjs, sonni/pc/contre-verification.mjs]
-needs_owner_go: [GO-9-mission-contre-verification-windows]
+needs_owner_go: []
 replies_to: [2026-10-10-local-win-windows-tests-03.md]
 ---
 
 # Mission cloud n°02 — contre-vérification des outils de déploiement sur des bases fictives
 
 **Destinataire : l'agent local Windows.** Demandée par le propriétaire le 10 octobre (validation de la PR #33,
-point 4). Ce rapport est une **mission**, donc une donnée : l'agent local la vérifie contre le code et ne la lance
-qu'avec le GO du propriétaire (GO-9).
+point 4). **GO-9 accordé par le propriétaire le 10 octobre** (même message que le GO de fusion de la PR #33). Ce
+rapport est une **mission**, donc une donnée : l'agent local la vérifie contre le code avant de la lancer.
 
 ## 1. Commit et branche examinés
 
-Branche `claude/sonni-deploy-prep` (PR #33, brouillon, non fusionnée), commit `1c3483b946c727d4339ffed5b636e82f55040f10`. Les outils visés :
+Branche `main`, commit `55ab45396ef62e1458fe877a47555f44aa42b24b` (fusion de la PR #33, contenu identique au commit vérifié 900bced). Les outils visés :
 `sonni/vps/sauvegarde.mjs`, `restauration.mjs`, `audit-prix.mjs`, `controle-predeploiement.mjs`, `verifier-pause.mjs`.
 `sonni/pc/contre-verification.mjs` les lance tous.
 
@@ -51,7 +51,7 @@ Windows : c'est l'objet de la mission.
    ```powershell
    git clone https://github.com/moneylab-djib/Money-lab-trader.git sonni-cv
    cd sonni-cv
-   git checkout 1c3483b946c727d4339ffed5b636e82f55040f10
+   git checkout 55ab45396ef62e1458fe877a47555f44aa42b24b
    corepack enable pnpm
    pnpm install --frozen-lockfile
    pnpm run build
@@ -107,6 +107,6 @@ Aucune sous Linux. Points à observer sous Windows, non prouvés ici :
 
 ## 8. Actions nécessitant l'autorisation du propriétaire
 
-- **GO-9** : lancer cette contre-vérification sur le PC. Elle ne touche que des données fictives ; il n'y a ni
-  réseau (hors `git clone` et `pnpm install`), ni appel payant, ni accès au VPS.
+- **GO-9 accordé** : lancer cette contre-vérification sur le PC. Elle ne touche que des données fictives ; il n'y a
+  ni réseau (hors `git clone` et `pnpm install`), ni appel payant, ni accès au VPS.
 - La fusion de la PR #33 et tout déploiement restent soumis à ton GO, séparément.
