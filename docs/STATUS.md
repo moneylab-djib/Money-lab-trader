@@ -34,6 +34,8 @@
   - Checks run: `pnpm run typecheck` passed; `pnpm exec vitest run src/__tests__/trader` passed (400 passed; 3 pc-scripts tests skipped, no pwsh in the sandbox; CI has it);
     brain.test asserts the source passes `isSonniWake` and that former-source wakes fill the cap (the test
     fails when the former source is not counted).
+  - `likma project feature reverify` (2026-10-10, Likma ff30dbd): build, sonni-e2e (620 s), sonni, money-lab,
+    types and runtime passed; the 18 features whose scope includes brain.ts verified again; `project audit` passes.
 - Likma 0.20.1 -> 0.20.2 (branch claude/sonni-likma-0202). Status: built; not merged.
   - Upstream fix for Windows: Claude Code runs the hooks through Git Bash, and the self-test now runs that
     launcher. bin/likma skips the Windows Store Python stubs and falls back to `py -3`.
