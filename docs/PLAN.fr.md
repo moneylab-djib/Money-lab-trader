@@ -238,9 +238,10 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    seule (version, prix, appels payés, incidents, ordres refusés), un rapport envoyé sur Telegram, 24 h
    d'observation et un retour arrière prévu (le code d'abord ; la base seulement en cas de corruption et
    sur ta décision, l'ancienne étant mise de côté, jamais effacée). L'ancienne version ramène le défaut de
-   précision : elle ne redémarre qu'avec une pause enregistrée **et vérifiée par un outil** (aucun achat en
-   attente, aucune position sous 1 centime ni invalide), puis revérifiée en marche (rien acheté depuis le
-   démarrage). Une contre-vérification de tous les outils sur des bases fictives est prête pour ton agent
+   précision : elle ne redémarre qu'avec une pause enregistrée **et vérifiée par un outil**. L'outil exige :
+   aucun achat en attente ; aucune vente sous 1 € que son courtier ferait seul, sauf actif nommé dans ton GO ;
+   rien sous 1 centime ; aucune anomalie BLOQUANT. Il revérifie ensuite en marche que rien n'a été acheté,
+   ni vendu à risque, depuis le démarrage. Une contre-vérification de tous les outils sur des bases fictives est prête pour ton agent
    Windows. Le programme de Sonni lui-même ne change pas dans cette préparation.
 3. **Actualité et calendrier** ✅ (voir 1 ter).
 4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :

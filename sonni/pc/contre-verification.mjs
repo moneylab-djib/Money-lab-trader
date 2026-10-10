@@ -157,7 +157,7 @@ export async function runCounterCheck({ api, keep = false, log = () => {} }) {
       results.push({ name, script, args, expect, status: "NON APPLICABLE", note: "comportement propre à Linux (droits de fichiers ou systemctl)" });
       return null;
     }
-    for (const a of args) if ((path.isAbsolute(a) || a.includes(path.sep)) && !inside(a)) throw new Error(`chemin hors du dossier temporaire refusé : ${a}`);
+    for (const a of args) if ((path.isAbsolute(a) || a.includes(path.sep)) && !inside(a) && a !== REPO) throw new Error(`chemin hors du dossier temporaire refusé : ${a}`);
     const tmpDir = dir(`tmp-${results.length + 1}`);
     const before = unchanged.map((f) => [f, sha(f)]);
     const env = {
@@ -250,12 +250,27 @@ export async function runCounterCheck({ api, keep = false, log = () => {} }) {
     run({ name: "stop franchi accepté par sa clé", script: "controle-predeploiement.mjs", args: [stopFranchi, "--accepter-a-decider", "stop-franchi:BTC"], homeDir: H, expect: 0, unchanged: [stopFranchi] });
     run({ name: "contrôle avant déploiement, fichier non SQLite", script: "controle-predeploiement.mjs", args: [nonSqlite], homeDir: H, expect: 3, unchanged: [nonSqlite] });
 
-    // 5. Pause check before and after a rollback.
-    run({ name: "pause vérifiée, base propre en pause", script: "verifier-pause.mjs", args: ["--copie", propre], homeDir: H, expect: 0, contains: ["pause=oui"], unchanged: [propre] });
-    run({ name: "pause absente", script: "verifier-pause.mjs", args: ["--copie", sansPause], homeDir: H, expect: 1, contains: ["aucune pause enregistrée"], unchanged: [sansPause] });
-    run({ name: "achat en attente pendant la pause", script: "verifier-pause.mjs", args: ["--copie", enAttente], homeDir: H, expect: 1, contains: ["achats_en_attente=1"], unchanged: [enAttente] });
-    run({ name: "position corrompue refusée au retour arrière", script: "verifier-pause.mjs", args: ["--copie", corrompue], homeDir: H, expect: 1, contains: ["positions_invalides=1"], unchanged: [corrompue] });
-    run({ name: "pause vérifiée sur la base en marche (lecture seule)", script: "verifier-pause.mjs", args: ["--en-marche", "--depuis", new Date(Date.now() - 60_000).toISOString().slice(0, 19) + "Z"], homeDir: chaud.h, expect: 0, contains: ["achats_depuis=0"] });
+    // 5. Rollback guard: pause, pending buys, sales rounded to the cent (USDC's stop is under 1 EUR), gate BLOQUANT.
+    const pause = { script: "verifier-pause.mjs", homeDir: H };
+    const usdc = ["--accepter-arrondi", "USDC"];
+    run({ ...pause, name: "retour arrière : stop sous 1 € refusé sans GO nommant l'actif", args: ["--copie", propre], expect: 1, contains: ["vente-arrondie:USDC", "ventes_a_risque=1"], unchanged: [propre] });
+    run({ ...pause, name: "retour arrière permis : pause, arrondi USDC accepté", args: ["--copie", propre, ...usdc], expect: 0, contains: ["pause=oui", "bloquants=0"], unchanged: [propre] });
+    run({ ...pause, name: "retour arrière : pause absente", args: ["--copie", sansPause, ...usdc], expect: 1, contains: ["aucune pause enregistrée"], unchanged: [sansPause] });
+    run({ ...pause, name: "retour arrière : achat en attente pendant la pause", args: ["--copie", enAttente, ...usdc], expect: 1, contains: ["achats_en_attente=1"], unchanged: [enAttente] });
+    run({ ...pause, name: "retour arrière : position corrompue (BLOQUANT)", args: ["--copie", corrompue, ...usdc], expect: 1, contains: ["anomalie(s) BLOQUANT"], unchanged: [corrompue] });
+    run({ ...pause, name: "retour arrière vérifié sur la base en marche (lecture seule)", args: ["--en-marche", "--depuis", new Date(Date.now() - 30 * 60_000).toISOString().slice(0, 19) + "Z", ...usdc], homeDir: chaud.h, expect: 0, contains: ["achats_depuis=0", "ventes_depuis=0"] });
+
+    // 6. Read-only preflight of the server (a VPS tool: Linux only; as root it reports that one failure).
+    const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+    if (IS_WINDOWS) run({ name: "vérification de l'environnement du serveur", script: "verification-environnement.mjs", args: [], homeDir: H, expect: 0, linuxOnly: true });
+    else {
+      const env = home("home-environnement", {});
+      run({
+        name: "vérification de l'environnement du serveur", script: "verification-environnement.mjs", args: ["--depot", REPO], homeDir: env.h,
+        expect: isRoot ? 1 : 0, contains: ["même module que Sonni", isRoot ? "lancé en root" : "Conclusion : le serveur a ce que les outils demandent"],
+        unchanged: [env.file], extraEnv: { SONNI_SYSTEMCTL: fakeSystemctl(dir("bin-env"), "inactive") },
+      });
+    }
   } finally {
     for (const db of openDbs) {
       try { db.close(); } catch { /* already closed */ }

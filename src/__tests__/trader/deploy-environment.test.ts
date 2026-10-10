@@ -198,7 +198,8 @@ describe("The pre-install sequence of the guide, from the isolated tools folder"
     // The rollback check refuses the same database too: no version starts on it before a separate repair.
     const paused = run(tools, "verifier-pause.mjs", ["--copie", copy], home);
     expect(paused.status).toBe(1);
-    expect(paused.stdout).toContain("ÉCHEC : 1 position(s) invalide(s) (PUMP) : quantité ou coût moyen non valable.");
-    expect(paused.last).toContain("positions_invalides=1 ");
+    expect(paused.stdout).toMatch(/ÉCHEC : \d+ anomalie\(s\) BLOQUANT du contrôle avant déploiement/);
+    expect(paused.stdout).toContain("1 position ouverte invalide (PUMP)");
+    expect(paused.last).toMatch(/bloquants=[1-9]/);
   });
 });

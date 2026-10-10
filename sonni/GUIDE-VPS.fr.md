@@ -483,7 +483,7 @@ propose Ubuntu.
    toujours, comme un point BLOQUANT : aucune option ne lève un point BLOQUANT.
 7. **Si une de ces trois commandes ne finit pas par `code=0`, n'installe rien.** Le programme n'a pas
    changé. Laisse Sonni arrêté et envoie-moi la sortie : la décision est la tienne. Redémarrer l'ancienne
-   version ne se fait que par « Retour arrière » plus bas, pause vérifiée comprise (l'étape R3 est alors
+   version ne se fait que par « Retour arrière » plus bas, pause vérifiée comprise (l'étape R5 est alors
    inutile).
 8. **Seulement maintenant, installe exactement la version approuvée :**
    ```sh
@@ -509,8 +509,8 @@ propose Ubuntu.
    systemctl is-active sonni
    ```
 
-Garde le dossier `/home/sonni/outils-deploiement` jusqu'à la fin de l'observation : un retour arrière en a
-besoin, car l'ancienne version n'a pas ces outils.
+Garde le dossier `/home/sonni/outils-deploiement` : un retour arrière en a besoin, car l'ancienne version n'a
+pas ces outils. S'il a disparu, la Phase 2, étape 2, le recrée à l'identique.
 
 ### Phase 3 — Contrôles après démarrage et rapport Telegram
 
@@ -599,19 +599,25 @@ Ce que tu verras de nouveau avec l'ancienne version :
 - les prix sous 1 € arrondis au centime (« 0,00 € ») ;
 - les refus du courtier virtuel en anglais.
 
-**Attention.** L'ancienne version ramène aussi le défaut que l'étape 0.3 corrige. Pendant qu'elle tourne, un
-achat à moins de 0,005 € redeviendrait une quantité infinie, et l'historique serait abîmé pour de bon. Elle
-ne démarre donc **qu'en pause, et une pause vérifiée par un outil**, pas seulement demandée :
+**Attention.** L'ancienne version ramène aussi le défaut que l'étape 0.3 corrige : elle arrondit au centime
+chaque exécution. Un achat à moins de 0,005 € redeviendrait une quantité infinie, et une vente sous 1 € serait
+enregistrée à un prix faux. L'historique serait abîmé pour de bon. Elle ne démarre donc **qu'en pause, et une
+pause vérifiée par un outil**, pas seulement demandée :
 - la pause est gardée dans la mémoire de Sonni. L'ancienne version la respecte dès son démarrage : aucun
   cycle payé, donc aucun nouvel ordre ;
-- mais le courtier virtuel exécute encore les ordres déjà en attente, même en pause. L'outil
-  `verifier-pause.mjs` refuse donc aussi tout ordre d'achat en attente, toute position sur un actif à moins
-  de 1 centime, que l'ancienne version vendrait à un prix arrondi à 0, et toute position invalide ;
+- mais son courtier virtuel continue de tourner pendant la pause : il exécute les ordres déjà en attente et
+  déclenche les stops. L'outil `verifier-pause.mjs` refuse donc :
+  - tout ordre d'achat en attente ;
+  - toute vente qu'il ferait seul sous 1 € (vente en attente ou stop), sauf si ton GO nomme l'actif ;
+  - tout actif sous 1 centime, sans exception ;
+  - toute position sans prix ;
+  - toute anomalie BLOQUANT du contrôle avant déploiement ;
 - `/reprendre` lève la pause et relance un cycle payé : ne l'envoie pas tant que l'ancienne version tourne.
 
 Les outils se lancent depuis `/home/sonni/outils-deploiement` (Phase 2, étape 2), car l'ancienne version ne
-les a pas. Toutes les commandes ci-dessous attendent `code=0` ; pour tout autre code, laisse Sonni arrêté et
-envoie-moi la sortie.
+les a pas. Si ce dossier n'existe plus, refais d'abord la Phase 2, étape 2 : `COMMIT` reste dans la réserve
+de Git, même après R5. Toutes les commandes ci-dessous attendent `code=0`. Pour tout autre code, laisse Sonni
+arrêté et envoie-moi la sortie.
 
 R1. **Si Sonni répond sur Telegram, envoie `/pause`**, pour qu'il ne place plus d'ordre pendant que tu
 prépares le retour. Puis arrête-le :
@@ -623,46 +629,52 @@ La deuxième ligne doit afficher `inactive`.
 
 R2. **Restaurer la base, seulement en cas de corruption et seulement sur ta décision.** La restauration
 efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres et dépenses d'IA déjà
-comptées. Elle se fait avant le retour sur le code :
+comptées. Elle se fait avant tout le reste :
 ```sh
 cd /home/sonni/outils-deploiement
 sudo -u sonni -H node sonni/vps/restauration.mjs --restaurer COPIE --confirmer
 ```
 L'outil vérifie l'empreinte et refuse tant que Sonni tourne. Il ne supprime rien : l'ancienne base et ses
 fichiers `-wal`/`-shm` partent dans un dossier `quarantaine-…` à côté. La base restaurée a la pause de
-`COPIE`, pas celle de R1 : l'étape R4 la remet.
+`COPIE`, pas celle de R1 : l'étape R3 la remet.
 
-R3. **Reviens à l'ancienne version du programme** (inutile si l'installation de la Phase 2, étape 8, n'a pas
-eu lieu) :
+R3. **Enregistre la pause dans la base**, avec la version encore installée. La commande existe dans toutes les
+versions possibles. Sonni est arrêté, cela ne lance aucun cycle :
+```sh
+cd /opt/sonni
+sudo -u sonni -H node dist/index.js --money-lab pause "retour arrière"
+```
+Si la pause existait déjà (`/pause` de R1), la commande la garde telle quelle. Si cette commande échoue
+parce que la compilation de la Phase 2 a échoué, fais d'abord R5, puis reviens à R3 et R4.
+
+R4. **Vérifie la pause sur une copie fraîche**, tant que la nouvelle version est encore installée :
+```sh
+cd /home/sonni/outils-deploiement
+sudo -u sonni -H node sonni/vps/sauvegarde.mjs
+sudo -u sonni -H node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR
+```
+`COPIE_RETOUR` est le chemin qu'affiche cette nouvelle sauvegarde. Il faut `code=0`. Sinon **ne reviens pas
+en arrière** :
+- « aucune pause enregistrée » : refais R3, puis R4 ;
+- « vente-arrondie:ACTIF » : une vente sous 1 € que l'ancienne version arrondirait au centime. L'outil donne
+  la part de la valeur en jeu. Si ton GO de retour arrière l'accepte en nommant l'actif, relance avec
+  `--accepter-arrondi ACTIF1,ACTIF2` (les actifs que ton GO nomme, et seulement ceux-là) ;
+- « ordre(s) d'achat en attente » : l'ancienne version les exécuterait. Chaque ordre est listé avec son
+  échéance. Au choix : redémarre la nouvelle version, toujours en pause (`systemctl start sonni`), jusqu'à
+  son exécution ou son échéance, puis reprends à R1 ; ou laisse Sonni arrêté et envoie-moi la sortie. Aucune
+  version n'a de commande pour annuler un ordre à ta place : en ajouter une serait un changement séparé, à ta
+  demande ;
+- « sous 1 centime », « sans aucun prix » ou « BLOQUANT » : laisse Sonni arrêté et envoie-moi la sortie. Aucune
+  version ne redémarre sur ces données avant une réparation séparée, que tu décides.
+
+R5. **Reviens à l'ancienne version du programme.** C'est inutile si l'installation de la Phase 2, étape 8,
+n'a pas eu lieu. La base ne change pas pendant cette étape, donc la vérification R4 reste valable :
 ```sh
 cd /opt/sonni
 sudo -u sonni -H git checkout --detach "$(cat /root/sonni-commit-avant.txt)"
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
 ```
-
-R4. **Enregistre la pause dans la base**, avec la commande de l'ancienne version (elle existe dans toutes les
-versions possibles). Sonni est arrêté, cela ne lance aucun cycle :
-```sh
-cd /opt/sonni
-sudo -u sonni -H node dist/index.js --money-lab pause "retour arrière"
-```
-Si la pause existait déjà (`/pause` de R1), la commande la garde telle quelle.
-
-R5. **Vérifie la pause sur une copie fraîche :**
-```sh
-cd /home/sonni/outils-deploiement
-sudo -u sonni -H node sonni/vps/sauvegarde.mjs
-sudo -u sonni -H node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR
-```
-`COPIE_RETOUR` est le chemin qu'affiche cette nouvelle sauvegarde. Il faut `code=0`. Sinon **ne démarre
-pas** :
-- « aucune pause enregistrée » : refais R4, puis R5 ;
-- « ordre(s) d'achat en attente » ou « position … sous 1 centime » : laisse Sonni arrêté et envoie-moi la
-  sortie. Ces ordres doivent d'abord être exécutés ou expirer avec la nouvelle version, en pause : on en
-  décide ensemble ;
-- « position(s) invalide(s) » : laisse Sonni arrêté et envoie-moi la sortie. Aucune version ne redémarre sur
-  une position corrompue avant une réparation séparée, que tu décides.
 
 R6. **Démarre l'ancienne version et vérifie-la en marche :**
 ```sh
@@ -671,15 +683,16 @@ systemctl start sonni
 systemctl is-active sonni
 journalctl -u sonni -n 80 --no-pager
 ```
-Attends 10 à 15 minutes (un relevé de prix et un passage du courtier virtuel), puis :
+Attends 10 à 15 minutes, le temps d'un relevé de prix et d'un passage du courtier virtuel, puis :
 ```sh
 cd /home/sonni/outils-deploiement
 sudo -u sonni -H node sonni/vps/verifier-pause.mjs --en-marche --depuis "$(cat /root/sonni-retour.txt)"
 ```
-Il lit la base en marche sans rien écrire. S'il ne finit pas par `code=0` (pause levée, ou achat passé
-depuis le démarrage), **arrête Sonni tout de suite** (`systemctl stop sonni`) et envoie-moi la sortie.
+Ajoute le même `--accepter-arrondi` qu'en R4 s'il y en avait un. L'outil lit la base en marche sans rien
+écrire. S'il ne finit pas par `code=0`, **arrête Sonni tout de suite** (`systemctl stop sonni`) et envoie-moi
+la sortie. Ce peut être une pause levée, un achat ou une vente sous 1 € non acceptée depuis le démarrage.
 Relance la même vérification le lendemain. Envoie aussi `/statut`, `/portefeuille` et `/technique` sur
-Telegram, et envoie-moi le résultat.
+Telegram, puis envoie-moi le résultat.
 
 ## Arrêter Sonni
 

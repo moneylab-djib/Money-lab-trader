@@ -180,17 +180,36 @@ The owner asked for five changes before the merge. This section records what was
     until the gate passes. If anything fails before the install, the program is unchanged.
 - **Rollback with a verified pause.**
   - Every version the VPS may run has `node dist/index.js --money-lab pause` (src/money-lab/cli.ts,
-    `case "pause"`). It honours a stored pause at start: index.ts gives the loop `paused: !!getPauseState`,
-    and paid cycles are blocked while it is set.
-  - The broker timer still runs during the pause (src/index.ts, "Sonni prix" calls brokerTick without
-    checking it). So the pause alone does not stop fills of orders already pending.
+    `case "pause"`). Checked in `git show 4c015b0:` and `fd5916d:`:
+    - the main loop checks getPauseState before each cycle;
+    - wakes are gated on the pause;
+    - nothing but /reprendre or the resume CLI clears it.
+  - The broker timer still runs during the pause (src/index.ts, "Sonni prix" calls brokerTick without checking
+    it). The old broker fills pending orders and places stop sales by itself, at a price rounded to the cent
+    (fd5916d src/trader/portfolio.ts). A sale under 1 EUR can be off by up to 0.005 / price of the value, and
+    under 1 cent it can be recorded at 0. Trades and the ledger are append-only, so the damage is permanent.
   - verifier-pause.mjs refuses:
     - a missing pause record;
-    - any pending buy;
-    - a position on an asset whose last price is under 1 cent (the old cent rounding would sell it at 0);
-    - an invalid position;
-    - with `--en-marche --depuis`, any buy placed or filled since the old version started.
-  - The pause is recorded by the CLI after any restore, because a restored copy carries its own pause state.
+    - any pending buy (the old version would buy);
+    - a pending sale or stop under 1 EUR, unless the owner's GO names the asset (`--accepter-arrondi`);
+    - any asset under 1 cent, with no exception;
+    - a position without a stored price;
+    - every BLOQUANT of the gate (it runs the gate's controle()), so no version restarts on data the gate
+      refuses;
+    - with `--en-marche --depuis` (now required, with the post-start check's "too early" rule): any buy
+      placed or filled since the start, and any sale under 1 EUR not accepted.
+  - Order of the rollback:
+    1. /pause and stop;
+    2. restore, if the owner decides;
+    3. record the pause with the installed version's CLI;
+    4. back up and verify while the new version is still installed;
+    5. only then roll the code back, which leaves the database unchanged;
+    6. start and verify live.
+
+    Pending buys can then still be left to the new version, paused, until they fill or expire. No version
+    has an owner command to cancel an order; adding one would be a separate change.
+  - Residual risk, not covered: a server reboot during the window starts sonni.service (enabled,
+    Restart=always) in whatever state it is. The guide asks not to reboot during the window.
 - **VPS compatibility.** verification-environnement.mjs is a read-only preflight run from the tools' own place.
   It checks:
   - the Node version and the functions the tools call;

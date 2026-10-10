@@ -37,7 +37,7 @@
     reopens what old code wrote, with no exception and no non-finite figure. A code rollback brings back the
     pre-0.3 precision bug for fills made meanwhile (a buy under 0.005 EUR becomes an infinite quantity): the guide
     asks to check pending buys under 1 EUR first and to /pause Sonni while the old code runs.
-  - Checks: sonni 27 files, 366 tests; 119 of them are new (deploy-backup 32, deploy-predeploy 40,
+  - Checks (before the owner's validation round): sonni 27 files, 366 tests; 119 of them are new (deploy-backup 32, deploy-predeploy 40,
     deploy-poststart 40, deploy-guide 7), including a fidelity test of the gate against the real brokerTick and a
     guide test that every command and option exists in the right order.
   - Reviews:
@@ -76,6 +76,35 @@
     - Likma: deploy-prep verified on the last source (report 72ba2c85: sonni, types, money-lab, runtime, build,
       sonni-e2e 620 s); the 15 features sharing its files were re-verified (report 01fb191a, sonni-e2e 620 s).
       GitHub CI on draft PR #33: `checks`, `e2e`, `audit` and `trufflehog` green on every pushed commit.
+  - Owner's validation round of 2026-10-10 (PR #33, five points; docs/research/deploy-prep.md, "Owner's validation
+    round"):
+    - backup before any install: the tools run from /home/sonni/outils-deploiement (git archive of COMMIT's sonni/vps
+      plus a node_modules link to Sonni's own). Stop, backup, drill and gate run before any checkout, install or
+      build, and deploy-guide.test pins that order;
+    - rollback guard, sonni/vps/verifier-pause.mjs. It requires:
+      - the pause recorded;
+      - no pending buy;
+      - no sale under 1 EUR the old broker would make on its own, unless the GO names the asset;
+      - nothing under 1 cent;
+      - every position priced;
+      - no BLOQUANT of the gate.
+
+      Then `--en-marche --depuis` re-checks live. The rollback records the pause and verifies it while the new
+      version is still installed, then rolls the code back;
+    - VPS compatibility: sonni/vps/verification-environnement.mjs is a read-only preflight, run before the stop.
+      Phase 0 adds read-only shell commands for the same facts;
+    - the gate blocks on corrupt data (tests cited in the research notes), and now before anything is installed;
+    - sonni/pc/contre-verification.mjs: 27 cases on fictitious databases for the owner's Windows agent. The
+      mission is in branch agent-reports.
+  - Independent adversarial review of these changes: 3 major and 5 minor findings, all fixed with tests. The
+    major ones:
+    - the rollback could start on data the gate blocks;
+    - sales by the old broker under 1 EUR were neither prevented nor detected;
+    - the pending-buy remedy was impossible after the code rollback.
+
+    Not fixed: a server reboot during the window starts the service as it stands (the guide says not to reboot).
+  - Checks after the round: sonni 30 files, 395 tests; typecheck; build; contre-verification 27/27 on Linux. Not run
+    on Windows (the mission's purpose).
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at

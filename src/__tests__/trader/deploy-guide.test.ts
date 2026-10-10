@@ -124,13 +124,15 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     const pause = at("node dist/index.js --money-lab pause", rollback);
     const backup = at("node sonni/vps/sauvegarde.mjs", rollback);
     const verify = at("node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR", rollback);
-    const start = at("systemctl start sonni", rollback);
+    const start = at("systemctl start sonni", code); // the earlier one restarts the NEW version, paused (R4)
     const running = at("node sonni/vps/verifier-pause.mjs --en-marche --depuis", rollback);
-    // A restore brings back the copy's pause state: the pause is recorded after it, then checked on a fresh copy.
-    for (const [a, b] of [[stop, restore], [restore, code], [code, pause], [pause, backup], [backup, verify], [verify, start], [start, running]]) {
+    // A restore brings back the copy's pause state: the pause is recorded after it, then checked on a fresh copy while
+    // the new version is still installed (so pending buys can still be left to it), and only then is the code rolled back.
+    for (const [a, b] of [[stop, restore], [restore, pause], [pause, backup], [backup, verify], [verify, code], [code, start], [start, running]]) {
       expect(a).toBeLessThan(b);
     }
-    // The old pause CLI exists in every version the VPS may run (4c015b0..fd5916d), as in the current one.
+    // The pause CLI of the installed version records the pause. That 4c015b0 and fd5916d have it too was checked by
+    // hand (git show <commit>:src/money-lab/cli.ts, docs/research/deploy-prep.md); this test only reads the current one.
     expect(fs.readFileSync(path.join(ROOT, "src", "money-lab", "cli.ts"), "utf-8")).toContain('case "pause"');
     // The rollback no longer sends the owner to /reprendre: it relaunches a paid cycle.
     expect(section.slice(rollback)).not.toMatch(/envoie `\/reprendre`/);

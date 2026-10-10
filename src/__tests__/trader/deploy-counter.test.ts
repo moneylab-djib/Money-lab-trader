@@ -29,10 +29,10 @@ describe("Counter-verification of the deployment tools on fictitious databases (
     const ecarts = results.filter((r: { status: string }) => r.status === "ÉCART");
     expect(ecarts, JSON.stringify(ecarts, null, 2)).toEqual([]);
     expect(code).toBe(0);
-    expect(results.length).toBeGreaterThanOrEqual(25);
+    expect(results.length).toBeGreaterThanOrEqual(27);
     // Every tool of the procedure is exercised.
     const scripts = new Set(results.map((r: { script: string }) => r.script));
-    for (const s of ["audit-prix.mjs", "sauvegarde.mjs", "restauration.mjs", "controle-predeploiement.mjs", "verifier-pause.mjs"]) expect(scripts.has(s), s).toBe(true);
+    for (const s of ["audit-prix.mjs", "sauvegarde.mjs", "restauration.mjs", "controle-predeploiement.mjs", "verifier-pause.mjs", "verification-environnement.mjs"]) expect(scripts.has(s), s).toBe(true);
     const after = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith("sonni-contre-verif-") && !before.has(n));
     expect(after).toEqual([]);
     const md = report(results, code);
