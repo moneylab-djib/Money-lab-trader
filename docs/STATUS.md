@@ -5,7 +5,7 @@
   2026-10-10 10:39:19 UTC (steps 0.2 and 0.3 in service; post-start check code=0; observation running, not
   "observed" until the owner says so). Branch claude/sonni-brain-tasks (draft PR #37) holds the first entry below.
 - Tasks Sonni hands to the second brain (owner's request of 2026-10-10, feature `brain-tasks`, guard G18). Status:
-  built; not merged, not deployed.
+  built and verified (Likma `feature verify`, .likma/checks/b8ee3736fb8246098d37869760b2bb12.json); not merged, not deployed.
   - New tool `delegate_to_second_brain`: 1 to 8 tasks per call, 16 waiting, 40 a UTC day. The PC answers from
     code's data only. A finished batch wakes Claude once (source `sonni_brain_tasks`) through the shared gate:
     8 a day, 20 min apart, within 6 h. There is no wake for a batch with no answer or for answers already read.
@@ -23,8 +23,15 @@
   - Same latent bug on main, not fixed here (separate change): the triage wake source `second_brain`
     (src/trader/brain.ts) is dropped by the same filter. It is inert while `secondBrain.triageWakes` is false
     (the default).
-  - Checks on the fixed tree: typecheck OK; sonni 31 files / 417 tests; money-lab 2 files / 110 tests. The e2e
-    rerun on the fixed build is listed below once it has run.
+  - Checks on the fixed tree:
+    - typecheck OK;
+    - sonni: 31 files, 417 tests;
+    - money-lab: 2 files, 110 tests;
+    - build OK;
+    - sonni-e2e PASS, through Likma's verify (736 s). The new e2e steps: Claude delegates two tasks and sleeps; the
+      PC answers both with no Claude call; the log shows "Woken by sonni_brain_tasks"; Claude gets the answers as
+      untrusted data; each task runs once.
+    - `project audit`: PASS, run with the `likma` launcher on PATH.
 - VPS survey (deployment Phase 0, read-only, run by the owner on 2026-10-10 about 10:30 UTC):
   - Sonni runs main 0ee7f7f (PR #30, step 0.1), not a commit in 4c015b0..fd5916d as assumed:
     - working tree clean;
