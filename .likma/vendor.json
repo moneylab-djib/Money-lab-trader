@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "0.13.0",
-  "revision": "e17751b41a33c04563860b7197687a32bc34935f",
+  "version": "0.20.1",
+  "revision": "5821efc742d14434c66cf714f96e82659b74385e",
   "files": {
     "docs/likma-standards/accessibility.md": "d44f68760c0fe80109c38360f3e36387d001c5ffb65a96fccc8d858c1d6caa9c",
     "docs/likma-standards/agent-security.md": "82341b29685142c1056d455c940af2218bec3a8c1f2471f5efcf81f172aec047",
