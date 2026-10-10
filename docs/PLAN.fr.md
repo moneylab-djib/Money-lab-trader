@@ -226,17 +226,22 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    Déploiement des étapes 0.1 à 0.3 (préparé le 10 octobre, PR séparée ; rien n'a encore changé sur le
    VPS) : une procédure contrôlée dans `sonni/GUIDE-VPS.fr.md` (« Déploiement contrôlé des étapes 0.1 à
    0.3 »). D'abord, sans rien changer sur le serveur, l'état actuel et un pré-audit sur une copie de la
-   sauvegarde du jour, hors du serveur. Ensuite, seulement avec ton GO de déploiement : arrêt, version
-   approuvée installée à l'identique, sauvegarde vérifiée (empreinte SHA-256), essai de restauration dans
-   un dossier temporaire, puis un contrôle avant démarrage qui bloque jusqu'à ta décision : anomalies
+   sauvegarde du jour, hors du serveur. Ensuite, seulement avec ton GO de déploiement : les outils de la
+   version approuvée sortis dans un dossier à part (rien n'est installé), une vérification en lecture seule
+   de ce que le serveur offre (Node, bibliothèque SQLite de Sonni, droits, place), l'arrêt, une sauvegarde
+   vérifiée (empreinte SHA-256), un essai de restauration dans un dossier temporaire, puis un contrôle qui
+   bloque jusqu'à ta décision, **tout cela avant la moindre installation** : anomalies
    (positions invalides, registre qui ne tombe pas juste) et points à décider (ordres que le premier relevé
    refuserait, ferait expirer ou exécuterait à un prix ancien, stops déjà franchis, positions sans stop,
    écarts d'arrondi d'avant l'étape 0.3). Un point à décider ne passe que si ton GO le nomme par sa clé ;
    une anomalie ne passe jamais. Après le démarrage : un contrôle en lecture
    seule (version, prix, appels payés, incidents, ordres refusés), un rapport envoyé sur Telegram, 24 h
    d'observation et un retour arrière prévu (le code d'abord ; la base seulement en cas de corruption et
-   sur ta décision, l'ancienne étant mise de côté, jamais effacée). Le programme de Sonni lui-même ne change
-   pas dans cette préparation.
+   sur ta décision, l'ancienne étant mise de côté, jamais effacée). L'ancienne version ramène le défaut de
+   précision : elle ne redémarre qu'avec une pause enregistrée **et vérifiée par un outil** (aucun achat en
+   attente, aucune position sous 1 centime ni invalide), puis revérifiée en marche (rien acheté depuis le
+   démarrage). Une contre-vérification de tous les outils sur des bases fictives est prête pour ton agent
+   Windows. Le programme de Sonni lui-même ne change pas dans cette préparation.
 3. **Actualité et calendrier** ✅ (voir 1 ter).
 4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :
    - *C1 — Dossiers et carnets* ✅ construit le 7 octobre : un dossier par actif suivi, écrit par Sonni

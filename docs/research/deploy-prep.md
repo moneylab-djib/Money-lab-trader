@@ -163,3 +163,58 @@ rollback procedure says so:
 
 Not rehearsed: stop orders and restoreStopLevel on old code, predictions, Telegram handlers, model tool
 calls, the full process and the e2e.
+
+## Owner's validation round (2026-10-10, PR #33)
+
+The owner asked for five changes before the merge. This section records what was checked and decided.
+
+- **Backup before any install.** The first order ran checkout, `pnpm install` and the build before the backup:
+  a failed install could leave a half-built program and no fresh copy. The tools now run from
+  `/home/sonni/outils-deploiement`, a private folder that holds only `git archive COMMIT sonni/vps` and a
+  `node_modules` link to `/opt/sonni/node_modules`.
+  - The tools import only Node built-ins and better-sqlite3. better-sqlite3 is 11.10.0 in every lockfile
+    from 4c015b0 to main, so Sonni's own compiled module serves them.
+  - Node resolves the link with realpath, so pnpm's nested layout works. deploy-environment.test proves it:
+    the backup, drill, gate and pause check run from such a folder with no dist, src or package.json.
+  - `git fetch` changes only Git's object store; /opt/sonni's checkout, dist and node_modules are untouched
+    until the gate passes. If anything fails before the install, the program is unchanged.
+- **Rollback with a verified pause.**
+  - Every version the VPS may run has `node dist/index.js --money-lab pause` (src/money-lab/cli.ts,
+    `case "pause"`). It honours a stored pause at start: index.ts gives the loop `paused: !!getPauseState`,
+    and paid cycles are blocked while it is set.
+  - The broker timer still runs during the pause (src/index.ts, "Sonni prix" calls brokerTick without
+    checking it). So the pause alone does not stop fills of orders already pending.
+  - verifier-pause.mjs refuses:
+    - a missing pause record;
+    - any pending buy;
+    - a position on an asset whose last price is under 1 cent (the old cent rounding would sell it at 0);
+    - an invalid position;
+    - with `--en-marche --depuis`, any buy placed or filled since the old version started.
+  - The pause is recorded by the CLI after any restore, because a restored copy carries its own pause state.
+- **VPS compatibility.** verification-environnement.mjs is a read-only preflight run from the tools' own place.
+  It checks:
+  - the Node version and the functions the tools call;
+  - that better-sqlite3 loads, backs up a scratch database, and is the same module as Sonni's;
+  - not root, and HOME;
+  - ~/.automaton and state.db ownership and type (a symbolic link is refused);
+  - free space in ~/.automaton and the temporary folder;
+  - git, tar, sha256sum and systemctl.
+
+  Phase 0 adds the same facts as plain read-only shell commands, so they can be compared before COMMIT is
+  given.
+- **The gate blocks on corrupt data.** A BLOQUANT (invalid position, ledger mismatch, negative cash, orphan
+  order or trade, failed integrity check) gives exit 1. `--accepter-a-decider` never lifts it. The tests:
+  - deploy-predeploy.test, "blocks on … and --accepter-a-decider does not lift it", and "never lets
+    --accepter-a-decider lift a BLOQUANT";
+  - deploy-environment.test, the corrupt-position run from the isolated folder.
+
+  Since the gate now runs before the install, a BLOQUANT stops the deployment with the old program intact.
+  verifier-pause refuses the same corrupt position, so no version restarts on it before a separate repair.
+- **Counter-verification for the owner's Windows agent.** sonni/pc/contre-verification.mjs builds fictitious
+  databases with Sonni's compiled code and runs 25 cases across the five tools. It writes a French Markdown
+  report.
+  - It was run in the sandbox (Linux, Node 22.22, 25/25) and through deploy-counter.test.
+  - Windows-specific behaviour is not proven here; that is the mission's purpose. The open points are:
+    - opening directories in restauration.mjs (secureEntry with O_DIRECTORY, undefined on Windows);
+    - removing files while a database is open (EBUSY);
+    - process.umask.

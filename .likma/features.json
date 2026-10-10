@@ -1823,8 +1823,11 @@
         "THE pre-deployment check's predicted first-tick outcome of each pending order and each stop SHALL equal what the new broker does on the same data (tested against brokerTick)",
         "WHEN the owner runs controle-apres-demarrage.mjs after a start, THE SYSTEM SHALL read the live database read-only and SHALL exit 1 on any rollback trigger: wrong build, no price since start, broker incident, rejected order, unusable position, Telegram backlog",
         "WHEN envoi-telegram.mjs runs, THE SYSTEM SHALL send the given French report to the owner's chat with the configured bot token, which it SHALL never print or read from the command line",
-        "THE VPS guide SHALL give the owner, in French, the survey, the pre-audit on a copy, the deployment window pinned to the approved commit, post-start checks, the Telegram report, the observation window and the rollback",
-        "WHEN this tooling ships, THE SYSTEM SHALL keep Sonni's runtime code, configuration, schema, stored history and audit-prix.mjs output unchanged, with tests making no network call outside 127.0.0.1 and no paid call"
+        "THE VPS guide SHALL give the owner, in French, the survey, the pre-audit on a copy, the deployment window pinned to the approved commit with the backup, restore drill and gate run from an isolated tools folder BEFORE any checkout, install or build, post-start checks, the Telegram report, the observation window and the rollback",
+        "WHEN this tooling ships, THE SYSTEM SHALL keep Sonni's runtime code, configuration, schema, stored history and audit-prix.mjs output unchanged, with tests making no network call outside 127.0.0.1 and no paid call",
+        "WHEN the owner rolls back to an older version, THE SYSTEM SHALL let it start only after verifier-pause.mjs exits 0 on a fresh copy (pause recorded, no pending buy, no position on a sub-cent asset, no invalid position), and SHALL exit 1 with --en-marche --depuis when the pause was lifted or a buy was placed or filled since that start",
+        "WHEN the owner runs verification-environnement.mjs from the tools' folder, THE SYSTEM SHALL check read-only the Node version and functions, that better-sqlite3 loads and is Sonni's own module, the user and HOME, ~/.automaton and state.db ownership and type, free space and the commands, and SHALL exit 1 on any failure",
+        "WHEN sonni/pc/contre-verification.mjs runs, THE SYSTEM SHALL build only fictitious databases in a new temporary folder, run every deployment tool with HOME and temporary folders redirected there, compare exit codes and messages, write a French report and remove the folder"
       ],
       "status": "verified",
       "paths": [
@@ -1839,7 +1842,13 @@
         "src/__tests__/trader/deploy-predeploy.test.ts",
         "src/__tests__/trader/deploy-poststart.test.ts",
         "src/__tests__/trader/deploy-guide.test.ts",
-        "sonni/GUIDE-VPS.fr.md"
+        "sonni/GUIDE-VPS.fr.md",
+        "sonni/vps/verifier-pause.mjs",
+        "sonni/vps/verification-environnement.mjs",
+        "sonni/pc/contre-verification.mjs",
+        "src/__tests__/trader/deploy-pause.test.ts",
+        "src/__tests__/trader/deploy-environment.test.ts",
+        "src/__tests__/trader/deploy-counter.test.ts"
       ],
       "track": "deep",
       "tasks": [
