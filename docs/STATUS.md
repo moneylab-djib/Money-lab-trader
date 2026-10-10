@@ -24,6 +24,16 @@
     - Node v22.23.3 and better-sqlite3 11.10.0 (`SQLite OK`);
     - git, tar, sha256sum and systemctl present;
     - sonni uid 1001, owning /home/sonni (750), ~/.automaton (700) and state.db (644).
+- Second brain triage wakes reach Claude (branch claude/laughing-darwin-ycx6ed). Status: built; not merged.
+  - Bug: the triage wake used the source `second_brain`; the sleep loop (src/index.ts) delivers only the
+    operator's and `sonni_` wakes, so with `secondBrain.triageWakes: true` every triage wake was logged as
+    "Réveil ignoré pendant le sommeil (second_brain)" and still counted toward the 4-a-day cap. Same bug as the
+    delegated task wakes (PR #37). No effect in service: `triageWakes` is off by default and unchanged.
+  - Fix: src/trader/brain.ts uses `TRIAGE_WAKE_SOURCE = "sonni_brain_triage"`; the cap and the hour gap count
+    both the new and the former source, so the rename cannot exceed 4 a day.
+  - Checks run: `pnpm run typecheck` passed; `pnpm exec vitest run src/__tests__/trader` passed (400 passed; 3 pc-scripts tests skipped, no pwsh in the sandbox; CI has it);
+    brain.test asserts the source passes `isSonniWake` and that former-source wakes fill the cap (the test
+    fails when the former source is not counted).
 - Likma 0.20.1 -> 0.20.2 (branch claude/sonni-likma-0202). Status: built; not merged.
   - Upstream fix for Windows: Claude Code runs the hooks through Git Bash, and the self-test now runs that
     launcher. bin/likma skips the Windows Store Python stubs and falls back to `py -3`.

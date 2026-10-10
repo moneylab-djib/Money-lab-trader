@@ -22,8 +22,9 @@ import { availableReaders, insertObservation } from "../../trader/readers.js";
 import { brainMode, setBrainMode } from "../../trader/brainstate.js";
 import {
   askBrainFr, brainLineFr, brainStats, brainTick, briefingForWake, enqueueJob, formatBrainFr, maintainQueue, MAX_ATTEMPTS,
-  modelConfirmed, releaseAllLeases, setBrainModeFr, TRIAGE_BATCH, triageMaxTokens,
+  MAX_TRIAGE_WAKES, modelConfirmed, releaseAllLeases, setBrainModeFr, TRIAGE_BATCH, TRIAGE_WAKE_SOURCE, triageMaxTokens,
 } from "../../trader/brain.js";
+import { isSonniWake } from "../../trader/curiosity.js";
 import { listIncidents } from "../../trader/incidents.js";
 import { buildMemoryPack } from "../../trader/pack.js";
 
@@ -236,6 +237,34 @@ describe("The assistant's work", () => {
     clock = minutes(101);
     for (let i = 0; i < 3; i++) await brainTick(db.raw, awake, ENV, pc, () => clock, hooks);
     expect(wakes).toHaveLength(2);
+    // The sleep loop (src/index.ts) delivers only the operator's and Sonni's own wakes.
+    const sources = db.raw.prepare("SELECT DISTINCT source FROM wake_events").all() as { source: string }[];
+    expect(sources).toEqual([{ source: TRIAGE_WAKE_SOURCE }]);
+    expect(isSonniWake({ source: TRIAGE_WAKE_SOURCE })).toBe(true);
+    db.close();
+  });
+
+  it("counts wakes under the old source toward the day's cap", async () => {
+    const db = openDb();
+    storePrice(db, "BTC", T0, 60_000);
+    const pc = fakePc((body) => {
+      const user = String(body.messages[1].content);
+      if (user.includes("Score each observation")) return triageAnswer(user);
+      if (user.includes("situation note")) return { note: "Les flux ETF dominent la journée." };
+      return { probability: 0.6, reason: "Proche du prix" };
+    });
+    const sqlTime = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
+    // Before the rename the same day: the cap's worth of wakes, more than an hour ago.
+    for (let i = 0; i < MAX_TRIAGE_WAKES; i++) {
+      db.raw.prepare("INSERT INTO wake_events (source, reason, created_at) VALUES (?, ?, ?)").run("second_brain", "old", sqlTime(minutes(-600 + i * 61)));
+    }
+    const wakes: string[] = [];
+    const hooks = { canWake: () => true, wake: (source: string) => { wakes.push(source); } };
+    const awake = parseTraderConfig({ ...EXAMPLE.trader, secondBrain: { ...BRAIN, triageWakes: true } })!;
+    addObservation(db, minutes(-5), "Record inflows into spot bitcoin ETFs");
+    for (let i = 0; i < 3; i++) await brainTick(db.raw, awake, ENV, pc, () => minutes(i), hooks);
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM trader_brain_triage WHERE would_wake = 1").get()).toEqual({ n: 1 });
+    expect(wakes).toEqual([]);
     db.close();
   });
 
