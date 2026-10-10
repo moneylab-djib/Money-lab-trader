@@ -36,11 +36,33 @@
     reopens what old code wrote, with no exception and no non-finite figure. A code rollback brings back the
     pre-0.3 precision bug for fills made meanwhile (a buy under 0.005 EUR becomes an infinite quantity): the guide
     asks to check pending buys under 1 EUR first and to /pause Sonni while the old code runs.
-  - Checks: sonni 27 files, 345 tests (98 new in deploy-backup, deploy-predeploy, deploy-poststart, deploy-guide).
-    Three adversarial reviews (one per script group, with mutations): 3 major and 13 minor findings, all fixed with
-    tests. The major ones were a restore rollback that could replay a crashed run's WAL into the old database, stops
-    judged on the stored instead of the post-tick level, and transient health events counted as rollback triggers.
-    Likma verify: pending.
+  - Checks: sonni 27 files, 366 tests; 119 of them are new (deploy-backup 32, deploy-predeploy 40,
+    deploy-poststart 40, deploy-guide 7), including a fidelity test of the gate against the real brokerTick and a
+    guide test that every command and option exists in the right order.
+  - Reviews:
+    - Three adversarial reviews, one per script group, with mutations: 3 major and 13 minor findings, all fixed
+      with tests. The major ones:
+      - a restore rollback could replay a crashed run's WAL into the old database;
+      - stops were judged on the stored level instead of the post-tick level;
+      - transient health events counted as rollback triggers.
+    - A final review through three lenses (acceptance, an owner walk-through of the guide on a simulated VPS, a
+      safety audit): no blocker, 7 major and 18 minor findings, all fixed. The major ones:
+      - --accepter-a-decider lifted every point; points now carry keys and only those the GO names are lifted;
+      - a root restore without sudo targeted /root; it is now refused;
+      - the Telegram sender ran as root from a sonni-writable folder; it now runs from a root-owned copy checked
+        against a published SHA-256, and only TELEGRAM_BOT_TOKEN can be read;
+      - the restore's next steps started Sonni before a code rollback;
+      - the guide missed `cd /opt/sonni` lines and the PC's folders.
+    - Each fix group was checked by an independent verifier (reproducing the original scenario, with mutations).
+      Their 7 follow-up minors are fixed too:
+      - section B's ages are measured on the real clock;
+      - incidents after the copy's moment are shown;
+      - a shared folder is never chmodded;
+      - root ownership changes go through no-follow descriptors;
+      - the start time is noted before the start;
+      - an incomplete report gives `rapport=code inconnu`;
+      - three missing tests were added.
+    - Likma verify: pending.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at

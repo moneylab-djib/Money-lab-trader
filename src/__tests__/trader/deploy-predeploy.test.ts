@@ -200,6 +200,14 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     }, /\[BLOQUANT\] 1 opération close par un ordre qui n'est pas exécuté : t_orphelin \(SPY le 07\/10\/2026 15:00 UTC, ordre o_absent introuvable\)/],
   ];
 
+  it("reports each corrupt legacy position once: the ledger-net check skips what sections C and D already count", () => {
+    const r = run(variant(BLOCKERS[0][1]));
+    expect(r.status).toBe(1);
+    // Section C: the two ledger rows with a price of 0 or an infinite quantity, and the two invalid positions.
+    expect(counts(r.last)!.b).toBe(2);
+    expect(r.stdout).not.toMatch(/actif (PUMP|TINY) : le registre en donne/);
+  });
+
   for (const [name, mutate, expected] of BLOCKERS) {
     it(`blocks on ${name} (exit 1), and --accepter-a-decider does not lift it`, () => {
       const file = variant(mutate);
@@ -352,13 +360,14 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     const r = run(file);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toContain("[INFO] 3 jours sans instantané entre le 2026-10-01 et le 2026-10-07 : 2026-10-03 → 2026-10-04, 2026-10-06");
-    expect(r.stdout).toContain("[INFO] incidents des 7 derniers jours : courtier virtuel 2, sauvegarde 1, série d'erreurs 1");
+    // Every incident the copy holds happened before the copy was taken, also after the predicted moment.
+    expect(r.stdout).toContain("[INFO] incidents des 7 derniers jours : sauvegarde 2, courtier virtuel 2, série d'erreurs 1");
     expect(r.stdout).toContain("[INFO] incident « courtier virtuel » du 07/10/2026 17:00 UTC : ordre o_x refusé par le courtier virtuel");
     expect(r.stdout).toContain("[INFO] incident « courtier virtuel » du 01/10/2026 18:00 UTC : position PUMP invalide");
     expect(r.stdout).toContain("[INFO] incident « sauvegarde » du 05/10/2026 18:00 UTC : sauvegarde du jour impossible");
     expect(r.stdout).not.toContain("trois erreurs de suite");
     expect(r.stdout).not.toContain("incident trop ancien");
-    expect(r.stdout).not.toContain("incident après le moment contrôlé");
+    expect(r.stdout).toContain(": incident après le moment contrôlé");
     const clean = run(cleanCopy());
     expect(clean.stdout).toContain("[INFO] instantanés quotidiens complets du 2026-10-07 au 2026-10-07");
     expect(clean.stdout).toContain("[INFO] aucun incident les 7 derniers jours");
@@ -525,6 +534,15 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(r.stdout).toContain("[INFO] versement virtuel du mois au premier relevé (50,00 €, dernier mois versé : 2026-09)");
     const awake = run(cleanCopy());
     expect(awake.stdout).toMatch(/\[INFO\] le redémarrage lancera un cycle payé : Sonni n'était pas endormi, état enregistré : \S+/);
+    // A message from the owner waiting: the restart wakes Sonni (a paid cycle), said to the owner as "tu".
+    const waiting = run(variant((db) => {
+      const kv = db.prepare("INSERT INTO kv (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+      kv.run("agent_state", "sleeping");
+      kv.run("sleep_until", new Date(NOW.getTime() + 3 * 3_600_000).toISOString());
+      db.prepare("INSERT INTO inbox_messages (id, from_address, content, received_at, processed_at) VALUES ('m_1', 'telegram:owner', 'une question', datetime('now'), NULL)").run();
+    }));
+    expect(waiting.stdout).toMatch(/\[INFO\] le redémarrage lancera un cycle payé : 1 message de ta part attend/);
+    expect(waiting.stdout).not.toContain("propriétaire");
   });
 
   /** BTC left without a stop (the point the GO accepted after Phase 1) and an ETH sale the first tick rejects (new). */
@@ -630,7 +648,9 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(byDefault.stdout).toContain("Prévision : si Sonni redémarrait le 07/10/2026 17:57 UTC avec cette copie\n(prévision au moment de la copie : 07/10/2026 17:57 UTC, son dernier prix enregistré");
     expect(byDefault.stdout).toContain("E. Ordres en attente : ce que ferait le premier relevé du 07/10/2026 17:57 UTC");
     expect(byDefault.stdout).toContain("[INFO] o_eth_marche : achat au marché ETH passé le 07/10/2026 17:55 UTC : attend un prix");
-    expect(byDefault.stdout).toContain("[INFO] dernier prix enregistré : 07/10/2026 17:57 UTC (il y a moins d'une minute)");
+    // The copy's age is measured on the real clock, not against the predicted moment.
+    expect(byDefault.stdout).toMatch(/\[INFO\] dernier prix enregistré : 07\/10\/2026 17:57 UTC \(il y a \d+ jours à l'heure du contrôle\)/);
+    expect(byDefault.stdout).not.toContain("(il y a moins d'une minute à l'heure du contrôle)");
     const short = run(file, ["--resume"], { now: null });
     expect(short.stdout).toContain("Copie : state.db.predeploiement-20261007T180000Z ; prévision au moment de la copie : 07/10/2026 17:57 UTC\n");
     // The exported prediction has the same default.

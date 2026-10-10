@@ -818,7 +818,9 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(text.endsWith("\n… (rapport coupé, la suite dans le terminal)")).toBe(true);
     expect(r.stdout).toContain(long);
     expect(r.stdout).toContain("Rapport coupé à 3950 caractères pour Telegram : le texte complet est ci-dessus.");
-    expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 envoi=fait caractères=${text.length}`);
+    // This text has no RÉSULTAT line of its own: an incomplete report, never shown as a green light.
+    expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 envoi=fait caractères=${text.length} rapport=code inconnu`);
+    expect(r.stdout).toContain("Le rapport ne contient pas de ligne RÉSULTAT : il est incomplet (contrôle interrompu ?). Ne le prends pas pour un feu vert : relance le contrôle.");
     // A character outside the basic plane is never split in two.
     const mod = await import(pathToFileURL(ENVOI).href);
     const cut = mod.fitMessage("a".repeat(3949) + "😀".repeat(100)).text;

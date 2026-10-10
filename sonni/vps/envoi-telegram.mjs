@@ -27,7 +27,8 @@
  * a key, unreadable configuration or environment file, botTokenEnv other than TELEGRAM_BOT_TOKEN, missing token
  * or chat, SONNI_TELEGRAM_API not local; nothing sent); 3 network error (Telegram unreachable, no answer within
  * 20 s); 130 interrupted. These codes are the SENDING's, not the report's. The last line of stdout is
- * `RÉSULTAT : code=<n> envoi=<fait|simulé|aucun|inconnu> caractères=<n>`, followed by ` rapport=code <r>` when
+ * `RÉSULTAT : code=<n> envoi=<fait|simulé|aucun|inconnu> caractères=<n>`, followed by ` rapport=code <r>` (or
+ * ` rapport=code inconnu` with a warning when the piped text has no RÉSULTAT line: an incomplete report) when
  * the piped report has its own `RÉSULTAT : code=<r>` line (the last one counts); when r is not 0 a French line
  * just before it says that the report's code is the one that counts for the deployment.
  *
@@ -265,7 +266,10 @@ export function reportCode(text) {
  */
 export function closingLines(code, sent, chars, report) {
   const lines = [];
-  if (report !== null && report !== 0) {
+  if (report === "inconnu") {
+    // A report cut before its verdict (the check killed while writing) must not end on a bare code=0 either.
+    lines.push("Le rapport ne contient pas de ligne RÉSULTAT : il est incomplet (contrôle interrompu ?). Ne le prends pas pour un feu vert : relance le contrôle.");
+  } else if (report !== null && report !== 0) {
     lines.push(`Le rapport${sent === "fait" ? " envoyé" : ""} signale code=${report} : c'est ce code qui compte, pas celui de l'envoi.`);
   }
   lines.push(`RÉSULTAT : code=${code} envoi=${sent} caractères=${chars}${report === null ? "" : ` rapport=code ${report}`}`);
@@ -292,7 +296,8 @@ export async function envoiTelegram(options = {}) {
   };
   try {
     const raw = (options.message ?? "").replace(/\s+$/, "");
-    report = reportCode(raw);
+    // A non-empty message without a verdict line is an incomplete report ("inconnu"); an empty one is refused below.
+    report = reportCode(raw) ?? (raw.trim() === "" ? null : "inconnu");
     progress.report = report;
     if (raw.trim() === "") {
       return done(2, "aucun", `Aucun message reçu sur l'entrée standard. ${USAGE}`);

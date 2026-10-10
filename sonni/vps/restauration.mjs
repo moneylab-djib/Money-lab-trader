@@ -63,6 +63,24 @@ import {
   Failure, SIDECARS, copyPrivate, currentUid, entryExists, integrity, integrityBrief, newestTimes, pending, stamp, tableCounts, technicalFr,
 } from "./sauvegarde.mjs";
 
+/**
+ * chmod, and as root chown, through a descriptor opened without following links: a process of the sonni user
+ * cannot swap the entry for a symbolic link between its creation and the change of owner. `sync` also flushes it.
+ */
+function secureEntry(entry, mode, owner, directory, sync = false) {
+  const flags = (directory ? fs.constants.O_RDONLY | fs.constants.O_DIRECTORY : fs.constants.O_RDWR) | fs.constants.O_NOFOLLOW;
+  const fd = fs.openSync(entry, flags);
+  try {
+    const st = fs.fstatSync(fd);
+    if (directory ? !st.isDirectory() : !st.isFile()) throw new Error(`${entry} n'est pas ${directory ? "un dossier" : "un fichier ordinaire"}`);
+    fs.fchmodSync(fd, mode);
+    if (owner) fs.fchownSync(fd, owner.uid, owner.gid);
+    if (sync) fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /** `systemctl is-active` answers meaning Sonni's process exists or is about to. */
 export const RUNNING = ["active", "activating", "reloading", "deactivating", "refreshing"];
 /** Answers meaning Sonni is stopped. */
@@ -355,8 +373,7 @@ export function restaurer(copieArg, {
       if (entryExists(folder)) throw new Failure(2, `Refusé : ${folder} existe déjà. Relance dans une seconde.`);
       fs.mkdirSync(folder, { mode: 0o700 });
       quarantine = folder;
-      fs.chmodSync(quarantine, 0o700);
-      if (owner) fs.chownSync(quarantine, owner.uid, owner.gid);
+      secureEntry(quarantine, 0o700, owner, true);
       for (const f of present) {
         const to = path.join(quarantine, path.basename(f));
         fs.renameSync(f, to);
@@ -369,15 +386,10 @@ export function restaurer(copieArg, {
     // only once the copy has succeeded.
     copyPrivate(copie, partial);
     partialMine = true;
-    fs.chmodSync(partial, 0o600);
-    if (owner) fs.chownSync(partial, owner.uid, owner.gid);
-    const fd = fs.openSync(partial, "r+");
-    try {
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
-    }
+    secureEntry(partial, 0o600, owner, false, true);
     fs.renameSync(partial, target);
+    // The placed entry must be the regular file this run wrote, not a link swapped in meanwhile.
+    if (!fs.lstatSync(target).isFile()) throw new Failure(1, `${target} n'est pas un fichier ordinaire après la mise en place (lien ou autre) : quelque chose a été changé pendant la restauration.`);
     placed = true;
     try {
       const dfd = fs.openSync(targetDir, "r");
@@ -397,9 +409,11 @@ export function restaurer(copieArg, {
     // version being rolled back on the memory just restored.
     say("Étapes suivantes :");
     say("  - Si tu reviens aussi sur le code : ne démarre pas encore, suis R2 à R4 du guide.");
-    say("  - Sinon : systemctl start sonni, puis, après quelques minutes :");
-    say("    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis <heure de démarrage> --commit-attendu <version en place>");
-    say("    (<heure de démarrage> : date -u +%Y-%m-%dT%H:%M:%SZ juste avant systemctl start ; <version en place> : sudo -u sonni -H git -C /opt/sonni rev-parse HEAD)");
+    say("  - Sinon, dans cet ordre : note l'heure, démarre, puis contrôle après 10 à 15 minutes :");
+    say("    date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-demarrage.txt");
+    say("    systemctl start sonni");
+    say("    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis \"$(cat /root/sonni-demarrage.txt)\" --commit-attendu COMMIT");
+    say("    (COMMIT : la version approuvée par ton GO de déploiement, celle qui est installée.)");
     if (moved.length) {
       const aside = `${target}.restauree-${runStamp}`;
       say(`Pour revenir à l'ancienne mémoire : arrête Sonni (systemctl stop sonni), puis colle ces lignes. La base restaurée part de côté `

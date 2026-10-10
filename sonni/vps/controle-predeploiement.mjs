@@ -506,6 +506,9 @@ const examples = (list, n = 5) => `${list.slice(0, n).join(", ")}${list.length >
  */
 export function controle(db, ctx) {
   const now = ctx.now;
+  // Ages of the copy (section B) are measured against the real clock, not the predicted moment: with the default
+  // moment (the copy's newest price) the newest price would otherwise always read "moins d'une minute".
+  const clock = ctx.clock ?? new Date();
   const nowIso = isoSeconds(now);
   const staleMinutes = ctx.staleMinutes ?? DEFAULT_STALE_MINUTES;
   const lines = [];
@@ -566,11 +569,11 @@ export function controle(db, ctx) {
     for (const [table, column, label] of newest) {
       if (!hasTable(db, table)) continue;
       const ts = get(`SELECT MAX(${column}) AS ts FROM ${table}`).ts;
-      add("I", ts ? `${label} : ${when(ts)} (${ago(ts, now)})` : `${label} : aucun`);
+      add("I", ts ? `${label} : ${when(ts)} (${ago(ts, clock)} à l'heure du contrôle)` : `${label} : aucun`);
     }
     if (hasTable(db, "trader_prices")) {
       const perAsset = all("SELECT asset, MAX(ts) AS ts FROM trader_prices GROUP BY asset ORDER BY asset");
-      if (perAsset.length) add("I", `derniers prix par actif : ${perAsset.map((r) => `${r.asset} ${ago(r.ts, now)}`).join(", ")}`);
+      if (perAsset.length) add("I", `derniers prix par actif, à l'heure du contrôle : ${perAsset.map((r) => `${r.asset} ${ago(r.ts, clock)}`).join(", ")}`);
     }
   });
 
@@ -836,11 +839,13 @@ export function controle(db, ctx) {
     }
     if (hasTable(db, "trader_incidents")) {
       const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
-      const kinds = all("SELECT kind, COUNT(*) AS n FROM trader_incidents WHERE at >= ? AND at <= ? GROUP BY kind ORDER BY n DESC, kind", since, now.toISOString());
+      // No upper bound: every incident in the copy happened before it was taken, including the ones the last
+      // broker tick wrote just after the newest price (the default predicted moment).
+      const kinds = all("SELECT kind, COUNT(*) AS n FROM trader_incidents WHERE at >= ? GROUP BY kind ORDER BY n DESC, kind", since);
       if (kinds.length === 0) add("I", "aucun incident les 7 derniers jours");
       else add("I", `incidents des 7 derniers jours : ${kinds.map((k) => `${INCIDENT_FR[k.kind] ?? k.kind} ${k.n}`).join(", ")}`);
       for (const kind of ["broker", "backup"]) {
-        const rows = all("SELECT at, message FROM trader_incidents WHERE kind = ? AND at >= ? AND at <= ? ORDER BY at DESC LIMIT 3", kind, since, now.toISOString());
+        const rows = all("SELECT at, message FROM trader_incidents WHERE kind = ? AND at >= ? ORDER BY at DESC LIMIT 3", kind, since);
         for (const r of rows) add("I", `incident « ${INCIDENT_FR[kind]} » du ${when(r.at)} : ${String(r.message).slice(0, 200)}`);
       }
     }

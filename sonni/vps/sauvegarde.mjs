@@ -248,7 +248,8 @@ export async function sauvegarde(options = {}) {
   const getuid = options.getuid ?? currentUid;
   const home = env.HOME || os.homedir();
   const source = path.resolve(options.source ?? liveDatabasePath(env));
-  const dossier = path.resolve(options.dossier ?? path.join(home, ".automaton", "predeploiement"));
+  const defaultDossier = path.join(home, ".automaton", "predeploiement");
+  const dossier = path.resolve(options.dossier ?? defaultDossier);
   const done = (code, message, copy) => {
     if (message) (code === 0 ? say : warn)(message);
     say(`RÉSULTAT : code=${code} copie=${copy ?? "aucune"}`);
@@ -276,9 +277,11 @@ export async function sauvegarde(options = {}) {
   // The copy is all of Sonni's memory: its folder must be closed to the group and to others.
   const uid = getuid();
   if (folder && uid !== null && (folder.mode & 0o077) !== 0) {
-    if (folder.uid !== uid) {
-      return done(2, `Refusé : le dossier ${dossier} est ouvert à d'autres utilisateurs (droits ${octal(folder.mode)}) et ne t'appartient pas. `
-        + "La copie contient toute la mémoire de Sonni : choisis un dossier à toi (par défaut ~/.automaton/predeploiement).");
+    // Only the default folder, which this tool owns, is closed for the owner. Any other folder opened to others
+    // (a shared or system folder such as /tmp, maybe with its sticky bit) is refused, never changed.
+    if (folder.uid !== uid || dossier !== path.resolve(defaultDossier)) {
+      return done(2, `Refusé : le dossier ${dossier} est ouvert à d'autres utilisateurs (droits ${octal(folder.mode)}). `
+        + "La copie contient toute la mémoire de Sonni : choisis un dossier fermé aux autres (droits 700), par défaut ~/.automaton/predeploiement.");
     }
     try {
       fs.chmodSync(dossier, 0o700);

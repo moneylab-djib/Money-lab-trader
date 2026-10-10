@@ -195,6 +195,13 @@ function runObserved(script: string, args: string[], e: NodeJS.ProcessEnv): Run 
     "  try { process.stderr.write(`OBSERVE avant-chmod ${file} ${(fs.statSync(file).mode & 0o777).toString(8)}\\n`); } catch {}",
     "  return chmod.call(this, file, mode);",
     "};",
+    // The restore changes modes through a descriptor opened without following links (fchmod): its path is read
+    // back from /proc.
+    "const fchmod = fs.fchmodSync;",
+    "fs.fchmodSync = function (fd, mode) {",
+    "  try { process.stderr.write(`OBSERVE avant-chmod ${fs.readlinkSync(`/proc/self/fd/${fd}`)} ${(fs.fstatSync(fd).mode & 0o777).toString(8)}\\n`); } catch {}",
+    "  return fchmod.call(this, fd, mode);",
+    "};",
     "process.on('exit', () => { process.stderr.write(`OBSERVE umask ${process.umask().toString(8)}\\n`); });",
     "",
   ].join("\n"));
@@ -379,9 +386,11 @@ describe("Consistent backup of the live database (sonni/vps/sauvegarde.mjs)", ()
     const h = home();
     const live = livePath(h);
     const db = liveDb(live);
-    // An existing folder open to everyone, as `mkdir` leaves it with the usual umask.
+    // The default folder already there and open to everyone, as `mkdir` leaves it with the usual umask (only the
+    // default folder is closed by the script; any other open folder is refused, see the next test).
     const openFolder = () => {
-      const dossier = path.join(tmp("sonni-deploy-out-"), "copies");
+      const dossier = path.join(h, ".automaton", "predeploiement");
+      fs.rmSync(dossier, { recursive: true, force: true });
       fs.mkdirSync(dossier);
       fs.chmodSync(dossier, 0o755);
       return dossier;
@@ -400,13 +409,13 @@ describe("Consistent backup of the live database (sonni/vps/sauvegarde.mjs)", ()
     };
     // Hot: SQLite creates the partial copy and its journal with the process umask.
     const hotFolder = openFolder();
-    const hot = runObserved(SAUVEGARDE, ["--dossier", hotFolder], env(h));
+    const hot = runObserved(SAUVEGARDE, [], env(h));
     db.close();
     check(hot, hotFolder, true);
     // Cold: the live file is 644 (the runtime sets no umask); a plain copyFileSync would give the copy that mode.
     fs.chmodSync(live, 0o644);
     const coldFolder = openFolder();
-    const cold = runObserved(SAUVEGARDE, ["--dossier", coldFolder], env(h));
+    const cold = runObserved(SAUVEGARDE, [], env(h));
     check(cold, coldFolder, false);
     expect(mode(live)).toBe(0o644);
   });
@@ -554,7 +563,7 @@ describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this 
     expect(fs.lstatSync(final).isSymbolicLink()).toBe(true);
   });
 
-  it("refuses a folder open to others that belongs to another user (exit 2), and closes one of the user's own to 0700", async () => {
+  it("refuses a folder open to others unless it is its own default folder: never changes a shared folder such as /tmp", async () => {
     const { sauvegarde } = await import(pathToFileURL(SAUVEGARDE).href);
     const h = home();
     const live = livePath(h);
@@ -567,16 +576,27 @@ describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this 
     const say = (l = "") => lines.push(l);
     const r = await sauvegarde({ source: live, dossier, env: { HOME: h }, say, warn: say, getuid: () => owner + 1 });
     expect(r.code, lines.join("\n")).toBe(2);
-    expect(lines.join("\n")).toContain(`Refusé : le dossier ${dossier} est ouvert à d'autres utilisateurs (droits 750) et ne t'appartient pas.`);
+    const refusedText = `Refusé : le dossier ${dossier} est ouvert à d'autres utilisateurs (droits 750). La copie contient toute la mémoire de Sonni : choisis un dossier fermé aux autres (droits 700), par défaut ~/.automaton/predeploiement.`;
+    expect(lines.join("\n")).toContain(refusedText);
     expect(lines.at(-1)).toBe("RÉSULTAT : code=2 copie=aucune");
     expect(fs.readdirSync(dossier)).toEqual([]);
     expect(mode(dossier)).toBe(0o750);
-    // The same folder, owned by the user running the script: closed to 0700, then the copy is made.
+    // The same folder owned by the user running the script is still refused and left as it is (a shared folder,
+    // /tmp as root for example, must never be closed or lose its sticky bit).
     lines.length = 0;
     const mine = await sauvegarde({ source: live, dossier, env: { HOME: h }, say, warn: say, getuid: () => owner });
-    expect(mine.code, lines.join("\n")).toBe(0);
-    expect(lines).toContain(`Dossier ${dossier} : droits 750 ramenés à 700 (la copie contient toute la mémoire de Sonni).`);
-    expect(mode(dossier)).toBe(0o700);
+    expect(mine.code, lines.join("\n")).toBe(2);
+    expect(lines.join("\n")).toContain(refusedText);
+    expect(mode(dossier)).toBe(0o750);
+    // Its own default folder, open to others: closed to 0700, then the copy is made.
+    const own = path.join(h, ".automaton", "predeploiement");
+    fs.mkdirSync(own);
+    fs.chmodSync(own, 0o750);
+    lines.length = 0;
+    const byDefault = await sauvegarde({ source: live, env: { HOME: h }, say, warn: say, getuid: () => owner });
+    expect(byDefault.code, lines.join("\n")).toBe(0);
+    expect(lines).toContain(`Dossier ${own} : droits 750 ramenés à 700 (la copie contient toute la mémoire de Sonni).`);
+    expect(mode(own)).toBe(0o700);
   });
 });
 
@@ -917,10 +937,13 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     // Next steps: going back on the code too comes first (no start yet), then the start and the post-start
     // check as the guide runs it (as the sonni user, with the expected version).
     const steps = r.stdout.slice(r.stdout.indexOf("Étapes suivantes :"));
-    expect(steps.split("\n").slice(1, 4)).toEqual([
+    // The start time is noted BEFORE the start, so the check counts what the first broker tick does.
+    expect(steps.split("\n").slice(1, 6)).toEqual([
       "  - Si tu reviens aussi sur le code : ne démarre pas encore, suis R2 à R4 du guide.",
-      "  - Sinon : systemctl start sonni, puis, après quelques minutes :",
-      "    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis <heure de démarrage> --commit-attendu <version en place>",
+      "  - Sinon, dans cet ordre : note l'heure, démarre, puis contrôle après 10 à 15 minutes :",
+      "    date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-demarrage.txt",
+      "    systemctl start sonni",
+      '    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT',
     ]);
     expect(r.stdout).not.toContain("sudo systemctl start sonni");
     expect(r.stdout).not.toMatch(/^\s*node sonni\/vps\/controle-apres-demarrage/m);
@@ -1078,7 +1101,8 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
   it("run as root with --cible, gives the restored file and the quarantine to the owner of the target's folder, also when no database was there", async () => {
     const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
     const chowns: Array<[string, number, number]> = [];
-    const spy = vi.spyOn(fs, "chownSync").mockImplementation((file, uid, gid) => { chowns.push([String(file), Number(uid), Number(gid)]); });
+    // The owner is changed through a descriptor opened without following links (fchown): its path is read back.
+    const spy = vi.spyOn(fs, "fchownSync").mockImplementation((fd, uid, gid) => { chowns.push([fs.readlinkSync(`/proc/self/fd/${fd}`), Number(uid), Number(gid)]); });
     try {
       // A database in place: it goes to the quarantine, which belongs to the folder's owner like the restored file.
       const s = laterState();
@@ -1110,6 +1134,43 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
       expect(chowns).toEqual([]);
     } finally {
       spy.mockRestore();
+    }
+  });
+
+  it("as root, never follows a link swapped in for the partial file: the linked file keeps its mode and owner", async () => {
+    const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
+    const s = laterState();
+    const fake = fakeSystemctl("inactive");
+    const e = { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin };
+    // A file the sonni user must never get: a process of that user swaps the partial copy for a link to it.
+    const secret = path.join(tmp("sonni-deploy-secret-"), "secret");
+    fs.writeFileSync(secret, "racine seulement");
+    fs.chmodSync(secret, 0o640);
+    // The swap happens in the window between the copy and the change of owner: just before the script opens the
+    // partial file to secure it.
+    const realOpen = fs.openSync;
+    const copySpy = vi.spyOn(fs, "openSync").mockImplementation(function (this: unknown, file: fs.PathLike, flags?: fs.OpenMode, mode?: fs.Mode | null) {
+      if (String(file).endsWith(".restauration-partielle") && typeof flags === "number" && (flags & fs.constants.O_NOFOLLOW)) {
+        fs.unlinkSync(file);
+        fs.symlinkSync(secret, file);
+      }
+      return realOpen.call(fs, file, flags, mode);
+    } as typeof fs.openSync);
+    const chowned: string[] = [];
+    const chownSpy = vi.spyOn(fs, "fchownSync").mockImplementation((fd) => { chowned.push(fs.readlinkSync(`/proc/self/fd/${fd}`)); });
+    try {
+      const r = await captured(() => restaurer(s.copy, { confirmed: true, cible: s.live, getuid: () => 0, env: e }));
+      expect(r.value, r.stdout + r.stderr).not.toBe(0);
+      expect(mode(secret)).toBe(0o640);
+      expect(fs.readFileSync(secret, "utf-8")).toBe("racine seulement");
+      // Only the quarantine folder this run created was given to the folder's owner: never the linked file.
+      expect(chowned).not.toContain(fs.realpathSync(secret));
+      expect(chowned.every((f) => path.basename(f).startsWith("quarantaine-"))).toBe(true);
+      // The old memory is in the quarantine and the printed commands put it back.
+      expect(r.stdout + r.stderr).toMatch(/quarantaine-/);
+    } finally {
+      copySpy.mockRestore();
+      chownSpy.mockRestore();
     }
   });
 

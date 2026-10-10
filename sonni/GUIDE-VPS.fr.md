@@ -522,8 +522,8 @@ cd /opt/sonni
 sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT --resume | node /root/envoi-telegram.mjs
 ```
 Si tu as utilisé `--ordres-acceptes` plus haut, ajoute-le aussi à cette ligne. La dernière ligne rappelle le
-code du rapport (`rapport=code …`) : c'est lui qui compte, pas celui de l'envoi. Le jeton n'est jamais
-affiché.
+code du rapport (`rapport=code …`) : c'est lui qui compte, pas celui de l'envoi. S'il vaut `inconnu`, le
+rapport est incomplet : relance le contrôle. Le jeton n'est jamais affiché.
 
 **Sur ton téléphone**, envoie :
 - `/statut` ;
