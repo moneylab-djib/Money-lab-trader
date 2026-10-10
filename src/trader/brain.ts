@@ -325,12 +325,19 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
 /** Wakes the second brain may ask for: at most MAX_TRIAGE_WAKES a UTC day, TRIAGE_WAKE_GAP_MINUTES apart (each is a paid Claude cycle). */
 export const MAX_TRIAGE_WAKES = 4;
 export const TRIAGE_WAKE_GAP_MINUTES = 60;
+/** A Sonni wake (isSonniWake): the sleep loop drops every other source but the operator's. */
+export const TRIAGE_WAKE_SOURCE = "sonni_brain_triage";
+/** The source before 2026-10-10, which the sleep loop dropped; still counted so the rename cannot exceed the cap. */
+const LEGACY_TRIAGE_WAKE_SOURCE = "second_brain";
 
 function triageWakeAllowed(db: DB, now: Date): boolean {
   const sqlTime = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
   const day = `${now.toISOString().slice(0, 10)} 00:00:00`;
-  const today = (db.prepare("SELECT COUNT(*) AS n FROM wake_events WHERE source = 'second_brain' AND created_at >= ?").get(day) as { n: number }).n;
-  const recent = db.prepare("SELECT 1 FROM wake_events WHERE source = 'second_brain' AND created_at >= ?").get(sqlTime(new Date(now.getTime() - TRIAGE_WAKE_GAP_MINUTES * 60_000)));
+  const sources = "source IN (?, ?)";
+  const today = (db.prepare(`SELECT COUNT(*) AS n FROM wake_events WHERE ${sources} AND created_at >= ?`)
+    .get(TRIAGE_WAKE_SOURCE, LEGACY_TRIAGE_WAKE_SOURCE, day) as { n: number }).n;
+  const recent = db.prepare(`SELECT 1 FROM wake_events WHERE ${sources} AND created_at >= ?`)
+    .get(TRIAGE_WAKE_SOURCE, LEGACY_TRIAGE_WAKE_SOURCE, sqlTime(new Date(now.getTime() - TRIAGE_WAKE_GAP_MINUTES * 60_000)));
   return today < MAX_TRIAGE_WAKES && !recent;
 }
 
@@ -355,7 +362,7 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
         const wouldWake = impact >= WAKE_IMPACT && relevance >= WAKE_RELEVANCE;
         stored += insert.run(id, relevance, impact, novelty, cleanSummary(it?.note, 200), wouldWake ? 1 : 0, now.toISOString(), model).changes;
         if (wouldWake && cfg.secondBrain?.triageWakes && hooks.wake && hooks.canWake?.() && triageWakeAllowed(db, now)) {
-          hooks.wake("second_brain", `second cerveau : observation importante (${id})`);
+          hooks.wake(TRIAGE_WAKE_SOURCE, `second cerveau : observation importante (${id})`);
         }
       }
       return stored > 0;
