@@ -22,3 +22,9 @@ dist
 
 # Likma private agent history
 **/.likma/agent-runtime.json
+
+# Likma private tool hook log
+**/.likma/tool-hooks.jsonl
+
+# Likma private tool hook health cache
+**/.likma/tool-hooks-health.json

@@ -1,10 +1,28 @@
 # Working status
 - Updated: 2026-10-10
-- Branch / commit: main b0479a3 after PR #32 (step 0.3, price precision); before it PR #31 (step 0.2, trade fees,
-  c1638c0) and PR #30 (step 0.1, CI gate, 0ee7f7f). claude/sonni-deploy-prep (deployment preparation, separate
-  pull request) holds the first entry below.
+- Branch / commit: main 55ab453 after PR #33 (deployment preparation, merged on the owner's GO of 2026-10-10);
+  before it PR #32 (step 0.3, price precision, b0479a3), PR #31 (step 0.2, trade fees, c1638c0) and PR #30
+  (step 0.1, CI gate, 0ee7f7f). claude/sonni-likma-upgrade (Likma 0.20.1 and the tool guard, separate pull
+  request) holds the first entry below.
+- Likma 0.13.0 -> 0.20.1 and the tool guard (owner's decision of 2026-10-10, branch claude/sonni-likma-upgrade,
+  separate from the deployment). Status: built; not merged.
+  - `project upgrade`: AGENTS.md Likma block, docs/LIKMA.md (the revision CI pins), vendor.json. The routine
+    now covers recall, per-lens reviews, `project ship` and memory consolidation. New skill agents/agent-memory.
+  - Tool guard (bot profile): PreToolUse and PostToolUse hooks plus 22 native deny rules in .claude/settings.json.
+    Sonni's policy is in likma.project.json `tool_hooks`:
+    - production: systemctl actions on sonni, `restauration.mjs --restaurer`, `sonni/vps/configure.mjs`;
+    - secret paths: ~/.automaton and sonni.env.
+  - Probed with `likma hook pre-tool-use`:
+    - refused: those, plus .env, /etc/sonni.env, ssh or sudo wrappers, and `git push --force`;
+    - allowed: tests, `git status`, the restore drill and temporary folders.
+  - Known gaps:
+    - `sudo -u sonni` cannot be a rule (sudo is stripped as a wrapper);
+    - hosts are empty because the VPS address is not stored in the repository;
+    - the hooks need `likma` on PATH. Without it, `project audit` fails with "installed but NOT working",
+      and Claude Code lets calls through unchecked.
 - Deployment preparation for steps 0.1-0.3 (owner's request of 2026-10-09 evening, branch claude/sonni-deploy-prep).
-  Status: built and verified (sandbox and GitHub CI, draft PR #33); not merged, not in service, not observed.
+  Status: built, verified and merged (PR #33, main 55ab453, owner's GO of 2026-10-10); not in service, not
+  observed. Windows counter-verification: GO-9 given, mission on branch agent-reports, report awaited.
   Nothing was run on the VPS: the developer has
   no access to it, and every VPS step waits for the owner (phases 0 and 1 read only; phases 2 and 3 need the owner's
   deployment GO).

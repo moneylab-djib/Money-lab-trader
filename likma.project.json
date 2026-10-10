@@ -449,5 +449,28 @@
       "src/__tests__/trader/guards.test.ts"
     ]
   },
-  "agent_isolation": "Coding agents run in Claude Code cloud containers (no bubblewrap, so the Claude Code sandbox is skipped) or on the owner's Windows machine; Sonni itself runs as the separate sonni user on its own VPS (decision 0004). Deny rules protect .claude, .git/hooks, .mcp.json and .env files."
+  "agent_isolation": "Coding agents run in Claude Code cloud containers (no bubblewrap, so the Claude Code sandbox is skipped) or on the owner's Windows machine; Sonni itself runs as the separate sonni user on its own VPS (decision 0004). Deny rules protect .claude, .git/hooks, .mcp.json and .env files.",
+  "tool_hooks": {
+    "enabled": true,
+    "production": {
+      "hosts": [],
+      "commands": [
+        "systemctl start sonni",
+        "systemctl stop sonni",
+        "systemctl restart sonni",
+        "systemctl enable sonni",
+        "systemctl disable sonni",
+        "systemctl mask sonni",
+        "systemctl kill sonni",
+        "restauration.mjs --restaurer",
+        "sonni/vps/configure.mjs"
+      ],
+      "contexts": []
+    },
+    "secret_paths": [
+      "/.automaton/*",
+      "/sonni.env"
+    ],
+    "allow": []
+  }
 }

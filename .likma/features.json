@@ -1408,9 +1408,9 @@
         "note": "ci.yml runs every Likma check without masking; runtime check added; token counter guard; worklog test path; ci-workflow guard test; review fixes"
       },
       "verification": {
-        "at": "2026-10-10T08:06:00.249985+00:00",
+        "at": "2026-10-10T09:24:35.044336+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "c666ae27ffe2a16d87d52a2763a84043184087d05b759802a7480f595ec75b95",
+        "fingerprint": "23f3bb6c2f9a3bf2daf3cf8c7fb5ae53cd3e63339d90e4428aa4c342e03ac5a1",
         "scope": [
           ".github/workflows/ci.yml",
           ".github/workflows/release.yml",
@@ -1429,36 +1429,36 @@
           "6": "sonni-e2e"
         },
         "checks_hash": "9094757bd0d1339572cc961dc56c88e9cf759e9b15e1be7e5ddf1f28822bf517",
-        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
+        "report": ".likma/checks/4898a97f123c4da5b8d9abe8fc6710aa.json",
         "contract": "f85afc98668d66a2e3d785b6905b0e6d10529611a5b3a12fe87af042c0fd08b3",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 39.315,
-            "output_bytes": 41883,
-            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
+            "seconds": 39.777,
+            "output_bytes": 40858,
+            "output_sha256": "b4773115bf62853271a8e4a33555f2396882929ab7163bbdd7b54b254be66dcc"
           },
           {
             "name": "runtime",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 27.226,
-            "output_bytes": 78255,
-            "output_sha256": "d724f6c740918e86ad19428ec09184853398e6d155e3e0b59741a136f3678a83"
+            "seconds": 27.872,
+            "output_bytes": 78503,
+            "output_sha256": "012fcff31f0325686d225e40411c72e10ba5fc79e809b69840f9f171f473a13b"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 634.598,
-            "output_bytes": 5084,
-            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
+            "seconds": 620.388,
+            "output_bytes": 5085,
+            "output_sha256": "cd8870b92cfba31f6e98e7d2a13595dbd6e80506407ff0d7d2d3882445b902aa"
           }
         ],
         "integrity": {
-          "base": "b0479a392fbd031f73eb04cd91309d84c58af199",
+          "base": "55ab45396ef62e1458fe877a47555f44aa42b24b",
           "flags": []
         }
       }
