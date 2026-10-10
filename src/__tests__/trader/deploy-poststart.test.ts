@@ -59,12 +59,21 @@ afterEach(async () => {
   for (const db of openDbs) {
     try { db.close(); } catch { /* already closed */ }
   }
-  for (const s of servers) await new Promise((resolve) => s.close(resolve));
+  for (const s of servers) {
+    // A test server that never answers keeps its connection open: close it too.
+    s.closeAllConnections();
+    await new Promise((resolve) => s.close(resolve));
+  }
   for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
 });
 
 const sha = (file: string) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const lastLine = (out: string) => out.trimEnd().split("\n").at(-1) ?? "";
+/** Every time in the reports reads "10/10/2026 04:21 UTC" (never a raw ISO string). */
+const WHEN = String.raw`\d{2}/\d{2}/\d{4} \d{2}:\d{2} UTC`;
+const RAW_ISO = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+/** Today's UTC day as the report writes it ("10/10/2026"). */
+const todayFr = () => new Date().toISOString().slice(0, 10).split("-").reverse().join("/");
 
 type Run = { status: number | null; stdout: string; stderr: string };
 /** The script in a child process while this process keeps running (a local server can answer it). */
@@ -99,7 +108,9 @@ interface Live { h: string; file: string; db: AutomatonDatabase; since: Date; at
 /**
  * Sonni running since `since` (ten minutes ago, whole seconds): a funded portfolio with one BTC position bought
  * two hours before the start, prices of both followed assets before and after the start, a broker pass and a
- * paid call after it, nothing unsent. The connection stays open, as Sonni's does: state.db-wal exists.
+ * paid call after it, nothing unsent. Rows from before the start that the check must ignore: a paid call, a
+ * rejected order and a delivered Telegram message. The connection stays open, as Sonni's does: state.db-wal
+ * exists.
  */
 function healthy(): Live {
   const h = home();
@@ -122,10 +133,21 @@ function healthy(): Live {
     storePrice(db, "ETH", at(m), 2_510 + m);
   }
   brokerTick(db.raw, TRADER, at(6));
-  db.raw.prepare(
+  // The broker pass of the current minute: today's snapshot exists whatever the time of day.
+  brokerTick(db.raw, TRADER, new Date());
+  const paid = db.raw.prepare(
     `INSERT INTO inference_costs (id, session_id, model, provider, cost_cents, tier, task_type, created_at)
-     VALUES ('c1', 's1', 'claude-sonnet-5-5', 'anthropic', 35, 'normal', 'agent_turn', ?)`,
-  ).run(at(2).toISOString().replace("T", " ").slice(0, 19));
+     VALUES (?, 's1', 'claude-sonnet-5-5', 'anthropic', ?, 'normal', 'agent_turn', ?)`,
+  );
+  paid.run("c1", 35, at(2).toISOString().replace("T", " ").slice(0, 19));
+  // Before the start: not counted.
+  paid.run("c0", 500, at(-30).toISOString().replace("T", " ").slice(0, 19));
+  db.raw.prepare(
+    `INSERT INTO trader_orders (id, placed_at, asset, side, kind, quantity, thesis, horizon_until, origin, status, settled_at, note)
+     VALUES ('o_old', ?, 'ETH', 'sell', 'market', 1, ?, ?, 'model', 'rejected', ?, 'rejected by code (nothing): there is no position to sell')`,
+  ).run(isoSeconds(at(-50)), THESIS, isoSeconds(at(60 * 24)), isoSeconds(at(-40)));
+  db.raw.prepare("INSERT INTO money_lab_outbox (id, text, created_at, sent_at) VALUES ('msg_0', 'Bonsoir', ?, ?)")
+    .run(at(-80).toISOString(), at(-79).toISOString());
   expect(fs.existsSync(`${file}-wal`)).toBe(true);
   return { h, file, db, since, at };
 }
@@ -168,22 +190,26 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
   it("finds nothing wrong with a healthy start, and reads the live database without changing a byte", () => {
     const live = healthy();
     const before = { db: sha(live.file), wal: sha(`${live.file}-wal`) };
+    const today = todayFr();
     const r = control(live);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toContain("Contrôle après démarrage de Sonni — base active lue sans rien écrire");
+    expect(r.stdout).toMatch(new RegExp(`\nDémarrage : ${WHEN} \\(il y a 10 min\\)\n`));
     expect(r.stdout).toContain(`1. Version : OK\n   - OK : commit en place : ${COMMIT}, celui attendu\n   - OK : programme compilé : la nouvelle version (étape 0.3) est dans dist/`);
-    expect(r.stdout).toMatch(/2\. Prix depuis le démarrage : OK\n {3}- OK : BTC : 2 prix depuis le démarrage, dernier 60\s206,00 € le .*\n {3}- OK : ETH : 2 prix depuis le démarrage/);
+    expect(r.stdout).toMatch(new RegExp(`2\\. Prix depuis le démarrage : OK\\n {3}- OK : BTC : 2 prix depuis le démarrage, dernier 60\\s206,00 € le ${WHEN}\\n {3}- OK : ETH : 2 prix depuis le démarrage`));
+    // The paid call, the rejected order and the delivered message from before the start are not counted.
     expect(r.stdout).toContain("3. Appels payés depuis le démarrage : INFO\n   - INFO : 1 appel payé depuis le démarrage, 0,35 $");
     expect(r.stdout).toContain("4. Incidents depuis le démarrage : OK\n   - OK : aucun incident depuis le démarrage");
     expect(r.stdout).toContain("5. Ordres réglés depuis le démarrage : OK\n   - OK : aucun ordre refusé depuis le démarrage");
     expect(r.stdout).toMatch(/6\. Portefeuille : OK\n {3}- OK : 1 position ouverte, évaluable ; trésorerie 900,\d\d €/);
     expect(r.stdout).toContain("7. Messages Telegram : OK\n   - OK : aucun message en attente depuis plus de 10 min");
     expect(r.stdout).toContain("8. Santé (pannes enregistrées) : OK\n   - OK : aucune panne enregistrée depuis le démarrage");
-    expect(r.stdout).toMatch(/9\. Instantané du jour : INFO\n {3}- INFO : (instantané du \d{4}-\d{2}-\d{2} présent|pas encore d'instantané)/);
+    expect(r.stdout).toMatch(new RegExp(`9\\. Instantané du jour : INFO\\n {3}- INFO : instantané du ${today} présent \\(valeur [\\d\\s]+,\\d\\d €, pris le ${WHEN}\\)`));
     expect(r.stdout).toContain("Conclusion : aucune alerte.");
     expect(r.stdout).toContain("Rien n'a été écrit : la base active a été ouverte en lecture seule.");
     expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=0 alertes=0");
     expect(r.stdout).not.toMatch(/\b(the|and|price|order|error)\b/);
+    expect(r.stdout).not.toMatch(RAW_ISO);
     // Neither the database nor its WAL changed: nothing was written or checkpointed.
     expect(sha(live.file)).toBe(before.db);
     expect(sha(`${live.file}-wal`)).toBe(before.wal);
@@ -224,17 +250,17 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
         db.raw.prepare("INSERT INTO trader_universe (id, asset, kraken_pair, action, reason, recorded_at) VALUES ('u1', 'PAXG', 'PAXGEUR', 'follow', 'or tokenisé', ?)").run(at(-200).toISOString());
         storePrice(db, "PAXG", at(-60), 3_500);
       },
-      expected: /2\. Prix depuis le démarrage : ALERTE\n {3}- ALERTE : aucun prix de PAXG depuis le démarrage \(dernier prix : \d{4}-\d{2}-\d{2}T[\d:]+Z\)/ },
+      expected: new RegExp(`2\\. Prix depuis le démarrage : ALERTE\\n {3}- ALERTE : aucun prix de PAXG depuis le démarrage \\(dernier prix : ${WHEN}\\)`) },
     { name: "a virtual broker incident", setup: ({ db, at }) => recordIncident(db.raw, "broker", "ordre o_x (achat PUMP) refusé par le courtier virtuel : prix d'exécution nul.", at(3)),
-      expected: /4\. Incidents depuis le démarrage : ALERTE\n {3}- ALERTE : courtier virtuel le [\d-]+T[\d:.]+Z : ordre o_x \(achat PUMP\) refusé par le courtier virtuel/ },
-    { name: "a rejected order",
+      expected: new RegExp(`4\\. Incidents depuis le démarrage : ALERTE\\n {3}- ALERTE : courtier virtuel le ${WHEN} : ordre o_x \\(achat PUMP\\) refusé par le courtier virtuel`) },
+    { name: "a rejected order placed after the start",
       setup: ({ db, at }) => {
         db.raw.prepare(
           `INSERT INTO trader_orders (id, placed_at, asset, side, kind, quantity, thesis, horizon_until, origin, status, settled_at, note)
            VALUES ('o_rej', ?, 'ETH', 'sell', 'market', 1, ?, ?, 'model', 'rejected', ?, 'rejected by code (nothing): there is no position to sell')`,
         ).run(isoSeconds(at(2)), THESIS, isoSeconds(at(60 * 24)), isoSeconds(at(3)));
       },
-      expected: /5\. Ordres réglés depuis le démarrage : ALERTE\n {3}- ALERTE : ordre o_rej \(vente ETH\) refusé le [\d-]+T[\d:]+Z : aucune position à vendre/ },
+      expected: new RegExp(`5\\. Ordres réglés depuis le démarrage : ALERTE\\n {3}- ALERTE : ordre o_rej \\(vente ETH\\) refusé le ${WHEN} : aucune position à vendre\\n`) },
     { name: "a corrupt position (infinite quantity, average cost 0)",
       setup: ({ db, at }) => {
         db.raw.prepare("INSERT INTO trader_positions (asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at) VALUES ('PUMP', 9e999, 0, ?, 'o_pump', NULL, NULL, ?, ?)")
@@ -246,8 +272,15 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
         db.raw.prepare("INSERT INTO money_lab_outbox (id, text, created_at) VALUES ('msg_1', 'Bonjour', ?)").run(new Date(Date.now() - 20 * 60_000).toISOString());
       },
       expected: /7\. Messages Telegram : ALERTE\n {3}- ALERTE : messages Telegram en attente : 1 message non envoyé depuis plus de 10 min \(le plus ancien du .*\)/ },
-    { name: "a failure the runtime recorded since the start", setup: ({ db, at }) => recordHealthEvent(db.raw, "turn", "Anthropic API error 529 overloaded", at(5)),
-      expected: /8\. Santé \(pannes enregistrées\) : ALERTE\n {3}- ALERTE : tour de l'agent en échec le [\d-]+T[\d:.]+Z : Anthropic API error 529 overloaded/ },
+    { name: "agent turns fail again and again since the start (5, the runtime's own problem threshold)",
+      setup: ({ db, at }) => { for (let m = 3; m < 8; m++) recordHealthEvent(db.raw, "turn", `Anthropic API error 529 overloaded (${m})`, at(m)); },
+      expected: new RegExp(`8\\. Santé \\(pannes enregistrées\\) : ALERTE\\n {3}- ALERTE : tour de l'agent en échec 5 fois depuis le démarrage \\(dernière fois le ${WHEN}\\) : « Anthropic API error 529 overloaded \\(7\\) »\\n`) },
+    { name: "a background task fails three times since the start",
+      setup: ({ db, at }) => { for (let m = 3; m < 6; m++) recordHealthEvent(db.raw, "Sonni résolution", "SqliteError: no such column: x", at(m)); },
+      expected: new RegExp(`8\\. Santé \\(pannes enregistrées\\) : ALERTE\\n {3}- ALERTE : tâche Sonni résolution en échec 3 fois depuis le démarrage \\(dernière fois le ${WHEN}\\) : « SqliteError: no such column: x »\\n`) },
+    { name: "Telegram fails for five minutes (30 failures of its 10-second tick)",
+      setup: ({ db, at }) => { for (let i = 0; i < 30; i++) recordHealthEvent(db.raw, "Telegram", "fetch failed", new Date(at(2).getTime() + i * 10_000)); },
+      expected: /8\. Santé \(pannes enregistrées\) : ALERTE\n {3}- ALERTE : tâche Telegram en échec 30 fois depuis le démarrage/ },
   ];
   for (const a of alerts) {
     it(`raises one ALERTE and exits 1 when ${a.name}`, () => {
@@ -263,11 +296,16 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
     });
   }
 
-  it("reports, without alerting, incidents of other kinds, fills, an older failure and recent unsent messages", () => {
+  it("reports, without alerting, incidents of other kinds, fills, failures that do not repeat, an older failure and recent unsent messages", () => {
     const live = healthy();
     recordIncident(live.db.raw, "pause", "pause automatique : 3 erreurs de suite", live.at(4));
     recordIncident(live.db.raw, "broker", "ancien incident d'avant le démarrage", live.at(-30));
     recordHealthEvent(live.db.raw, "collect", "Kraken XBTEUR: timeout", live.at(-30));
+    // Passing failures right after the start, as src/money-lab/health.ts rates them: Telegram hiccups, one
+    // overloaded turn, a background task that failed twice. None is a rollback trigger.
+    for (const m of [1, 2, 3]) recordHealthEvent(live.db.raw, "Telegram", "fetch failed", live.at(m));
+    recordHealthEvent(live.db.raw, "turn", "Anthropic API error 529 overloaded", live.at(2));
+    for (const m of [1, 4]) recordHealthEvent(live.db.raw, "Sonni calendrier", "FRED: timeout", live.at(m));
     live.db.raw.prepare("INSERT INTO money_lab_outbox (id, text, created_at) VALUES ('msg_2', 'Rapport', ?)").run(new Date(Date.now() - 60_000).toISOString());
     storePrice(live.db, "ETH", live.at(7), 2_520);
     expect(placeOrder(live.db.raw, TRADER, { asset: "ETH", side: "buy", amountEur: 50, invalidation: 2_000, thesis: THESIS } as any, live.at(7)).ok).toBe(true);
@@ -280,7 +318,57 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
     expect(r.stdout).toMatch(/- INFO : ordre o_\w+ \(achat ETH\) exécuté à 2\s5\d\d,\d\d € le /);
     expect(r.stdout).toContain("- INFO : 1 message de moins de 10 min pas encore envoyé");
     expect(r.stdout).not.toContain("Kraken XBTEUR");
+    expect(r.stdout).toMatch(new RegExp([
+      "8\\. Santé \\(pannes enregistrées\\) : OK",
+      "   - OK : aucune panne répétée depuis le démarrage",
+      `   - INFO : tâche Telegram en échec 3 fois depuis le démarrage \\(dernière fois le ${WHEN}\\) : « fetch failed » ; passager, alerte à partir de 30 échecs`,
+      `   - INFO : tour de l'agent en échec 1 fois depuis le démarrage \\(dernière fois le ${WHEN}\\) : « Anthropic API error 529 overloaded » ; passager, alerte à partir de 5 échecs`,
+      `   - INFO : tâche Sonni calendrier en échec 2 fois depuis le démarrage \\(dernière fois le ${WHEN}\\) : « FRED: timeout » ; passager, alerte à partir de 3 échecs`,
+    ].join("\\n")));
     expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=0 alertes=0");
+    const short = control(live, ["--resume"]);
+    expect(short.stdout).toContain("8. Santé : OK — 6 échecs passagers, aucune panne répétée");
+    expect(lastLine(short.stdout)).toBe("RÉSULTAT : code=0 alertes=0");
+  });
+
+  it("an order rejection the pre-deployment check announced: an ALERTE that says how to accept it, INFO once the owner names it", () => {
+    const live = healthy();
+    // A sell left pending before the stop, on an asset Sonni no longer holds: the gate announces "refusé (rien à
+    // vendre)" (À DÉCIDER), the owner accepts, and the first broker pass of the new version rejects it.
+    live.db.raw.prepare(
+      `INSERT INTO trader_orders (id, placed_at, asset, side, kind, quantity, thesis, horizon_until, origin, status)
+       VALUES ('o_acc', ?, 'ETH', 'sell', 'market', 1, ?, ?, 'model', 'pending')`,
+    ).run(isoSeconds(live.at(-20)), THESIS, isoSeconds(live.at(60 * 24)));
+    expect(brokerTick(live.db.raw, TRADER, live.at(7)).rejected.map((o) => o.id)).toEqual(["o_acc"]);
+    const r = control(live);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toMatch(new RegExp(`- ALERTE : ordre o_acc \\(vente ETH\\) refusé le ${WHEN} : aucune position à vendre\\. Si le contrôle avant déploiement avait annoncé ce refus et que tu l'avais accepté, ce n'est pas un défaut de la nouvelle version : relance le contrôle avec --ordres-acceptes o_acc\\n`));
+    expect(r.stdout).toMatch(new RegExp(`- ALERTE : courtier virtuel le ${WHEN} : ordre o_acc \\(vente ETH\\) refusé par le courtier virtuel`));
+    expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=1 alertes=2");
+
+    // Accepted: both lines become INFO. o_old (rejected before the start) and a typo match no rejection to accept.
+    const accepted = control(live, ["--ordres-acceptes", "o_acc,o_old,o_faute"]);
+    expect(accepted.status, accepted.stdout + accepted.stderr).toBe(0);
+    expect(accepted.stdout).toContain("Refus acceptés (--ordres-acceptes) : o_acc, o_old, o_faute");
+    expect(accepted.stdout).toMatch(new RegExp(`4\\. Incidents depuis le démarrage : OK\\n {3}- OK : aucun incident « courtier virtuel » ni « sauvegarde » en dehors des refus acceptés\\n {3}- INFO : courtier virtuel le ${WHEN} : ordre o_acc .*\\(refus accepté avec --ordres-acceptes\\)\\n`));
+    expect(accepted.stdout).toMatch(new RegExp(`5\\. Ordres réglés depuis le démarrage : OK\\n {3}- OK : aucun refus imprévu depuis le démarrage\\n {3}- INFO : ordre o_acc \\(vente ETH\\) refusé le ${WHEN} : aucune position à vendre ; refus annoncé par le contrôle avant déploiement et accepté \\(--ordres-acceptes\\)\\n`));
+    expect(accepted.stdout).toContain("- INFO : sans effet, --ordres-acceptes o_old,o_faute : aucun ordre de ce nom passé avant le démarrage et refusé depuis");
+    expect(lastLine(accepted.stdout)).toBe("RÉSULTAT : code=0 alertes=0");
+    const short = control(live, ["--resume", "--ordres-acceptes", "o_acc"]);
+    expect(short.stdout).toContain("5. Ordres : OK — 1 refus accepté ; 0 exécuté(s), 0 expiré(s), 0 en attente");
+
+    // A rejection of an order placed after the start was never announced: naming it changes nothing.
+    live.db.raw.prepare(
+      `INSERT INTO trader_orders (id, placed_at, asset, side, kind, quantity, thesis, horizon_until, origin, status)
+       VALUES ('o_new', ?, 'ETH', 'sell', 'market', 1, ?, ?, 'model', 'pending')`,
+    ).run(isoSeconds(live.at(7)), THESIS, isoSeconds(live.at(60 * 24)));
+    storePrice(live.db, "ETH", live.at(8), 2_530);
+    expect(brokerTick(live.db.raw, TRADER, live.at(8)).rejected.map((o) => o.id)).toEqual(["o_new"]);
+    const late = control(live, ["--ordres-acceptes", "o_acc,o_new"]);
+    expect(late.status).toBe(1);
+    expect(late.stdout).toMatch(new RegExp(`- ALERTE : ordre o_new \\(vente ETH\\) refusé le ${WHEN} : aucune position à vendre\\n`));
+    expect(late.stdout).toContain("- INFO : sans effet, --ordres-acceptes o_new");
+    expect(lastLine(late.stdout)).toBe("RÉSULTAT : code=1 alertes=2");
   });
 
   it("refuses a database without -wal or -shm (Sonni stopped) and creates neither beside it", () => {
@@ -335,6 +423,7 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
       ["--depuis", live.since.toISOString(), "--jeton", "x"],
       ["--depuis", live.since.toISOString(), "--commit-attendu", "abc"],
       ["--depuis", live.since.toISOString(), "--config", path.join(live.h, "absent.json")],
+      ["--depuis", live.since.toISOString(), "--ordres-acceptes", "o_a;rm"],
     ]) {
       const r = run(args);
       expect(r.status, args.join(" ")).toBe(2);
@@ -385,6 +474,52 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
     expect(r2.stderr).toContain("Cette base ne contient pas la mémoire de Sonni");
   });
 
+  it("a damaged live database: exit 1 with one alert, and the message says the remedy is restoring the copy (R1), not rolling back the code", () => {
+    const h = home();
+    const file = path.join(h, ".automaton", "state.db");
+    const db = createDatabase(file);
+    ensureMoneyLabSchema(db.raw);
+    ensureTraderSchema(db.raw);
+    for (let i = 0; i < 50; i++) storePrice(db, "BTC", new Date(Date.now() - (60 - i) * 60_000), 60_000 + i);
+    // The pages of trader_prices (table and indexes) overwritten: SQLite opens the file, then finds them corrupt.
+    const pages = (db.raw.prepare("SELECT rootpage FROM sqlite_master WHERE tbl_name = 'trader_prices' AND rootpage > 1").all() as { rootpage: number }[]).map((r) => r.rootpage);
+    const pageSize = db.raw.pragma("page_size", { simple: true }) as number;
+    db.close();
+    expect(pages.length).toBeGreaterThan(0);
+    const fd = fs.openSync(file, "r+");
+    for (const page of pages) fs.writeSync(fd, Buffer.alloc(pageSize, 0xff), 0, pageSize, (page - 1) * pageSize);
+    fs.closeSync(fd);
+    // As while Sonni runs: the -wal and -shm files beside it.
+    fs.writeFileSync(`${file}-wal`, "");
+    fs.writeFileSync(`${file}-shm`, "");
+    const d = depot();
+    const since = new Date(Date.now() - 10 * 60_000).toISOString();
+    for (const resume of [false, true]) {
+      const r = spawnSync(process.execPath, [CONTROLE, "--depuis", since, "--depot", d.dir, ...(resume ? ["--resume"] : [])], { encoding: "utf-8", env: checkEnv(h, d.PATH) });
+      expect(r.status, r.stdout + r.stderr).toBe(1);
+      const message = "Contrôle impossible : base abîmée (SQLite la dit corrompue) (SQLITE_CORRUPT";
+      const remedy = "Le retour arrière du code ne répare pas la base : la remettre en état, c'est restaurer la copie d'avant le déploiement " +
+        "(guide, « Retour arrière », étape R1 : restauration.mjs --restaurer COPIE --confirmer), sur ta décision.";
+      expect(r.stderr).toContain(message);
+      expect(r.stderr).toContain(remedy);
+      expect(r.stdout).toContain(resume ? `Sonni — contrôle après démarrage impossible : ${message}` : `ALERTE : ${message}`);
+      expect(r.stdout).toContain(remedy);
+      expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=1 alertes=1");
+    }
+  });
+
+  it("never shows the runtime's English: unknown rejection notes and unexpected errors are named in French", async () => {
+    const mod = await import(pathToFileURL(CONTROLE).href);
+    expect(mod.rejectionFr("rejected by code (nothing): there is no position to sell")).toBe("aucune position à vendre");
+    expect(mod.rejectionFr("rejected by code (price): the fill price is not a positive number [fill_price=0]")).toBe("prix d'exécution nul, négatif ou non fini (prix d'exécution = 0)");
+    expect(mod.rejectionFr("insufficient cash for this order")).toBe("motif non reconnu (voir /portefeuille)");
+    expect(mod.rejectionFr(null)).toBe("sans motif noté");
+    expect(mod.technicalFr(new TypeError("Cannot read properties of undefined (reading 'price')"))).toBe("erreur technique inattendue (TypeError)");
+    expect(mod.technicalFr(Object.assign(new Error("disk I/O error"), { code: "SQLITE_IOERR_READ" }))).toBe("erreur de lecture sur le disque (SQLITE_IOERR_READ)");
+    expect(mod.when("2026-10-10T04:24:03.563Z")).toBe("10/10/2026 04:24 UTC");
+    expect(mod.when("pas une date")).toBe("pas une date");
+  });
+
   it("--resume: a short French report for Telegram, at most 3,500 characters even with many long alerts", () => {
     const live = healthy();
     const ok = control(live, ["--resume"]);
@@ -392,7 +527,7 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
     const lines = ok.stdout.trimEnd().split("\n");
     expect(lines[0]).toBe("Sonni — contrôle après démarrage : aucune alerte");
     expect(lines[1]).toBe(`Commit : ${COMMIT.slice(0, 12)} (attendu 0123456)`);
-    expect(lines[2]).toMatch(/^Démarrage : \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC \(il y a 10 min\)$/);
+    expect(lines[2]).toMatch(new RegExp(`^Démarrage : ${WHEN} \\(il y a 10 min\\)$`));
     expect(lines.slice(3, 12).map((l) => l.replace(/ : .*/, ""))).toEqual([
       "1. Version", "2. Prix", "3. Appels payés", "4. Incidents", "5. Ordres", "6. Portefeuille", "7. Telegram", "8. Santé", "9. Instantané du jour",
     ]);
@@ -404,7 +539,8 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
 
     const long = "x".repeat(400);
     for (let i = 0; i < 40; i++) recordIncident(live.db.raw, "broker", `ordre o_${i} refusé ${long}`, live.at(3));
-    for (let i = 0; i < 30; i++) recordHealthEvent(live.db.raw, `tâche_${i}`, `échec ${long}`, live.at(4));
+    // Thirty background tasks that each failed three times: 30 alerts (one line per task).
+    for (let k = 0; k < 3; k++) for (let i = 0; i < 30; i++) recordHealthEvent(live.db.raw, `tâche_${i}`, `échec ${long}`, live.at(4));
     live.db.raw.prepare("INSERT INTO trader_positions (asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at) VALUES ('PUMP', 9e999, 0, ?, 'o_pump', NULL, NULL, ?, ?)")
       .run(isoSeconds(live.at(-300)), THESIS, isoSeconds(live.at(-300)));
     const bad = control(live, ["--resume"], depot({ commit: OTHER_COMMIT, incidents: null }));
@@ -416,7 +552,8 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
     expect(b[3]).toMatch(/^1\. Version : ALERTE — le commit en place \(fedcba9876543210fedcba9876543210fedcba98\) n'est pas celui attendu \(0123456\) \(\+1 autre alerte\)$/);
     expect(b[6]).toMatch(/^4\. Incidents : ALERTE — courtier virtuel le .*…$/);
     expect(b[8]).toMatch(/^6\. Portefeuille : ALERTE — valeur du portefeuille non fiable : position PUMP invalide/);
-    expect(b[10]).toMatch(/^8\. Santé : ALERTE — tâche tâche_0 en échec le /);
+    expect(b[10]).toMatch(/^8\. Santé : ALERTE — tâche tâche_0 en échec 3 fois depuis le démarrage /);
+    expect(bad.stdout).not.toMatch(RAW_ISO);
     expect(b.at(-1)).toBe("RÉSULTAT : code=1 alertes=73");
     // The full report keeps every alert line within 12 per check and counts the rest.
     const full = control(live, [], depot({ commit: OTHER_COMMIT, incidents: null }));
@@ -564,6 +701,46 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(r.status).toBe(3);
     expect(r.stderr).toContain("Telegram injoignable (ECONNREFUSED). Le rapport n'est pas parti.");
     noToken(r);
+  });
+
+  it("gives up when Telegram does not answer within the timeout (code 3), never showing the token", async () => {
+    const mod = await import(pathToFileURL(ENVOI).href);
+    expect(mod.TIMEOUT_MS).toBe(20_000);
+    const silent = http.createServer(() => { /* never answers */ });
+    servers.push(silent);
+    await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${(silent.address() as AddressInfo).port}`;
+    const started = Date.now();
+    const result = await mod.sendMessage({ base, token: TOKEN, chatId: 987654242, text: REPORT, timeoutMs: 1000 });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(result).toEqual({ code: 3, message: "Telegram injoignable : pas de réponse en 1 s. Le rapport n'est pas parti." });
+  });
+
+  it("an interruption while sending exits 130 and says the report may or may not have left", async () => {
+    let arrived = () => {};
+    const request = new Promise<void>((resolve) => { arrived = resolve; });
+    const silent = http.createServer(() => arrived());
+    servers.push(silent);
+    await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+    const s = secrets();
+    const env: NodeJS.ProcessEnv = {
+      ...process.env, HOME: tmp("sonni-telegram-home-"), TELEGRAM_BOT_TOKEN: "",
+      SONNI_TELEGRAM_API: `http://127.0.0.1:${(silent.address() as AddressInfo).port}`,
+    };
+    const child = spawn(process.execPath, [ENVOI, "--env", s.envFile, "--config", s.config], { env });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => { stdout += d; });
+    child.stderr.on("data", (d) => { stderr += d; });
+    const closed = new Promise<number | null>((resolve) => child.on("close", resolve));
+    child.stdin.end(REPORT);
+    // The request reached Telegram (the fake one): the script is waiting for its answer.
+    await request;
+    child.kill("SIGTERM");
+    expect(await closed).toBe(130);
+    expect(stdout).toContain("Interrompu pendant l'envoi : le rapport a pu partir ou non.");
+    expect(lastLine(stdout)).toBe("RÉSULTAT : code=130 envoi=inconnu caractères=0");
+    noToken({ status: 130, stdout, stderr });
   });
 
   it("refuses an empty message (exit 2) and sends nothing", async () => {

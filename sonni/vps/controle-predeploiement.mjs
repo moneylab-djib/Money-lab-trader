@@ -425,6 +425,30 @@ const INCIDENT_FR = {
   brain_offline: "second cerveau injoignable", brain_recount: "compteur du second cerveau remis à zéro", broker: "courtier virtuel",
 };
 const qty = (v) => (Number.isFinite(v) ? v.toLocaleString("fr-FR", { maximumFractionDigits: 8 }) : "non finie");
+/** "0,5 unité enregistrée", "3 unités enregistrées" (French plural from 2). */
+const units = (v, one, many) => `${qty(v)} ${Number.isFinite(v) && Math.abs(v) < 2 ? one : many}`;
+/** SQLite and file-system error codes in French. */
+const ERROR_CODE_FR = {
+  SQLITE_CORRUPT: "fichier de base endommagé", SQLITE_NOTADB: "ce fichier n'est pas une base SQLite", SQLITE_IOERR: "erreur de lecture du disque",
+  SQLITE_FULL: "espace disque insuffisant", SQLITE_CANTOPEN: "fichier impossible à ouvrir", ENOENT: "fichier introuvable", EACCES: "accès refusé",
+  EPERM: "accès refusé", ENOSPC: "espace disque insuffisant", EIO: "erreur de lecture du disque",
+};
+/**
+ * A technical error for the owner, in French: the usual SQLite messages are translated; anything else keeps the
+ * raw message after a French label (it never holds a secret: it comes from SQLite or the file system).
+ */
+export function technicalFr(err) {
+  const message = String(err instanceof Error ? err.message : err).slice(0, 160);
+  if (/^Ce fichier n'est pas une base SQLite/.test(message)) return "Ce fichier n'est pas une base SQLite.";
+  const table = /no such table: (\S+)/.exec(message);
+  if (table) return `table manquante dans la copie : ${table[1]}`;
+  const column = /no such column: (\S+)/.exec(message);
+  if (column) return `colonne manquante dans la copie : ${column[1]}`;
+  if (/malformed/.test(message)) return "fichier de base endommagé";
+  const code = err && typeof err === "object" && typeof err.code === "string" ? err.code : "";
+  const known = ERROR_CODE_FR[code] ?? ERROR_CODE_FR[code.split("_").slice(0, 2).join("_")];
+  return known ? `${known} (détail technique : ${message})` : `détail technique : ${message}`;
+}
 const examples = (list, n = 5) => `${list.slice(0, n).join(", ")}${list.length > n ? ` … (+${list.length - n})` : ""}`;
 
 // ─── The check ───────────────────────────────────────────────────
@@ -452,7 +476,7 @@ export function controle(db, ctx) {
       body();
     } catch (err) {
       if (err instanceof Stop) throw err;
-      add("B", `section illisible (copie endommagée ?) : ${String(err instanceof Error ? err.message : err).slice(0, 160)}`);
+      add("B", `section illisible (copie endommagée ?) : ${technicalFr(err)}`);
     }
     say("");
   };
@@ -466,17 +490,18 @@ export function controle(db, ctx) {
       result = db.pragma("integrity_check").map((r) => String(Object.values(r)[0]));
     } catch (err) {
       if (err && err.code === "SQLITE_NOTADB") throw new Stop(3, "Ce fichier n'est pas une base SQLite.");
-      result = [String(err instanceof Error ? err.message : err)];
+      result = [technicalFr(err)];
     }
     if (result.length === 1 && result[0] === "ok") add("I", "contrôle d'intégrité SQLite : ok");
-    else add("B", `contrôle d'intégrité SQLite en échec (${count(result.length, "problème", "problèmes")}) : ${examples(result.map((r) => r.slice(0, 120)), 3)}`);
+    // SQLite's own diagnostics have no French version: shown after a French label.
+    else add("B", `contrôle d'intégrité SQLite en échec (${count(result.length, "problème", "problèmes")}) ; détail technique : ${examples(result.map((r) => r.slice(0, 120)), 3)}`);
     let portfolio;
     try {
       portfolio = hasPortfolio(db);
     } catch (err) {
       if (err && err.code === "SQLITE_NOTADB") throw new Stop(3, "Ce fichier n'est pas une base SQLite.");
       readable = false;
-      add("B", `tables illisibles : ${String(err instanceof Error ? err.message : err).slice(0, 160)}`);
+      add("B", `tables illisibles : ${technicalFr(err)}`);
       return;
     }
     if (!portfolio) throw new Stop(3, "Ce n'est pas une copie de la mémoire de Sonni (tables du portefeuille virtuel absentes).");
@@ -548,7 +573,7 @@ export function controle(db, ctx) {
       const diff = replay.held - p.quantity;
       if (!(Math.abs(diff) <= 1e-6)) {
         problems += 1;
-        add("B", `position ${p.asset} : ${qty(p.quantity)} unités enregistrées, le registre en donne ${qty(replay.held)} (écart ${qty(diff)})` +
+        add("B", `position ${p.asset} : ${units(p.quantity, "unité enregistrée", "unités enregistrées")}, le registre en donne ${qty(replay.held)} (écart ${qty(diff)})` +
           `${replay.fromOpeningOrder ? "" : " ; ligne d'achat de l'ordre d'ouverture introuvable, registre relu depuis la date d'ouverture"}`);
       }
     }
@@ -595,7 +620,7 @@ export function controle(db, ctx) {
           ? `${head} : expiré (aucun prix enregistré dans les ${MARKET_ORDER_TTL_HOURS} h suivant l'ordre)`
           : `${head} : expiré (limite ${price(o.limitPrice)} non atteinte avant l'échéance du ${when(o.horizonUntil)})`);
       } else if (o.reason === "error") {
-        add("D", `${head} : la prévision échoue (${o.detail}) ; le courtier le laisserait en attente avec un incident`);
+        add("D", `${head} : la prévision échoue (${technicalFr(o.detail)}) ; le courtier le laisserait en attente avec un incident`);
       } else {
         add("I", o.kind === "market"
           ? `${head} : attend un prix (exécuté au premier prix relevé, expiré après le ${when(o.until)})`
@@ -605,49 +630,67 @@ export function controle(db, ctx) {
   });
 
   section("F. Stops et protections", () => {
-    if (!sim) throw new Error("prévision du premier relevé impossible (voir E)");
+    if (!sim) {
+      add("B", "prévision du premier relevé impossible (voir E) : stops non contrôlés");
+      return;
+    }
+    // Judged on the positions as the first tick leaves them (section E): a buy that fills can open a position or
+    // replace its level, a rejected stop can put its level back, a sale can close it. The stop phase reads that.
+    say("   (positions et niveaux de stop tels que le premier relevé prévu en E les laisse)");
     const checks = new Map(sim.stopChecks.map((c) => [c.asset, c]));
+    const invalidAfter = new Map(sim.invalid.map((x) => [x.asset, x.problem]));
     const followed = ctx.assets ? new Set(ctx.assets) : null;
-    const current = all("SELECT * FROM trader_positions WHERE quantity > 0 ORDER BY asset");
-    if (current.length === 0) say("   - aucune position ouverte");
-    const pendingSell = (asset) => get("SELECT id FROM trader_orders WHERE status = 'pending' AND side = 'sell' AND asset = ? ORDER BY placed_at LIMIT 1", asset)?.id;
-    for (const p of current) {
-      if (positionProblem(p)) {
-        say(`   - ${p.asset} : position invalide, aucun stop possible (voir C)`);
+    const stored = new Map(all("SELECT * FROM trader_positions WHERE quantity > 0").map((p) => [p.asset, p]));
+    const after = new Map(sim.positionsAfter.map((p) => [p.asset, p]));
+    const assets = [...new Set([...stored.keys(), ...after.keys()])].sort();
+    if (assets.length === 0) say("   - aucune position ouverte");
+    const sellWaiting = (asset) => sim.orders.find((o) => o.asset === asset && o.side === "sell" && o.outcome === "wait");
+    for (const asset of assets) {
+      const before = stored.get(asset);
+      const p = after.get(asset);
+      if (before && positionProblem(before)) {
+        say(`   - ${asset} : position invalide, aucun stop possible (voir C)`);
         continue;
       }
-      const sold = sim.orders.find((o) => o.asset === p.asset && o.side === "sell" && o.outcome === "fill");
-      if (followed && !followed.has(p.asset)) {
-        add("D", `${p.asset} : actif plus suivi d'après la configuration, aucun prix ne sera relevé et aucun stop ne peut être posé`);
-      }
-      const last = latestPrice(db, p.asset);
-      if (p.invalidation === null) {
-        const waiting = pendingSell(p.asset);
-        if (waiting) add("I", `${p.asset} : pas de niveau de stop, une vente est en attente (ordre ${waiting})`);
-        else add("D", `${p.asset} : position sans stop (aucun niveau d'invalidation, aucune vente en attente)`);
+      if (!p) {
+        const sold = sim.orders.filter((o) => o.asset === asset && o.side === "sell" && o.outcome === "fill").pop();
+        add("I", `${asset} : position vendue au premier relevé${sold ? ` (ordre ${sold.id})` : ""}, plus de stop à poser`);
         continue;
       }
-      const check = checks.get(p.asset);
-      if (last && last.price <= p.invalidation) {
+      if (invalidAfter.has(asset)) {
+        add("B", `${asset} : position impossible à évaluer après le premier relevé (${PROBLEM_FR[invalidAfter.get(asset)] ?? invalidAfter.get(asset)}) : ` +
+          "la nouvelle version suspend les achats, les décisions et les instantanés et ne pose aucun stop sur elle");
+        continue;
+      }
+      const level = p.invalidation;
+      // Where the level comes from when the tick changes it (the copy's own level is shown as stored).
+      const origin = !before ? " ; position ouverte au premier relevé par un achat en attente"
+        : before.invalidation !== level ? ` ; niveau fixé au premier relevé (niveau enregistré : ${before.invalidation === null ? "aucun" : price(before.invalidation)})` : "";
+      if (followed && !followed.has(asset)) {
+        add("D", `${asset} : actif plus suivi d'après la configuration, aucun prix ne sera relevé et aucun stop ne peut être posé`);
+      }
+      const last = latestPrice(db, asset);
+      if (level === null) {
+        const waiting = sellWaiting(asset);
+        if (waiting) add("I", `${asset} : pas de niveau de stop, une vente est en attente (ordre ${waiting.id})${origin}`);
+        else add("D", `${asset} : position sans stop (aucun niveau d'invalidation, aucune vente en attente)${origin}`);
+        continue;
+      }
+      const check = checks.get(asset);
+      if (last && last.price <= level) {
         const fresh = ageMinutes(last, now) <= staleMinutes;
         let next;
         if (check?.decision === "placed") next = `prix frais (${ago(last.ts, now)}) : la nouvelle version pose le stop dès le premier relevé`;
-        else if (sold) next = `la vente ${sold.id} s'exécute au premier relevé`;
         else if (check?.decision === "pending_sell") next = `une vente est déjà en attente (ordre ${check.pendingSell}) : pas de nouveau stop`;
         else if (check?.decision === "not_followed") next = "actif plus suivi : le stop ne peut pas être posé";
         else if (!fresh) next = `prix ancien (${ago(last.ts, now)}, au-delà de ${staleMinutes} min) : le stop sera posé dès qu'un prix frais arrive, s'il reste sous le niveau`;
         else next = "le stop n'est pas posé au premier relevé";
-        add("D", `${p.asset} : stop franchi d'après le dernier prix connu (${price(last.price)} le ${when(last.ts)}) : vente au premier relevé si le prix reste sous ${price(p.invalidation)} ; ${next}`);
+        add("D", `${asset} : stop franchi d'après le dernier prix connu (${price(last.price)} le ${when(last.ts)}) : vente au premier relevé si le prix reste sous ${price(level)} ; ${next}${origin}`);
       } else if (last) {
-        add("I", `${p.asset} : stop à ${price(p.invalidation)}, ${fr(((last.price - p.invalidation) / last.price) * 100)} % sous le dernier prix (${price(last.price)} le ${when(last.ts)})`);
+        add("I", `${asset} : stop à ${price(level)}, ${fr(((last.price - level) / last.price) * 100)} % sous le dernier prix (${price(last.price)} le ${when(last.ts)})${origin}`);
       } else {
-        add("I", `${p.asset} : stop à ${price(p.invalidation)}, aucun prix enregistré`);
+        add("I", `${asset} : stop à ${price(level)}, aucun prix enregistré${origin}`);
       }
-    }
-    // Positions the first tick opens (a pending buy that fills) and stops at once.
-    const known = new Set(current.map((p) => p.asset));
-    for (const asset of sim.stops) {
-      if (!known.has(asset)) add("D", `${asset} : position ouverte au premier relevé par un ordre en attente puis stop posé aussitôt (dernier prix déjà sous son niveau d'invalidation)`);
     }
   });
 
@@ -813,8 +856,11 @@ function main() {
   }
   const stop = (code, message) => {
     process.stderr.write(`${message}\n`);
-    // The short report goes to Telegram: it says why, on stdout too.
-    if (process.argv.includes("--resume")) say(`Contrôle avant déploiement de Sonni : ${code === 2 ? "refusé" : "impossible"}. ${message.split("\n")[0]}`);
+    // The short report goes to Telegram: it says why, on stdout too (without repeating "Refusé").
+    if (process.argv.includes("--resume")) {
+      const why = message.split("\n")[0].replace(/^(Refusé|Contrôle impossible) : /, "");
+      say(`Contrôle avant déploiement de Sonni : ${code === 2 ? "refusé" : "impossible"}. ${why.charAt(0).toUpperCase()}${why.slice(1)}`);
+    }
     say(`RÉSULTAT : code=${code} controle=${code === 2 ? "refusé" : "impossible"}`);
     process.exitCode = code;
   };
@@ -832,7 +878,7 @@ function main() {
       : readConfig(path.join(process.env.HOME || os.homedir(), ".automaton", "automaton.json"), false);
   } catch (err) {
     if (err instanceof Stop) return stop(err.exitCode, err.message);
-    return stop(2, `Refusé : ${err instanceof Error ? err.message : String(err)}`);
+    return stop(2, `Refusé : ${technicalFr(err)}`);
   }
   const now = args.now ?? new Date();
 
@@ -847,7 +893,7 @@ function main() {
   } catch (err) {
     copy?.close();
     if (err instanceof Stop) return stop(err.exitCode, err.message);
-    return stop(3, `Contrôle impossible : ${err instanceof Error ? err.message : String(err)}`);
+    return stop(3, `Contrôle impossible : ${technicalFr(err)}`);
   }
   copy.close();
   const unchanged = sha256File(file) === copy.before;
@@ -862,7 +908,7 @@ function main() {
     say("");
     for (const line of report.lines) say(line);
     const count3 = (level) => report.findings.filter((f) => f.level === level).length;
-    say("Conclusion");
+    say("Bilan");
     say(`- ${count(count3("B"), "point bloquant", "points bloquants")}, ${count(count3("D"), "point à décider", "points à décider")}, ${count(count3("I"), "information", "informations")}`);
     for (const level of ["B", "D"]) {
       for (const f of report.findings.filter((x) => x.level === level)) say(`- [${LEVEL[level]}] ${f.text}`);

@@ -20,8 +20,12 @@
  *
  * Exit codes: 0 copy made and verified; 1 verification failed (copy removed); 2 refused or usage error
  * (nothing read or written); 3 technical error (disk space, not SQLite, unreadable file; copy removed);
- * 130 interrupted (Ctrl+C, stop, closed SSH session; temporary files removed). The last line of stdout is
+ * 130 interrupted (temporary files removed, no copy kept). The last line of stdout is
  * `RÉSULTAT : code=<n> copie=<chemin|aucune>`.
+ * Interruption (Ctrl+C, a stop, a closed SSH session): Node handles a signal between two steps, never inside
+ * one. Before the snapshot of a hot copy starts (opening, counting), the run stops, removes its files and
+ * exits 130. Once the copy is under way (the snapshot, a cold byte copy, the checks), the run finishes it and
+ * ends with its own result and exit code: a half-made copy is never kept.
  *
  * Usage: node sonni/vps/sauvegarde.mjs [--source <state.db>] [--dossier <dossier>]
  *   defaults: --source ~/.automaton/state.db, --dossier ~/.automaton/predeploiement (created 0700)
@@ -131,8 +135,12 @@ export function technicalFr(err) {
   };
   const base = Object.keys(known).find((k) => code === k || code.startsWith(`${k}_`));
   if (base) return `${known[base]} (${code})`;
-  if (code) return `erreur technique (${code})`;
-  return String(err?.message ?? err);
+  if (code) return `erreur système (${code})`;
+  // No code: the only French message thrown without one is copie-privee.mjs's; anything else is unexpected
+  // and keeps its raw text as a detail (lower-case start, no final period: it ends inside a sentence).
+  const message = String(err?.message ?? err).trim().replace(/[.\s]+$/, "");
+  if (/n'est pas une base SQLite/i.test(message)) return "ce fichier n'est pas une base SQLite";
+  return `cas imprévu (détail : ${message || "aucun"})`;
 }
 
 /** Why the backup must not start (French), or null: nothing has been read or written yet. */

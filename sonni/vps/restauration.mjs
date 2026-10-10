@@ -17,8 +17,11 @@
  *   an executable, for tests; without systemd it refuses unless --sans-systemd). Then it MOVES state.db and the
  *   -wal, -shm and -journal files beside it into `<dossier de la cible>/quarantaine-<horodatage UTC>/` (0700),
  *   never deleting them, copies the backup to `<cible>.restauration-partielle` (600), renames it to the
- *   target, and checks the target's SHA-256 and that no -wal or -shm is beside it. On a failure after the move
- *   it says exactly where every file is and how to put the previous ones back; the quarantine is never removed.
+ *   target, and checks the target's SHA-256 and that no -wal or -shm is beside it. A target that is not a
+ *   regular file (a folder, a symbolic link) is refused. On a failure after the move it says exactly where
+ *   every file is and how to put the previous ones back; the quarantine is never removed. The commands to go
+ *   back move the restored file aside WITH the -wal, -shm and -journal beside it before the previous files
+ *   return: an old state.db placed next to the restored run's -wal would silently take in that journal.
  *
  * Safety: neither mode writes to the copy. The drill writes only in its own temporary folder; the restore
  * writes only the target, its partial file (removed if the copy into it fails) and the quarantine folder.
@@ -27,6 +30,10 @@
  * Exit codes: 0 drill passed / restore done; 1 verification failed (fingerprint, integrity, counts, restored
  * file); 2 refused or usage error (nothing moved); 3 technical error (not SQLite, disk, rights); 130
  * interrupted (temporary folders removed). The last line of stdout starts with `RÉSULTAT : code=<n>`.
+ * Interruption (Ctrl+C, a stop, a closed SSH session): both modes run in one go and Node handles a signal only
+ * once the run is over. A restore therefore never stops between moving the old files and placing the copy,
+ * the drill always removes its folders, and the run ends with its own result and exit code; 130 is only a
+ * safety net here (a signal handled while temporary folders still exist).
  *
  * Usage:
  *   node sonni/vps/restauration.mjs --essai <copie>
@@ -73,6 +80,20 @@ export function ageFr(ms) {
   const h = Math.floor(minutes / 60);
   if (h < 48) return `${h} h ${String(minutes % 60).padStart(2, "0")} min`;
   return `${Math.floor(h / 24)} j ${h % 24} h`;
+}
+
+/**
+ * Shell commands that put the previous memory back, Sonni stopped. The file now at the target goes to `aside`
+ * together with every SQLite file beside it BEFORE the previous files return: an old state.db placed next to
+ * the restored run's -wal would silently take in that journal (SQLite replays it), and the quarantine would no
+ * longer hold the old memory. Moves only, never a deletion; a `[ -e … ]` line moves a file only if it exists.
+ */
+export function rollbackCommands(target, aside, moved) {
+  return [
+    `[ -e '${target}' ] && mv -f '${target}' '${aside}'`,
+    ...SIDECARS.map((s) => `[ -e '${target}${s}' ] && mv -f '${target}${s}' '${aside}${s}'`),
+    ...moved.map((m) => `mv '${m.to}' '${m.from}'`),
+  ];
 }
 
 /** The copy's fingerprint against its .sha256 file; throws Failure(1) on a mismatch. Returns the hash. */
@@ -213,6 +234,21 @@ export function restaurer(copieArg, { confirmed = false, cible, sansSystemd = fa
     // Refusals first: nothing is moved before every check has passed.
     if (!fs.existsSync(copie) || !fs.statSync(copie).isFile()) throw new Failure(2, `Refusé : copie introuvable (${copie}).`);
     if (copie === target || sameFile(copie, target)) throw new Failure(2, "Refusé : la copie et la cible sont le même fichier.");
+    // The target and the files beside it must be regular files (or absent): a folder or a symbolic link given
+    // as --cible would be moved whole into the quarantine and replaced by the database file.
+    for (const f of ["", ...SIDECARS].map((s) => `${target}${s}`)) {
+      let st = null;
+      try {
+        st = fs.lstatSync(f);
+      } catch (err) {
+        if (err?.code !== "ENOENT") throw err;
+      }
+      if (st && !st.isFile()) {
+        throw new Failure(2, f === target
+          ? `Refusé : la cible n'est pas un fichier de base ordinaire (${target} est un dossier, un lien symbolique ou un fichier spécial). Donne le chemin du fichier state.db lui-même.`
+          : `Refusé : ${f} n'est pas un fichier ordinaire. Examine-le avant de restaurer.`);
+      }
+    }
     const refused = refusal(copie, env);
     if (refused) throw new Failure(2, refused);
     if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) throw new Failure(2, `Refusé : le dossier de la cible n'existe pas (${targetDir}).`);
@@ -293,9 +329,9 @@ export function restaurer(copieArg, { confirmed = false, cible, sansSystemd = fa
     say("  2. note l'heure du démarrage (UTC), attends quelques minutes, puis lance le contrôle après démarrage :");
     say("     node sonni/vps/controle-apres-demarrage.mjs --depuis <heure UTC du démarrage>");
     if (moved.length) {
-      say("Pour revenir à l'ancienne mémoire : arrête Sonni (sudo systemctl stop sonni), puis :");
-      say(`  mv -f '${target}' '${target}.restauree'`);
-      for (const m of moved) say(`  mv '${m.to}' '${m.from}'`);
+      say("Pour revenir à l'ancienne mémoire : arrête Sonni (sudo systemctl stop sonni), puis, dans cet ordre "
+        + "(la base restaurée part de côté avec ses fichiers -wal, -shm et -journal avant le retour de l'ancienne) :");
+      for (const line of rollbackCommands(target, `${target}.restauree`, moved)) say(`  ${line}`);
     }
     return result(0, target);
   } catch (err) {
@@ -310,11 +346,18 @@ export function restaurer(copieArg, { confirmed = false, cible, sansSystemd = fa
     if (moved.length || quarantine || placed) {
       warn(`ÉCHEC après ${moved.length || quarantine ? "la mise de côté de l'ancienne base" : "la mise en place de la copie"}. Où sont les fichiers :`);
       for (const m of moved) warn(`  - ${m.from} est maintenant ${m.to} (intact)`);
-      if (fs.existsSync(target)) warn(`  - ${target} : base restaurée NON conforme, à déplacer${moved.length ? " avant de remettre l'ancienne" : ""}`);
-      if (fs.existsSync(partial)) warn(`  - ${partial} : copie partielle, à déplacer`);
-      if (moved.length) warn("Pour remettre l'ancienne mémoire (Sonni arrêté) :");
-      if (fs.existsSync(target)) warn(`  mv -f '${target}' '${target}.echec'`);
-      for (const m of moved) warn(`  mv '${m.to}' '${m.from}'`);
+      const later = moved.length ? " avant de remettre l'ancienne" : "";
+      if (fs.existsSync(target)) warn(`  - ${target} : base restaurée NON conforme, à déplacer${later}`);
+      for (const s of SIDECARS) if (fs.existsSync(`${target}${s}`)) warn(`  - ${target}${s} : fichier SQLite apparu à côté, à déplacer avec elle${later}`);
+      if (fs.existsSync(partial)) {
+        warn(partialMine
+          ? `  - ${partial} : copie partielle, à déplacer`
+          : `  - ${partial} : fichier qui n'a pas été créé par cette restauration, laissé tel quel (à examiner)`);
+      }
+      if (moved.length) {
+        warn("Pour remettre l'ancienne mémoire (Sonni arrêté), dans cet ordre :");
+        for (const line of rollbackCommands(target, `${target}.echec`, moved)) warn(`  ${line}`);
+      }
       if (quarantine) warn(`Le dossier ${quarantine} n'a pas été supprimé.`);
     }
     return result(code);

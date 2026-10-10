@@ -161,6 +161,7 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(r.stdout).toMatch(/\[INFO\] o_\w+ : achat à cours limité BTC passé le 07\/10\/2026 17:54 UTC : attend que le prix atteigne 55\s000,00 €/);
     expect(r.stdout).toMatch(/\[INFO\] BTC : stop à 42\s000,00 €, 31,15 % sous le dernier prix/);
     expect(r.stdout).toContain("Conclusion : rien ne bloque, le déploiement peut continuer.");
+    expect(r.stdout.match(/Conclusion/g)).toHaveLength(1);
     expect(r.stdout).toContain("Fichier contrôlé inchangé (SHA-256 identique avant et après).");
     expect(counts(r.last)).toMatchObject({ b: 0, d: 0 });
     expect(r.last).toMatch(/^RÉSULTAT : code=0 bloquants=0 a_decider=0 infos=\d+$/);
@@ -180,10 +181,15 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     }, /\[BLOQUANT\] liquidités négatives : -4\s\d{3},\d\d € d'après le registre/],
     ["a position the ledger does not add up to", (db) => {
       db.prepare("UPDATE trader_positions SET quantity = quantity + 0.5 WHERE asset = 'BTC'").run();
-    }, /\[BLOQUANT\] position BTC : 0,50\d+ unités enregistrées, le registre en donne 0,00\d+ \(écart -0,5\)/],
+    }, /\[BLOQUANT\] position BTC : 0,50\d+ unité enregistrée, le registre en donne 0,00\d+ \(écart -0,5\)/],
     ["a filled order without its ledger row", (db) => {
       rawOrder(db, { id: "o_sans_registre", at: hours(6), asset: "BTC", side: "buy", amountEur: 50, status: "filled", settledAt: isoSeconds(hours(6.1)), fillPrice: 60_030, fillQuantity: 0.00082624, fillEur: 50, feeEur: 0.4 });
     }, /\[BLOQUANT\] 1 ordre exécuté sans exactement une ligne d'achat ou de vente au registre : o_sans_registre \(achat BTC le 07\/10\/2026 14:06 UTC, 0 ligne\)/],
+    ["a filled order booked twice in the ledger", (db) => {
+      const sale = db.prepare("SELECT id FROM trader_orders WHERE asset = 'ETH' AND side = 'sell' AND status = 'filled'").get() as { id: string };
+      db.prepare(`INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note)
+        SELECT 'l_double', at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note FROM trader_ledger WHERE order_id = ? AND kind = 'sell'`).run(sale.id);
+    }, /\[BLOQUANT\] 1 ordre exécuté sans exactement une ligne d'achat ou de vente au registre : o_\w+ \(vente ETH le 07\/10\/2026 13:06 UTC, 2 lignes\)/],
     ["a trade closed by an order that is not filled", (db) => {
       db.prepare(`INSERT INTO trader_trades (id, asset, opened_at, closed_at, quantity, entry_price, exit_price, fees_eur, pnl_eur, pnl_pct, open_order_id, close_order_id, close_reason, thesis)
         VALUES ('t_orphelin', 'SPY', ?, ?, 1, 500, 510, 8, 2, 0.4, 'o_spy_ouverture', 'o_absent', 'model', ?)`).run(isoSeconds(hours(6)), isoSeconds(hours(7)), THESIS);
@@ -251,6 +257,17 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     ["a stop already crossed by the last known price", (db) => {
       db.prepare("UPDATE trader_positions SET invalidation = 70000 WHERE asset = 'BTC'").run();
     }, /\[À DÉCIDER\] BTC : stop franchi d'après le dernier prix connu \(61\s000,00 € le 07\/10\/2026 17:57 UTC\) : vente au premier relevé si le prix reste sous 70\s000,00 € ; prix frais \(il y a 3 min\) : la nouvelle version pose le stop dès le premier relevé/],
+    // The stored level (42,000) is far below the price; a pending added buy fills on a fresh price and its level
+    // (57,950) replaces it, and that price is already under the new level: the first tick sells the whole position.
+    ["a stop placed on the level a pending added buy sets", (db) => {
+      rawOrder(db, { id: "o_achat_ajout", at: hours(9.5), asset: "BTC", side: "buy", kind: "limit", limitPrice: 58_000, amountEur: 50, invalidation: 57_950 });
+      rawPrice(db, "BTC", hours(9.96), 57_900);
+    }, /\[À DÉCIDER\] BTC : stop franchi d'après le dernier prix connu \(57\s900,00 € le 07\/10\/2026 17:57 UTC\) : vente au premier relevé si le prix reste sous 57\s950,00 € ; prix frais \(il y a 2 min\) : la nouvelle version pose le stop dès le premier relevé ; niveau fixé au premier relevé \(niveau enregistré : 42\s000,00 €\)/],
+    // A legacy pending buy without a level opens a position the first tick leaves without a stop.
+    ["a position the first tick opens without a stop", (db) => {
+      rawOrder(db, { id: "o_achat_sans_niveau", at: hours(9.92), asset: "ETH", side: "buy", amountEur: 30, invalidation: null });
+      rawPrice(db, "ETH", hours(9.96), 2_650);
+    }, /\[À DÉCIDER\] ETH : position sans stop \(aucun niveau d'invalidation, aucune vente en attente\) ; position ouverte au premier relevé par un achat en attente/],
   ];
 
   for (const [name, mutate, expected] of DECISIONS) {
@@ -280,6 +297,60 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(counts(r.last)).toMatchObject({ b: 1, d: 1 });
   });
 
+  it("reports a fill at a recent stored price as INFO (up to 60 minutes old), with the stop of the position it opens", () => {
+    const file = variant((db) => {
+      rawOrder(db, { id: "o_ada_frais", at: hours(9.8), asset: "ADA", side: "buy", amountEur: 20, invalidation: 0.3 });
+      rawPrice(db, "ADA", new Date(NOW.getTime() - 5 * 60_000), 0.4);
+      // Exactly 60 minutes old is still recent.
+      rawOrder(db, { id: "o_spy_60min", at: hours(8.5), asset: "SPY", side: "buy", amountEur: 20, invalidation: 400 });
+      rawPrice(db, "SPY", new Date(NOW.getTime() - 60 * 60_000), 500);
+    });
+    const r = run(file);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("[INFO] o_ada_frais : achat au marché ADA passé le 07/10/2026 17:48 UTC : exécuté au prix enregistré du 07/10/2026 17:55 UTC (0,4 € ; prix d'exécution 0,4002 €)");
+    expect(r.stdout).toMatch(/\[INFO\] o_spy_60min : achat au marché SPY passé le 07\/10\/2026 16:30 UTC : exécuté au prix enregistré du 07\/10\/2026 17:00 UTC \(500,00 € ; prix d'exécution 500,25 €\)\n/);
+    expect(r.stdout).toContain("[INFO] ADA : stop à 0,3 €, 25,00 % sous le dernier prix (0,4 € le 07/10/2026 17:55 UTC) ; position ouverte au premier relevé par un achat en attente");
+    expect(r.stdout).not.toContain("prix ancien");
+    expect(r.last).toMatch(/^RÉSULTAT : code=0 bloquants=0 a_decider=0 infos=\d+$/);
+  });
+
+  it("reports the history: days without a snapshot, incidents of the last 7 days by kind, broker and backup named (INFO)", () => {
+    const file = variant((db) => {
+      const day = db.prepare("INSERT INTO trader_portfolio_days (day, at, cash_eur, positions_eur, equity_eur, contributed_eur) VALUES (?, ?, 500, 0, 500, 500)");
+      for (const d of ["2026-10-01", "2026-10-02", "2026-10-05"]) day.run(d, `${d}T23:00:00.000Z`);
+      const incident = db.prepare("INSERT INTO trader_incidents (id, at, kind, message) VALUES (?, ?, ?, ?)");
+      const before = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
+      incident.run("i_1", before(1), "broker", "ordre o_x refusé par le courtier virtuel");
+      incident.run("i_2", before(6 * 24), "broker", "position PUMP invalide");
+      incident.run("i_3", before(2 * 24), "backup", "sauvegarde du jour impossible");
+      incident.run("i_4", before(3), "errors", "trois erreurs de suite");
+      incident.run("i_5", before(8 * 24), "broker", "incident trop ancien");
+      incident.run("i_6", before(-1), "backup", "incident après le moment contrôlé");
+    });
+    const r = run(file);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("[INFO] 3 jours sans instantané entre le 2026-10-01 et le 2026-10-07 : 2026-10-03 → 2026-10-04, 2026-10-06");
+    expect(r.stdout).toContain("[INFO] incidents des 7 derniers jours : courtier virtuel 2, sauvegarde 1, série d'erreurs 1");
+    expect(r.stdout).toContain("[INFO] incident « courtier virtuel » du 07/10/2026 17:00 UTC : ordre o_x refusé par le courtier virtuel");
+    expect(r.stdout).toContain("[INFO] incident « courtier virtuel » du 01/10/2026 18:00 UTC : position PUMP invalide");
+    expect(r.stdout).toContain("[INFO] incident « sauvegarde » du 05/10/2026 18:00 UTC : sauvegarde du jour impossible");
+    expect(r.stdout).not.toContain("trois erreurs de suite");
+    expect(r.stdout).not.toContain("incident trop ancien");
+    expect(r.stdout).not.toContain("incident après le moment contrôlé");
+    const clean = run(cleanCopy());
+    expect(clean.stdout).toContain("[INFO] instantanés quotidiens complets du 2026-10-07 au 2026-10-07");
+    expect(clean.stdout).toContain("[INFO] aucun incident les 7 derniers jours");
+  });
+
+  it("explains a damaged copy in French (a missing table), never with SQLite's English message", () => {
+    const file = variant((db) => { db.exec("DROP TABLE trader_prices"); });
+    const r = run(file);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain("table manquante dans la copie : trader_prices");
+    expect(r.stdout).not.toContain("no such table");
+    expect(counts(r.last)!.b).toBeGreaterThan(0);
+  });
+
   it("refuses the live database, a file beside -wal/-shm, a missing file and bad options (exit 2, nothing read)", () => {
     const dir = tmp("sonni-controle-refus-");
     const live = path.join(dir, "state.db");
@@ -288,6 +359,11 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(r1.status).toBe(2);
     expect(r1.stderr).toContain("Refusé : c'est la base active de Sonni");
     expect(r1.last).toBe("RÉSULTAT : code=2 controle=refusé");
+    // The Telegram summary says why once, in French.
+    const short = run(live, ["--resume"]);
+    expect(short.status).toBe(2);
+    expect(short.stdout).toContain("Contrôle avant déploiement de Sonni : refusé. C'est la base active de Sonni.");
+    expect(short.stdout).not.toContain("Refusé :");
     const copy = path.join(dir, "copie.db");
     fs.copyFileSync(live, copy);
     fs.writeFileSync(`${copy}-wal`, "");
@@ -365,7 +441,7 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(r.stdout.length).toBeLessThanOrEqual(3_500);
     expect(r.stdout).toMatch(/^Contrôle avant déploiement de Sonni : déploiement bloqué\n/);
     expect(r.stdout).toContain("Bloquants : 150 ; à décider : 150 ;");
-    expect(r.stdout).toContain("BLOQUANT :\n- position Z000 : 1 unités enregistrées, le registre en donne 0");
+    expect(r.stdout).toContain("BLOQUANT :\n- position Z000 : 1 unité enregistrée, le registre en donne 0");
     expect(r.stdout).toMatch(/… et \d+ autre\(s\) ligne\(s\) : rapport complet dans le terminal/);
     expect(r.stdout).not.toContain("A. Intégrité");
     expect(r.last).toBe("RÉSULTAT : code=1 bloquants=150 a_decider=150 infos=" + counts(full.last)!.i);
@@ -522,6 +598,40 @@ describe("Pre-deployment gate: predictions match the real brokerTick", () => {
         rawOrder(db, { id: "o_stop_sans_quantite", at: hours(27), asset: "USDC", side: "sell", quantity: null, origin: "stop" });
         storePrice(db, "USDC", hours(29.95), 0.65);
         return { o_stop_sans_quantite: "reject:quantity" };
+      },
+    },
+    {
+      name: "time bounds: a price stored after now is not used, the 24 h market TTL and the limit horizon are strict, a price exactly staleMinutes old is fresh",
+      stops: ["BTC"],
+      build: (db) => {
+        portfolio(db);
+        const H = 3_600_000;
+        const before = (ms: number) => new Date(T.getTime() - ms);
+        // Market orders whose only price is stored one minute after now: not seen, the 24 h TTL decides.
+        rawOrder(db, { id: "o_prix_futur_attend", at: before(H), asset: "SPY", side: "buy", amountEur: 20 });
+        rawOrder(db, { id: "o_prix_futur_expire", at: before(25 * H), asset: "PEPE", side: "buy", amountEur: 20 });
+        storePrice(db, "SPY", new Date(T.getTime() + 60_000), 500);
+        storePrice(db, "PEPE", new Date(T.getTime() + 60_000), 0.00001);
+        // A limit buy crossed only after now.
+        rawOrder(db, { id: "o_limite_futur", at: before(H + 1000), asset: "SOL", side: "buy", kind: "limit", limitPrice: 100, amountEur: 20 });
+        storePrice(db, "SOL", new Date(T.getTime() + 60_000), 90);
+        // The market TTL without any price: 23 h 59 and exactly 24 h wait, 24 h and one second expires.
+        rawOrder(db, { id: "o_ttl_23h59", at: before(24 * H - 60_000), asset: "TINY", side: "buy", amountEur: 20 });
+        rawOrder(db, { id: "o_ttl_24h", at: before(24 * H), asset: "TINY", side: "buy", amountEur: 20 });
+        rawOrder(db, { id: "o_ttl_24h_1s", at: before(24 * H + 1000), asset: "TINY", side: "buy", amountEur: 20 });
+        // The limit horizon without any crossing: one second after now and exactly now wait, one second before expires.
+        const horizons = [["o_horizon_plus_1s", 1000], ["o_horizon_pile", 0], ["o_horizon_moins_1s", -1000]] as const;
+        horizons.forEach(([id, offset], i) => rawOrder(db, {
+          id, at: before(2 * H + i * 1000), asset: "DOGE", side: "buy", kind: "limit", limitPrice: 0.05, amountEur: 20, horizonUntil: new Date(T.getTime() + offset),
+        }));
+        storePrice(db, "DOGE", before(H), 0.1);
+        // Stops: BTC's last price is exactly staleMinutes old (fresh: placed), ETH's one second older (stale: not placed).
+        storePrice(db, "BTC", before(TRADER.staleMinutes * 60_000), 40_000);
+        storePrice(db, "ETH", before(TRADER.staleMinutes * 60_000 + 1000), 1_500);
+        return {
+          o_prix_futur_attend: "wait", o_prix_futur_expire: "expire", o_limite_futur: "wait", o_ttl_23h59: "wait", o_ttl_24h: "wait", o_ttl_24h_1s: "expire",
+          o_horizon_plus_1s: "wait", o_horizon_pile: "wait", o_horizon_moins_1s: "expire",
+        };
       },
     },
     {
