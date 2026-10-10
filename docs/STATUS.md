@@ -4,8 +4,33 @@
   before it PR #32 (step 0.3, price precision, b0479a3), PR #31 (step 0.2, trade fees, c1638c0) and PR #30
   (step 0.1, CI gate, 0ee7f7f). claude/sonni-likma-upgrade (Likma 0.20.1 and the tool guard, separate pull
   request) holds the first entry below.
+- Fixes from the Windows counter-verification (report local-win n°04 on main 55ab453, branch
+  claude/sonni-restore-fixes). Status: built; not merged.
+  - The report: 24 of 28 cases conformed on Windows, with 2 deviations and 2 not applicable. Its findings:
+    - restauration.mjs: when securing the quarantine folder failed before anything moved, the message called
+      the untouched previous database "base restaurée NON conforme, à déplacer". This happens on every platform:
+      on the VPS, a failed owner change as root reaches the same path. Now the message says the previous
+      database is intact in place and must not be moved, and the empty folder is removed
+      (`quarantaine=aucune`);
+    - on Windows, fchmod on a folder's descriptor fails (EPERM). A folder's mode and owner are no longer
+      changed there. Linux behaviour is unchanged;
+    - a CRLF checkout (git's Windows default) broke vitest imports of sonni/*.mjs. .gitattributes now
+      forces LF for code (.mjs, .cjs, .js, .ts, .json, .sh); the index was already LF;
+    - contre-verification.mjs printed "Commit : inconnu" without git on the PATH (it now reads .git), and
+      "node sonni/vps/-" for its own checks.
+  - Not changed: deploy-backup's POSIX-only expectations (modes 600/700, `sh`, SIGTERM, the shell fake
+    systemctl) still fail on Windows by design, because the VPS is Linux.
+  - Checks: sonni 30 files, 402 tests (5 new; the two restore tests fail on the old code); typecheck; build;
+    contre-verification 28/28 on Linux. Windows re-run: by the local agent after the merge.
+  - Likma:
+    - deploy-prep verified on bb753ef (report cf101e83, sonni-e2e 619 s);
+    - 13 features re-verified (report d1e2c4b9, sonni-e2e 620 s).
+
+    The first reverify was cut by the 4-hour Likma session limit (e2e stopped at 19 s). Progress was reviewed
+    (code verified, CI green, only re-verification left, no paid call) and a new session was begun deliberately.
+  - GitHub CI on bb753ef: `checks`, `e2e`, `audit` and `trufflehog` green.
 - Likma 0.13.0 -> 0.20.1 and the tool guard (owner's decision of 2026-10-10, branch claude/sonni-likma-upgrade,
-  separate from the deployment). Status: built; not merged.
+  separate from the deployment). Status: built, verified and merged (PR #34, main 9c5d353, owner's GO of 2026-10-10).
   - `project upgrade`: AGENTS.md Likma block, docs/LIKMA.md (the revision CI pins), vendor.json. The routine
     now covers recall, per-lens reviews, `project ship` and memory consolidation. New skill agents/agent-memory.
   - Tool guard (bot profile): PreToolUse and PostToolUse hooks plus 22 native deny rules in .claude/settings.json.

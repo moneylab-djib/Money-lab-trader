@@ -298,9 +298,27 @@ function version(dir, pkg) {
     return "introuvable";
   }
 }
-function gitHead() {
-  const r = spawnSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf-8" });
-  return r.status === 0 ? r.stdout.trim() : "inconnu";
+/**
+ * The checked-out commit: `git rev-parse HEAD`, else read from .git directly (on the owner's PC git comes with GitHub
+ * Desktop and is not on the PATH, report local-win n°04): a detached HEAD holds the sha, a branch points to a ref file
+ * or a line of packed-refs.
+ */
+export function gitHead(repo = REPO) {
+  const r = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf-8" });
+  if (r.status === 0) return r.stdout.trim();
+  try {
+    const gitDir = path.join(repo, ".git");
+    const head = fs.readFileSync(path.join(gitDir, "HEAD"), "utf-8").trim();
+    if (/^[0-9a-f]{40}$/.test(head)) return head;
+    const ref = /^ref: (\S+)$/.exec(head)?.[1];
+    if (!ref) return "inconnu";
+    const file = path.join(gitDir, ...ref.split("/"));
+    if (fs.existsSync(file)) return fs.readFileSync(file, "utf-8").trim();
+    const packed = fs.readFileSync(path.join(gitDir, "packed-refs"), "utf-8").split("\n").find((l) => l.endsWith(` ${ref}`));
+    return packed ? packed.split(" ")[0] : "inconnu";
+  } catch {
+    return "inconnu";
+  }
 }
 
 /** The Markdown report (French). */
@@ -324,7 +342,8 @@ export function report(results, code) {
   if (ecarts.length) {
     lines.push("", "## Écarts");
     for (const r of ecarts) {
-      lines.push("", `### ${r.name}`, "", `Commande : \`node sonni/vps/${r.script} ${r.args.join(" ")}\``, "", ...r.problems.map((p) => `- ${p}`));
+      const command = r.script === "-" ? "vérification faite par le script lui-même (aucun outil lancé)" : `\`node sonni/vps/${r.script} ${r.args.join(" ")}\``;
+      lines.push("", `### ${r.name}`, "", `Commande : ${command}`, "", ...r.problems.map((p) => `- ${p}`));
       if (r.tail) lines.push("", "```", r.tail, "```");
     }
   }

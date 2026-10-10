@@ -16,7 +16,7 @@ import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
 import { brokerTick, placeOrder } from "../../trader/portfolio.js";
 // @ts-expect-error plain ESM script without type declarations (tests are not type-checked)
-import { report, runCounterCheck } from "../../../sonni/pc/contre-verification.mjs";
+import { gitHead, report, runCounterCheck } from "../../../sonni/pc/contre-verification.mjs";
 
 const ROOT = path.join(__dirname, "..", "..", "..");
 const SCRIPT = path.join(ROOT, "sonni", "pc", "contre-verification.mjs");
@@ -67,5 +67,30 @@ describe("Counter-verification of the deployment tools on fictitious databases (
     } finally {
       fs.rmSync(empty, { recursive: true, force: true });
     }
+  });
+
+  it("reads the commit from .git when git cannot (detached HEAD, a branch ref, packed-refs), and names checks made without a tool", () => {
+    const sha1 = "0123456789abcdef0123456789abcdef01234567";
+    const sha2 = "fedcba9876543210fedcba9876543210fedcba98";
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "sonni-faux-depot-"));
+    try {
+      // Not a repository git can read (no objects): rev-parse fails, the files are read instead.
+      fs.mkdirSync(path.join(repo, ".git", "refs", "heads"), { recursive: true });
+      fs.writeFileSync(path.join(repo, ".git", "HEAD"), `${sha1}\n`);
+      expect(gitHead(repo)).toBe(sha1);
+      fs.writeFileSync(path.join(repo, ".git", "HEAD"), "ref: refs/heads/main\n");
+      fs.writeFileSync(path.join(repo, ".git", "refs", "heads", "main"), `${sha2}\n`);
+      expect(gitHead(repo)).toBe(sha2);
+      fs.rmSync(path.join(repo, ".git", "refs", "heads", "main"));
+      fs.writeFileSync(path.join(repo, ".git", "packed-refs"), `# pack-refs with: peeled fully-peeled sorted\n${sha1} refs/heads/main\n`);
+      expect(gitHead(repo)).toBe(sha1);
+      fs.rmSync(path.join(repo, ".git"), { recursive: true });
+      expect(gitHead(repo)).toBe("inconnu");
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+    const md = report([{ name: "empreinte", script: "-", args: [], expect: 0, got: 0, status: "ÉCART", problems: ["x"] }], 1);
+    expect(md).toContain("Commande : vérification faite par le script lui-même (aucun outil lancé)");
+    expect(md).not.toContain("node sonni/vps/-");
   });
 });
