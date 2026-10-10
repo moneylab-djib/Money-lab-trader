@@ -129,7 +129,12 @@
     - a start time left by an earlier attempt is removed at Phase 2 step 1 and in R5;
     - R5 compares HEAD with the rollback commit;
     - R3/R4 wording.
-  - Likma after the round: see the last entry of this list (final verification).
+  - Likma after the round:
+    - deploy-prep verified on 1c3483b (report df7bd274: sonni, types, money-lab, runtime, build, sonni-e2e 620 s);
+    - the 13 features sharing its files re-verified (report e81d31f9, sonni-e2e 619 s);
+    - review recorded as pass.
+
+    GitHub CI on 1c3483b: `checks`, `e2e`, `audit` and `trufflehog` green.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at
