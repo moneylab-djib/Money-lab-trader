@@ -1940,9 +1940,9 @@
         "contract": "ef4213a5abbd378b2383f5ef3b97e84b56917749c5ed52ea6d450be4e443189e"
       },
       "verification": {
-        "at": "2026-10-10T06:24:36.495004+00:00",
+        "at": "2026-10-10T07:29:52.918805+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "43cb8a2da6a807437b08e131f5c0b9cb28c72f4c626f783ee489060c5a3bb135",
+        "fingerprint": "3ff5fc1d28281ccf6b76c93cf31580f2c66df4708a89e29ff1791301ab3f4aa4",
         "scope": [
           "sonni/vps/copie-privee.mjs",
           "sonni/vps/audit-prix.mjs",
@@ -1955,7 +1955,13 @@
           "src/__tests__/trader/deploy-predeploy.test.ts",
           "src/__tests__/trader/deploy-poststart.test.ts",
           "src/__tests__/trader/deploy-guide.test.ts",
-          "sonni/GUIDE-VPS.fr.md"
+          "sonni/GUIDE-VPS.fr.md",
+          "sonni/vps/verifier-pause.mjs",
+          "sonni/vps/verification-environnement.mjs",
+          "sonni/pc/contre-verification.mjs",
+          "src/__tests__/trader/deploy-pause.test.ts",
+          "src/__tests__/trader/deploy-environment.test.ts",
+          "src/__tests__/trader/deploy-counter.test.ts"
         ],
         "criterion_checks": {
           "1": "sonni",
@@ -1974,25 +1980,28 @@
             "money-lab",
             "runtime",
             "sonni-e2e"
-          ]
+          ],
+          "12": "sonni",
+          "13": "sonni",
+          "14": "sonni"
         },
         "checks_hash": "3a8ae11b70bfaaa628b2c3ae0d7a10c608dbe08289b0924b8caacec70a5aa4c6",
-        "report": ".likma/checks/72ba2c85c02a4cab914193b15ead74f9.json",
-        "contract": "ef4213a5abbd378b2383f5ef3b97e84b56917749c5ed52ea6d450be4e443189e",
+        "report": ".likma/checks/dbd1590abfe348808f356757bff09946.json",
+        "contract": "f36a612575800c96fd265254e1f75fa0675854a4100b51896fd625700752d275",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 34.309,
-            "output_bytes": 37034,
-            "output_sha256": "4141358b643527940324603d7bc04c22dde71c5da36abb0798f68dcc3b058845"
+            "seconds": 36.546,
+            "output_bytes": 39047,
+            "output_sha256": "0a9b16999bc084a906799614a1efa302907206ce30b2e4b446146300c9f1a693"
           },
           {
             "name": "types",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 7.394,
+            "seconds": 6.505,
             "output_bytes": 72,
             "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
           },
@@ -2000,25 +2009,25 @@
             "name": "money-lab",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 28.421,
+            "seconds": 29.658,
             "output_bytes": 40121,
-            "output_sha256": "16608ba09f649ede7c6a7ed6349d32064d2677faed04bc721ae302aad90046af"
+            "output_sha256": "e819550d892a89f26080e6dcb582a7733001b08147fbdaaa10782d7b27b3dedd"
           },
           {
             "name": "runtime",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 26.92,
-            "output_bytes": 75222,
-            "output_sha256": "f3f79f619bb69e14d7dbd3b39567d4d68b0896bd7f545c56e68f06fbdd21fe49"
+            "seconds": 27.378,
+            "output_bytes": 78768,
+            "output_sha256": "ae64e38d567d54e2bcb4d8f77d916a5ddc2b15a2bff9eafa8188127f831de4cb"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.08,
+            "seconds": 619.42,
             "output_bytes": 5084,
-            "output_sha256": "5a5ccc6aeb62393a02a806334463a9bc4f3fa06f97336d42a8ef2e4a128622f6"
+            "output_sha256": "391717008b29bf2e40751d0a1f2bdee78e2e338b4759cd5c4872792ab0d2466d"
           }
         ],
         "integrity": {
