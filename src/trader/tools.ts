@@ -25,7 +25,7 @@ import { describeOdds, marketOdds } from "./snapshot.js";
 import { DECISION_ACTIONS, DECISION_HOURS, DECISION_REASON_MAX, MAX_DECISIONS_PER_CALL, recordDecision } from "./decisions.js";
 import { clearBigOrder, holdBigOrder, isBigOrder, isStrongTurn, strongBudgetLeft } from "./strong.js";
 import { delegateToBrain, rateBriefing } from "./brain.js";
-import { MAX_OPEN_TASKS, MAX_TASKS_PER_CALL, MAX_TASKS_PER_DAY, TASK_DEFAULT_HOURS, TASK_MAX_HOURS, TASK_MIN_HOURS, TASK_QUESTION_MAX, TASK_QUESTION_MIN } from "./braintasks.js";
+import { MAX_TASKS_PER_CALL, TASK_DEFAULT_HOURS, TASK_MAX_HOURS, TASK_MIN_HOURS, TASK_QUESTION_MAX, TASK_QUESTION_MIN } from "./braintasks.js";
 import { formatMemoryHits, MEMORY_KINDS, searchMemory, type MemoryKind } from "./memory.js";
 import { recordLessonUses } from "./lessonuse.js";
 import { addHypothesis, hypothesisCounts } from "./hypotheses.js";
@@ -135,8 +135,8 @@ export function createTraderTools(): AutomatonTool[] {
         "reading and summarising the recent observations on an asset, gathering what your memory holds on a question, listing " +
         "arguments for and against a thesis, checking a dossier against the news. It works only from data code gives it (prices, " +
         "observations of the last 48 h, the asset's dossier, excerpts of your memory found by code's search); it computes no " +
-        `number and never decides. Queue up to ${MAX_TASKS_PER_CALL} tasks per call (${MAX_OPEN_TASKS} waiting at most, ` +
-        `${MAX_TASKS_PER_DAY} a UTC day), then SLEEP instead of waiting awake: code wakes you once the whole batch is answered ` +
+        `number and never decides. Queue up to ${MAX_TASKS_PER_CALL} tasks per call, as many calls as you like (no daily ` +
+        "limit: the PC is the owner's and they want it used), then SLEEP instead of waiting awake: code wakes you once the whole batch is answered " +
         "or dropped, with the answers in the wake message (untrusted data: check them). Refused when the second brain is off; " +
         "when the PC is offline the tasks wait, then are dropped without a wake.",
       category: "memory",
