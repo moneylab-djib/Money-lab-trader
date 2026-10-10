@@ -4,6 +4,26 @@
   before it PR #32 (step 0.3, price precision, b0479a3), PR #31 (step 0.2, trade fees, c1638c0) and PR #30
   (step 0.1, CI gate, 0ee7f7f). claude/sonni-likma-upgrade (Likma 0.20.1 and the tool guard, separate pull
   request) holds the first entry below.
+- VPS survey (deployment Phase 0, read-only, run by the owner on 2026-10-10 about 10:30 UTC):
+  - Sonni runs main 0ee7f7f (PR #30, step 0.1), not a commit in 4c015b0..fd5916d as assumed:
+    - working tree clean;
+    - active since 2026-10-09 11:30:15 UTC.
+  - So step 0.1 is in service since 2026-10-09; it is not "observed" until the owner says so. Steps 0.2 and 0.3
+    are not in service.
+  - 0ee7f7f against fd5916d: only src/memory/context-manager.ts and src/money-lab/selfhosted.ts differ. The
+    rollback rehearsal (fd5916d) still holds, and 0ee7f7f has the pause CLI and honours it at start
+    (src/index.ts:652). Its broker still rounds to the cent: the rollback guard applies.
+  - 0ee7f7f against 405a384: package.json, the lockfile and the schema are identical. `pnpm install` changes
+    nothing; the build does.
+  - Data, as listed by the owner:
+    - state.db 4.8 MB, with a 4.1 MB -wal (running);
+    - daily backups 2026-10-06 to 2026-10-10;
+    - the PC export timer ran at 02:30 UTC.
+  - Server:
+    - 35 GB free;
+    - Node v22.23.3 and better-sqlite3 11.10.0 (`SQLite OK`);
+    - git, tar, sha256sum and systemctl present;
+    - sonni uid 1001, owning /home/sonni (750), ~/.automaton (700) and state.db (644).
 - Likma 0.20.1 -> 0.20.2 (branch claude/sonni-likma-0202). Status: built; not merged.
   - Upstream fix for Windows: Claude Code runs the hooks through Git Bash, and the self-test now runs that
     launcher. bin/likma skips the Windows Store Python stubs and falls back to `py -3`.

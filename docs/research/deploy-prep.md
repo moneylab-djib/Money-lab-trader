@@ -7,6 +7,10 @@ sandbox: every VPS fact below comes from the repository and has to be confirmed 
 
 ## What the VPS runs
 
+- Update 2026-10-10, from the owner's Phase 0 survey: the VPS runs 0ee7f7f (PR #30, step 0.1), active since
+  2026-10-09 11:30 UTC. The analysis below (written before the survey) bounded it to 4c015b0..fd5916d. 0ee7f7f
+  only adds context-manager and selfhosted changes to fd5916d, and its lockfile and schema equal main's.
+
 - The repository cannot tell. The last owner observation is "VPS updated to main (6 assets)" on 2026-10-08,
   15:46 UTC (docs/STATUS.md). The running code does not log its commit: the start banner prints the constant
   VERSION 0.2.1 (src/index.ts). The deployed commit is somewhere in 4c015b0 (PR #25) .. fd5916d (PR #29);
