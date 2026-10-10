@@ -432,7 +432,10 @@ propose Ubuntu.
    cd /opt/sonni
    sudo -u sonni -H git rev-parse HEAD | tee /root/sonni-commit-avant.txt
    cp -p /home/sonni/.automaton/automaton.json /root/automaton.json.avant-deploiement
+   rm -f /root/sonni-demarrage.txt
    ```
+   La dernière ligne efface l'heure de démarrage d'un essai précédent : seule l'étape 9 de cet essai-ci la
+   réécrit.
 2. **Sors les outils dans un dossier à part.** Sonni tourne encore. `git fetch` télécharge la nouvelle
    version dans la réserve de Git sans toucher au programme en service :
    ```sh
@@ -646,9 +649,10 @@ cd /opt/sonni
 sudo -u sonni -H node dist/index.js --money-lab pause "retour arrière"
 ```
 Si la pause existait déjà (`/pause` de R1), la commande la garde telle quelle. Si cette commande échoue
-parce que la compilation de la Phase 2 a échoué, fais d'abord R5, puis reviens à R3 et R4.
+parce que la compilation de la Phase 2 a échoué, fais d'abord R5, puis reviens à R3 et R4 : c'est le seul
+cas où R4 vient après R5.
 
-R4. **Vérifie la pause sur une copie fraîche** (avant R5, tant que la version installée n'a pas changé) :
+R4. **Vérifie la pause sur une copie fraîche** (d'habitude avant R5) :
 ```sh
 cd /home/sonni/outils-deploiement
 sudo -u sonni -H node sonni/vps/sauvegarde.mjs
@@ -680,8 +684,14 @@ comme la sauvegarde du jour ou `COPIE`, est refusée. Il faut `code=0`. Sinon **
 - « sous 1 centime », « sans aucun prix » ou « BLOQUANT » : laisse Sonni arrêté et envoie-moi la sortie. Aucune
   version ne redémarre sur ces données avant une réparation séparée, que tu décides.
 
-R5. **Reviens à l'ancienne version du programme.** C'est inutile si l'installation de la Phase 2, étape 8,
-n'a pas eu lieu. La base ne change pas pendant cette étape, donc la vérification R4 reste valable :
+R5. **Reviens à l'ancienne version du programme.** Compare d'abord :
+```sh
+sudo -u sonni -H git -C /opt/sonni rev-parse HEAD
+cat /root/sonni-commit-avant.txt
+```
+Si les deux lignes sont identiques, l'étape 8 n'a rien changé : passe à R6. Sinon, même si l'étape 8 a
+échoué en route, fais les commandes ci-dessous. La base ne change pas pendant cette étape, donc la
+vérification R4 reste valable :
 ```sh
 cd /opt/sonni
 sudo -u sonni -H git checkout --detach "$(cat /root/sonni-commit-avant.txt)"
@@ -692,6 +702,7 @@ sudo -u sonni -H pnpm run build
 ```
 Les deux lignes affichées par `git rev-parse HEAD` et `cat` doivent être identiques. Sinon, ou si
 l'installation ou la compilation échoue, ne démarre pas et envoie-moi la sortie.
+Puis efface l'heure de démarrage de la nouvelle version, qui ne tourne plus : `rm -f /root/sonni-demarrage.txt`.
 
 R6. **Démarre l'ancienne version et vérifie-la en marche :**
 ```sh

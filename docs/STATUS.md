@@ -124,12 +124,12 @@
       code=0 (also in restauration.mjs's next steps);
     - verifier-pause --copie refuses while a state.db-wal is beside the live database;
     - its RÉSULTAT line gives copie_a_jour.
-  - Likma after the round:
-    - deploy-prep verified on 9c09e77 (report 52217dc5: sonni, types, money-lab, runtime, build, sonni-e2e 619 s);
-    - the 14 features sharing its files re-verified (report 73a50a4e, sonni-e2e 635 s);
-    - review recorded as concerns, all fixed.
-
-    GitHub CI on 9c09e77: `checks`, `e2e`, `audit` and `trufflehog` green.
+  - Third fresh-context acceptance review, of d41876e: PASS, no blocker or major. Every path to R4 with the old
+    dist/ was walked. Its 2 minor points and 2 nits are applied:
+    - a start time left by an earlier attempt is removed at Phase 2 step 1 and in R5;
+    - R5 compares HEAD with the rollback commit;
+    - R3/R4 wording.
+  - Likma after the round: see the last entry of this list (final verification).
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at

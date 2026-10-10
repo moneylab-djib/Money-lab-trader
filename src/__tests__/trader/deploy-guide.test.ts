@@ -151,5 +151,9 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     expect(option).toMatch(/installation ou compilation en échec[^)]*\), \*\*ne démarre pas\*\*/);
     const r5 = section.slice(step(5), step(6));
     expect(r5).toContain("sudo -u sonni -H git rev-parse HEAD\ncat /root/sonni-commit-avant.txt");
+    // A start time left by an earlier attempt never stands for this one: step 1 and R5 remove it.
+    const phase2 = section.indexOf("### Phase 2");
+    expect(section.indexOf("rm -f /root/sonni-demarrage.txt", phase2)).toBeLessThan(section.indexOf("archive COMMIT sonni/vps", phase2));
+    expect(r5).toContain("rm -f /root/sonni-demarrage.txt");
   });
 });
