@@ -68,6 +68,10 @@
     fails when the former source is not counted).
   - `likma project feature reverify` (2026-10-10, Likma ff30dbd): build, sonni-e2e (620 s), sonni, money-lab,
     types and runtime passed; the 18 features whose scope includes brain.ts verified again; `project audit` passes.
+  - After main took PR #37 (merged on the owner's GO of 2026-10-10), main was merged into the branch (conflicts
+    only in docs/MEMORY.md and the generated docs/FEATURES.md); typecheck and sonni (415 passed) passed, and
+    `feature reverify` passed build, sonni-e2e (726 s), sonni, money-lab, types and runtime for the 22 features
+    in scope; `project audit` passes.
 - Likma 0.20.1 -> 0.20.2 (branch claude/sonni-likma-0202). Status: built; not merged.
   - Upstream fix for Windows: Claude Code runs the hooks through Git Bash, and the self-test now runs that
     launcher. bin/likma skips the Windows Store Python stubs and falls back to `py -3`.
