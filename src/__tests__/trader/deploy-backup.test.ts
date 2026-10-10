@@ -162,15 +162,44 @@ function commandsAfter(text: string, header: string): string[] {
   expect(start, `« ${header} » absent de :\n${text}`).toBeGreaterThanOrEqual(0);
   const out: string[] = [];
   for (const l of lines.slice(start + 1)) {
-    if (!/^  (mv |\[ -e )/.test(l)) break;
+    if (!/^  \(cd '/.test(l)) break;
     out.push(l.trim());
   }
+  expect(out.length, text).toBeGreaterThan(0);
   return out;
 }
-/** Runs the printed commands as the owner would paste them into a shell. */
+/** Runs the printed commands as the owner would paste them into a shell (from another folder). */
 function runCommands(commands: string[]) {
-  const r = spawnSync("sh", ["-c", commands.join("\n")], { encoding: "utf-8" });
+  const r = spawnSync("sh", ["-c", commands.join("\n")], { encoding: "utf-8", cwd: os.tmpdir() });
   expect(r.stderr).toBe("");
+  expect(r.stdout).toBe("");
+}
+/** SHA-256 of every file directly in `dir` (by name): what a set of moves must or must not change. */
+function filesOf(dir: string): Record<string, string> {
+  return Object.fromEntries(fs.readdirSync(dir).filter((f) => fs.lstatSync(path.join(dir, f)).isFile()).map((f) => [f, sha(path.join(dir, f))]));
+}
+/** The UTC stamp a restore run used, read from its quarantine folder's name. */
+const stampOf = (quarantine: string) => path.basename(quarantine).slice("quarantaine-".length);
+
+/**
+ * A script run as the owner runs it, from a shell whose umask is 022 (the usual default), with a preload module
+ * that reports on stderr the umask the script ends with and the mode of every file just before the script
+ * chmods it (the mode the file was created with). The script itself reads no test variable.
+ */
+function runObserved(script: string, args: string[], e: NodeJS.ProcessEnv): Run {
+  const hook = path.join(tmp("sonni-deploy-hook-"), "observe.mjs");
+  fs.writeFileSync(hook, [
+    "import fs from 'fs';",
+    "const chmod = fs.chmodSync;",
+    "fs.chmodSync = function (file, mode) {",
+    "  try { process.stderr.write(`OBSERVE avant-chmod ${file} ${(fs.statSync(file).mode & 0o777).toString(8)}\\n`); } catch {}",
+    "  return chmod.call(this, file, mode);",
+    "};",
+    "process.on('exit', () => { process.stderr.write(`OBSERVE umask ${process.umask().toString(8)}\\n`); });",
+    "",
+  ].join("\n"));
+  const r = spawnSync("sh", ["-c", 'umask 022 && exec "$@"', "sh", process.execPath, "--import", pathToFileURL(hook).href, script, ...args], { encoding: "utf-8", env: e });
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
 /** Calls a script's function in this process, capturing what it writes on stdout and stderr. */
@@ -345,6 +374,42 @@ describe("Consistent backup of the live database (sonni/vps/sauvegarde.mjs)", ()
     expect(ok.code).toBe(0);
     expect(path.basename(ok.copy)).toMatch(COPY_NAME);
   });
+
+  it("keeps the copy private from its creation: umask 077, an existing 0755 folder closed to 0700, the partial copy created 600 (hot and cold)", () => {
+    const h = home();
+    const live = livePath(h);
+    const db = liveDb(live);
+    // An existing folder open to everyone, as `mkdir` leaves it with the usual umask.
+    const openFolder = () => {
+      const dossier = path.join(tmp("sonni-deploy-out-"), "copies");
+      fs.mkdirSync(dossier);
+      fs.chmodSync(dossier, 0o755);
+      return dossier;
+    };
+    const check = (r: Run, dossier: string, hot: boolean) => {
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(r.stdout).toContain(hot ? "Mode : à chaud (Sonni en marche)" : "Mode : à froid (Sonni arrêté)");
+      expect(r.stderr).toContain("OBSERVE umask 77\n");
+      expect(r.stdout).toContain(`Dossier ${dossier} : droits 755 ramenés à 700 (la copie contient toute la mémoire de Sonni).`);
+      const copy = /^RÉSULTAT : code=0 copie=(.+)$/.exec(lastLine(r.stdout))![1];
+      // The copy was already 600 when the script set it to 600: never readable by others, not even for a moment.
+      expect(r.stderr).toContain(`OBSERVE avant-chmod ${copy}.partial 600\n`);
+      expect(mode(dossier)).toBe(0o700);
+      expect(mode(copy)).toBe(0o600);
+      expect(mode(`${copy}.sha256`)).toBe(0o600);
+    };
+    // Hot: SQLite creates the partial copy and its journal with the process umask.
+    const hotFolder = openFolder();
+    const hot = runObserved(SAUVEGARDE, ["--dossier", hotFolder], env(h));
+    db.close();
+    check(hot, hotFolder, true);
+    // Cold: the live file is 644 (the runtime sets no umask); a plain copyFileSync would give the copy that mode.
+    fs.chmodSync(live, 0o644);
+    const coldFolder = openFolder();
+    const cold = runObserved(SAUVEGARDE, ["--dossier", coldFolder], env(h));
+    check(cold, coldFolder, false);
+    expect(mode(live)).toBe(0o644);
+  });
 });
 
 describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this process)", () => {
@@ -404,17 +469,22 @@ describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this 
     const h = home();
     const live = livePath(h);
     liveDb(live).close();
-    const realCopy = fs.copyFileSync;
+    const realRead = fs.readFileSync;
     const cases: Array<{ during: (to: string) => void; message: string }> = [
       { during: () => fs.appendFileSync(live, Buffer.alloc(16)), message: "La base a changé pendant la copie" },
       { during: (to) => fs.appendFileSync(to, Buffer.alloc(16)), message: "La base a changé pendant la copie" },
       { during: () => fs.writeFileSync(`${live}-wal`, ""), message: "Sonni a démarré pendant la copie" },
     ];
     for (const c of cases) {
-      const spy = vi.spyOn(fs, "copyFileSync").mockImplementation((from, to, flags) => {
-        realCopy(from, to, flags);
-        if (from === live) c.during(String(to));
-      });
+      // The change happens once the byte copy is made, just before the script first reads the copy back.
+      let fired = false;
+      const spy = vi.spyOn(fs, "readFileSync").mockImplementation(function (this: unknown, file: any, ...rest: any[]) {
+        if (!fired && String(file).endsWith(".partial")) {
+          fired = true;
+          c.during(String(file));
+        }
+        return (realRead as any).call(this, file, ...rest);
+      } as any);
       const dossier = path.join(tmp("sonni-deploy-out-"), "copies");
       const lines: string[] = [];
       let r: { code: number };
@@ -423,6 +493,7 @@ describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this 
       } finally {
         spy.mockRestore();
       }
+      expect(fired).toBe(true);
       expect(r.code, lines.join("\n")).toBe(1);
       expect(lines).toContain("Mode : à froid (Sonni arrêté)");
       expect(lines.join("\n")).toContain(c.message);
@@ -431,6 +502,81 @@ describe("Verifications of the backup (sonni/vps/sauvegarde.mjs, called in this 
     }
     // The -wal the test wrote is not the script's: it stays.
     expect(fs.existsSync(`${live}-wal`)).toBe(true);
+  });
+
+  it("refuses before creating or changing anything when a name it would use is taken, even by a dangling symbolic link (exit 2)", async () => {
+    const { sauvegarde, stamp } = await import(pathToFileURL(SAUVEGARDE).href);
+    const h = home();
+    const live = livePath(h);
+    liveDb(live).close();
+    const now = new Date("2026-10-10T12:00:00Z");
+    const name = `state.db.predeploiement-${stamp(now)}`;
+    for (const suffix of ["", ".partial", ".sha256", ".partial-journal", ".partial-wal"]) {
+      // A folder open to others too: a refusal leaves it exactly as it was (not even closed to 0700).
+      const dossier = path.join(tmp("sonni-deploy-out-"), "copies");
+      fs.mkdirSync(dossier);
+      fs.chmodSync(dossier, 0o755);
+      const elsewhere = path.join(tmp("sonni-deploy-elsewhere-"), "cible-du-lien");
+      const link = path.join(dossier, `${name}${suffix}`);
+      fs.symlinkSync(elsewhere, link);
+      expect(fs.existsSync(link)).toBe(false);
+      const lines: string[] = [];
+      const r = await sauvegarde({ source: live, dossier, now, env: { HOME: h }, say: (l = "") => lines.push(l), warn: (l: string) => lines.push(l) });
+      expect(r.code, `${suffix}\n${lines.join("\n")}`).toBe(2);
+      expect(lines.join("\n")).toContain(`Refusé : ${link} existe déjà (fichier ou lien) : rien n'est jamais écrasé.`);
+      expect(lines.at(-1)).toBe("RÉSULTAT : code=2 copie=aucune");
+      expect(fs.readdirSync(dossier)).toEqual([path.basename(link)]);
+      expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(fs.existsSync(elsewhere)).toBe(false);
+      expect(mode(dossier)).toBe(0o755);
+    }
+    expect(sidecars(live)).toEqual([]);
+
+    // A dangling link appearing at the copy's name during the run (just before the final rename) is not replaced.
+    const dossier = path.join(tmp("sonni-deploy-out-"), "copies");
+    const final = path.join(dossier, name);
+    const elsewhere = path.join(tmp("sonni-deploy-elsewhere-"), "cible-du-lien");
+    const realChmod = fs.chmodSync;
+    const spy = vi.spyOn(fs, "chmodSync").mockImplementation((file, m) => {
+      realChmod(file, m);
+      if (String(file) === `${final}.partial`) fs.symlinkSync(elsewhere, final);
+    });
+    const lines: string[] = [];
+    let r: { code: number };
+    try {
+      r = await sauvegarde({ source: live, dossier, now, env: { HOME: h }, say: (l = "") => lines.push(l), warn: (l: string) => lines.push(l) });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(r.code, lines.join("\n")).toBe(3);
+    expect(lines.join("\n")).toContain(`${final} est apparu pendant la sauvegarde : rien n'a été écrasé.`);
+    expect(fs.readdirSync(dossier)).toEqual([name]);
+    expect(fs.lstatSync(final).isSymbolicLink()).toBe(true);
+  });
+
+  it("refuses a folder open to others that belongs to another user (exit 2), and closes one of the user's own to 0700", async () => {
+    const { sauvegarde } = await import(pathToFileURL(SAUVEGARDE).href);
+    const h = home();
+    const live = livePath(h);
+    liveDb(live).close();
+    const dossier = path.join(tmp("sonni-deploy-out-"), "partage");
+    fs.mkdirSync(dossier);
+    fs.chmodSync(dossier, 0o750);
+    const owner = fs.statSync(dossier).uid;
+    const lines: string[] = [];
+    const say = (l = "") => lines.push(l);
+    const r = await sauvegarde({ source: live, dossier, env: { HOME: h }, say, warn: say, getuid: () => owner + 1 });
+    expect(r.code, lines.join("\n")).toBe(2);
+    expect(lines.join("\n")).toContain(`Refusé : le dossier ${dossier} est ouvert à d'autres utilisateurs (droits 750) et ne t'appartient pas.`);
+    expect(lines.at(-1)).toBe("RÉSULTAT : code=2 copie=aucune");
+    expect(fs.readdirSync(dossier)).toEqual([]);
+    expect(mode(dossier)).toBe(0o750);
+    // The same folder, owned by the user running the script: closed to 0700, then the copy is made.
+    lines.length = 0;
+    const mine = await sauvegarde({ source: live, dossier, env: { HOME: h }, say, warn: say, getuid: () => owner });
+    expect(mine.code, lines.join("\n")).toBe(0);
+    expect(lines).toContain(`Dossier ${dossier} : droits 750 ramenés à 700 (la copie contient toute la mémoire de Sonni).`);
+    expect(mode(dossier)).toBe(0o700);
   });
 });
 
@@ -576,11 +722,13 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     s.untouched();
   });
 
+  // The command-line runs below name the target with --cible: run as root (as in some containers), a restore
+  // without --cible is refused, which a separate test covers through the exported function.
   it("refuses while systemd says Sonni runs (exit 2), and without systemd unless --sans-systemd", () => {
     const s = laterState();
     for (const state of ["active", "activating", "reloading", "deactivating"]) {
       const fake = fakeSystemctl(state);
-      const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+      const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
       expect(r.status, state).toBe(2);
       expect(r.stderr).toContain("Sonni tourne : arrête-le d'abord (systemctl stop sonni)");
       expect(fs.readFileSync(fake.calls, "utf-8")).toBe("is-active sonni\n");
@@ -589,18 +737,18 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     // An answer that says neither "running" nor "stopped" is not taken as stopped.
     for (const state of ["unknown", ""]) {
       const fake = fakeSystemctl(state);
-      const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+      const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
       expect(r.status, state).toBe(2);
       expect(r.stderr).toContain(`Refusé : état de Sonni inattendu (« ${state || "vide"} »)`);
       expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=2 cible=inchangée quarantaine=aucune");
       s.untouched();
     }
     const missing = env(s.h, { SONNI_SYSTEMCTL: path.join(tmp("sonni-deploy-nosystemd-"), "systemctl") });
-    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], missing);
+    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], missing);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain("--sans-systemd");
     s.untouched();
-    const r2 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--sans-systemd"], missing);
+    const r2 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live, "--sans-systemd"], missing);
     expect(r2.status, r2.stderr).toBe(0);
     expect(sha(s.live)).toBe(sha(s.copy));
   });
@@ -612,12 +760,12 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     const shaFile = `${s.copy}.sha256`;
     const good = fs.readFileSync(shaFile, "utf-8");
     fs.writeFileSync(shaFile, `${"0".repeat(64)}  ${path.basename(s.copy)}\n`);
-    const r1 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], e);
+    const r1 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], e);
     expect(r1.status).toBe(1);
     expect(r1.stderr).toContain("Empreinte SHA-256 différente");
     s.untouched();
     fs.rmSync(shaFile);
-    const r2 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], e);
+    const r2 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], e);
     expect(r2.status).toBe(1);
     expect(r2.stderr).toContain("pas de fichier");
     s.untouched();
@@ -654,7 +802,7 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     const partial = `${s.live}.restauration-partielle`;
     // Another program creates the partial file between the checks and the copy (here: while systemd is asked).
     const fake = fakeSystemctl("inactive", `echo "fichier d'un autre programme" > '${partial}'`);
-    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
     expect(r.status, r.stdout + r.stderr).toBe(3);
     const automaton = path.dirname(s.live);
     const quarantines = fs.readdirSync(automaton).filter((f) => f.startsWith("quarantaine-"));
@@ -667,17 +815,28 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     for (const [x, hash] of Object.entries(s.files)) expect(sha(path.join(q, `state.db${x}`)), `state.db${x}`).toBe(hash);
     expect(fs.readFileSync(partial, "utf-8")).toBe("fichier d'un autre programme\n");
     expect(r.stderr).toContain(`  - ${partial} : fichier qui n'a pas été créé par cette restauration, laissé tel quel (à examiner)`);
+    const commands = commandsAfter(r.stderr, "Pour remettre l'ancienne mémoire");
     for (const x of ["", "-wal", "-shm"]) {
       expect(r.stderr).toContain(`  - ${s.live}${x} est maintenant ${path.join(q, `state.db${x}`)} (intact)`);
-      expect(r.stderr).toContain(`  mv '${path.join(q, `state.db${x}`)}' '${s.live}${x}'`);
+      expect(commands.filter((c) => c.endsWith(`&& mv '${quarantines[0]}/state.db${x}' 'state.db${x}')`)), x).toHaveLength(1);
     }
+    expect(commands.every((c) => c.startsWith(`(cd '${automaton}' && [ `))).toBe(true);
+    expect(r.stderr).toContain(`part de côté sous le nom state.db.echec-${stampOf(q)} :`);
+    expect(r.stderr).toContain(`Ces lignes n'écrasent jamais un fichier`);
     expect(r.stderr).toContain(`Le dossier ${q} n'a pas été supprimé.`);
     expect(fs.existsSync(s.live)).toBe(false);
 
-    // The printed commands put the previous memory back as it was.
-    runCommands(commandsAfter(r.stderr, "Pour remettre l'ancienne mémoire"));
+    // The printed commands put the previous memory back as it was; the foreign file stays where it is.
+    runCommands(commands);
     for (const [x, hash] of Object.entries(s.files)) expect(sha(`${s.live}${x}`), `state.db${x}`).toBe(hash);
     expect(fs.readdirSync(q)).toEqual([]);
+    expect(fs.readFileSync(partial, "utf-8")).toBe("fichier d'un autre programme\n");
+    // Pasted a second time, the same lines leave the old memory where it is (nothing was ever placed here, so
+    // nothing may go aside now: what is at the target is the old memory itself).
+    const back = filesOf(automaton);
+    runCommands(commands);
+    expect(filesOf(automaton)).toEqual(back);
+    expect(fs.readdirSync(automaton).filter((f) => f.includes(".echec-"))).toEqual([]);
   });
 
   it("exits 1 when the placed file is not the copy or a -wal appears beside it, and the printed commands move it aside with its -wal before the old files return", async () => {
@@ -697,7 +856,7 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
       });
       let r: { value: number; stdout: string; stderr: string };
       try {
-        r = await captured(() => restaurer(s.copy, { confirmed: true, env: { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin } }));
+        r = await captured(() => restaurer(s.copy, { confirmed: true, getuid: () => 1000, env: { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin } }));
       } finally {
         spy.mockRestore();
       }
@@ -713,7 +872,7 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
       runCommands(commandsAfter(r.stderr, "Pour remettre l'ancienne mémoire"));
       // The previous files are back, byte for byte, and what the failed restore left went aside together.
       for (const [x, hash] of Object.entries(s.files)) expect(sha(`${s.live}${x}`), `state.db${x}`).toBe(hash);
-      for (const [x, hash] of Object.entries(placed)) expect(sha(`${s.live}.echec${x}`), `state.db.echec${x}`).toBe(hash);
+      for (const [x, hash] of Object.entries(placed)) expect(sha(`${s.live}.echec-${stampOf(q)}${x}`), `state.db.echec${x}`).toBe(hash);
       expect(fs.readdirSync(q)).toEqual([]);
     }
   });
@@ -723,7 +882,7 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     corrupt(s.copy);
     fs.writeFileSync(`${s.copy}.sha256`, `${sha(s.copy)}  ${path.basename(s.copy)}\n`);
     const fake = fakeSystemctl("inactive");
-    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
     expect(r.status, r.stdout + r.stderr).toBe(1);
     s.untouched();
   });
@@ -733,7 +892,7 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     const copyHash = sha(s.copy);
     const fake = fakeSystemctl("inactive");
     const e = env(s.h, { SONNI_SYSTEMCTL: fake.bin });
-    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], e);
+    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], e);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(fs.readFileSync(fake.calls, "utf-8")).toBe("is-active sonni\n");
 
@@ -755,9 +914,20 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     expect(sha(s.copy)).toBe(copyHash);
     expect(fs.readdirSync(e.TMPDIR!)).toEqual([]);
     expect(r.stdout).toContain(`Ancienne mémoire mise de côté dans ${q} (rien n'a été supprimé)`);
-    expect(r.stdout).toContain("sudo systemctl start sonni");
-    expect(r.stdout).toContain("controle-apres-demarrage.mjs --depuis");
-    expect(r.stdout).toContain(`mv '${path.join(q, "state.db-wal")}' '${s.live}-wal'`);
+    // Next steps: going back on the code too comes first (no start yet), then the start and the post-start
+    // check as the guide runs it (as the sonni user, with the expected version).
+    const steps = r.stdout.slice(r.stdout.indexOf("Étapes suivantes :"));
+    expect(steps.split("\n").slice(1, 4)).toEqual([
+      "  - Si tu reviens aussi sur le code : ne démarre pas encore, suis R2 à R4 du guide.",
+      "  - Sinon : systemctl start sonni, puis, après quelques minutes :",
+      "    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis <heure de démarrage> --commit-attendu <version en place>",
+    ]);
+    expect(r.stdout).not.toContain("sudo systemctl start sonni");
+    expect(r.stdout).not.toMatch(/^\s*node sonni\/vps\/controle-apres-demarrage/m);
+    const commands = commandsAfter(r.stdout, "Pour revenir à l'ancienne mémoire");
+    expect(r.stdout).toContain(`part de côté sous le nom state.db.restauree-${stampOf(q)}, avec ses fichiers -wal, -shm et -journal`);
+    expect(commands.filter((c) => c.endsWith(`&& mv '${quarantines[0]}/state.db-wal' 'state.db-wal')`))).toHaveLength(1);
+    expect(commands.join("\n")).not.toMatch(/mv -f/);
     expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 cible=${s.live} quarantaine=${q}`);
 
     // The runtime opens the restored memory: integrity, the copy's rows (the later price is gone), WAL again.
@@ -783,7 +953,7 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     expect(sidecars(s.live)).toEqual([]);
     const oldHash = sha(s.live);
     const fake = fakeSystemctl("inactive");
-    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer"], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
     expect(r.status, r.stdout + r.stderr).toBe(0);
 
     // The restored Sonni writes 500 prices and is killed: its -wal (holding them) and -shm stay beside state.db.
@@ -799,16 +969,31 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     expect(crash.signal, crash.stderr).toBe("SIGKILL");
     expect(sidecars(s.live)).toEqual(["-wal", "-shm"]);
 
+    const automaton = path.dirname(s.live);
+    const q = /quarantaine=(.+)$/.exec(lastLine(r.stdout))![1];
+    const aside = `${s.live}.restauree-${stampOf(q)}`;
     const commands = commandsAfter(r.stdout, "Pour revenir à l'ancienne mémoire");
-    const moveBack = commands.findIndex((c) => c.startsWith("mv '") && c.endsWith(`'${s.live}'`));
-    const walAside = commands.findIndex((c) => c.includes(`mv -f '${s.live}-wal' '${s.live}.restauree-wal'`));
+    const moveBack = commands.findIndex((c) => c.endsWith(`&& mv '${path.basename(q)}/state.db' 'state.db')`));
+    const walAside = commands.findIndex((c) => c.endsWith(`&& mv 'state.db-wal' '${path.basename(aside)}-wal')`));
+    expect(moveBack, commands.join("\n")).toBeGreaterThanOrEqual(0);
     expect(walAside, commands.join("\n")).toBeGreaterThanOrEqual(0);
     expect(walAside).toBeLessThan(moveBack);
+    // Files an earlier restore-and-rollback cycle put aside under the old fixed name are never touched.
+    fs.writeFileSync(`${s.live}.restauree`, "base mise de côté par un cycle précédent");
+    fs.writeFileSync(`${s.live}.restauree-wal`, "son journal");
+    const earlier = { restauree: sha(`${s.live}.restauree`), wal: sha(`${s.live}.restauree-wal`) };
     runCommands(commands);
+    expect(sha(`${s.live}.restauree`)).toBe(earlier.restauree);
+    expect(sha(`${s.live}.restauree-wal`)).toBe(earlier.wal);
 
     // The old memory is back byte for byte with nothing beside it, and opens with all of its rows.
     expect(sha(s.live)).toBe(oldHash);
     expect(sidecars(s.live)).toEqual([]);
+    expect(fs.readdirSync(q)).toEqual([]);
+    // Pasting the same lines a second time changes nothing (the old memory does not go aside again).
+    const after = filesOf(automaton);
+    runCommands(commands);
+    expect(filesOf(automaton)).toEqual(after);
     const db = createDatabase(s.live);
     try {
       expect(db.raw.pragma("integrity_check", { simple: true })).toBe("ok");
@@ -818,12 +1003,179 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
       db.close();
     }
     // The restored run went aside whole: its file and its -wal together still hold what it wrote.
-    expect(sidecars(`${s.live}.restauree`)).toEqual(["-wal", "-shm"]);
-    const restored = new Database(`${s.live}.restauree`);
+    expect(sidecars(aside)).toEqual(["-wal", "-shm"]);
+    const restored = new Database(aside);
     try {
       expect(restored.prepare("SELECT COUNT(*) AS n FROM trader_prices WHERE asset = 'CRASH'").get()).toEqual({ n: 500 });
     } finally {
       restored.close();
     }
+  });
+
+  it("the printed commands never overwrite: with the stamped aside name taken, nothing moves; once it is free, the same lines finish", async () => {
+    const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
+    const { stamp } = await import(pathToFileURL(SAUVEGARDE).href);
+    const s = laterState();
+    const fake = fakeSystemctl("inactive");
+    const at = new Date("2026-10-10T15:30:05Z");
+    const r = await captured(() => restaurer(s.copy, { confirmed: true, cible: s.live, now: () => at, getuid: () => 1000, env: { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin } }));
+    expect(r.value, r.stdout + r.stderr).toBe(0);
+    const automaton = path.dirname(s.live);
+    const q = path.join(automaton, `quarantaine-${stamp(at)}`);
+    const aside = `${s.live}.restauree-${stamp(at)}`;
+    expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 cible=${s.live} quarantaine=${q}`);
+    const commands = commandsAfter(r.stdout, "Pour revenir à l'ancienne mémoire");
+    // The restored run wrote a journal beside the restored file; something else already holds the aside name.
+    fs.writeFileSync(`${s.live}-wal`, "journal du lancement restauré");
+    fs.writeFileSync(aside, "fichier qui porte déjà ce nom");
+    const before = { here: filesOf(automaton), quarantine: filesOf(q) };
+    runCommands(commands);
+    // Nothing moved: the restored file keeps its journal, the old -wal does not land beside it, nothing is lost.
+    expect(filesOf(automaton)).toEqual(before.here);
+    expect(filesOf(q)).toEqual(before.quarantine);
+    expect(sha(path.join(q, "state.db-wal"))).toBe(s.files["-wal"]);
+
+    // Only the journal's aside name is taken: the restored file goes aside, but its journal cannot follow, so the
+    // old database must not return (SQLite would replay the restored run's journal into it).
+    fs.renameSync(aside, `${s.live}.autre`);
+    fs.writeFileSync(`${aside}-wal`, "autre journal qui porte déjà ce nom");
+    const restoredHash = sha(s.live);
+    runCommands(commands);
+    expect(fs.existsSync(s.live)).toBe(false);
+    expect(sha(aside)).toBe(restoredHash);
+    expect(fs.readFileSync(`${s.live}-wal`, "utf-8")).toBe("journal du lancement restauré");
+    expect(filesOf(q)).toEqual(before.quarantine);
+
+    // Every name freed, the same lines move the journal aside and bring the old memory back.
+    fs.renameSync(`${aside}-wal`, `${s.live}.autre-wal`);
+    runCommands(commands);
+    for (const [x, hash] of Object.entries(s.files)) expect(sha(`${s.live}${x}`), `state.db${x}`).toBe(hash);
+    expect(sha(aside)).toBe(restoredHash);
+    expect(fs.readFileSync(`${aside}-wal`, "utf-8")).toBe("journal du lancement restauré");
+    expect(fs.readdirSync(q)).toEqual([]);
+  });
+
+  it("run as root without --cible, refuses (exit 2): the default target would be root's own ~/.automaton, not Sonni's memory", async () => {
+    const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
+    const s = laterState();
+    const fake = fakeSystemctl("inactive");
+    // root's home, where configure.mjs or the CLI once run as root left a database of their own.
+    const rootHome = home();
+    const rootDb = path.join(rootHome, ".automaton", "state.db");
+    fs.copyFileSync(s.copy, rootDb);
+    const rootHash = sha(rootDb);
+    const r = await captured(() => restaurer(s.copy, { confirmed: true, getuid: () => 0, env: { ...process.env, HOME: rootHome, SONNI_SYSTEMCTL: fake.bin } }));
+    expect(r.value, r.stdout + r.stderr).toBe(2);
+    expect(r.stderr).toContain(`Refusé : tu lances la restauration en root, sans --cible : la cible serait ${rootDb}, pas la mémoire de Sonni.`);
+    expect(r.stderr).toContain("cd /opt/sonni && sudo -u sonni -H node sonni/vps/restauration.mjs --restaurer COPIE --confirmer");
+    expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=2 cible=inchangée quarantaine=aucune");
+    expect(fs.readdirSync(path.join(rootHome, ".automaton"))).toEqual(["state.db"]);
+    expect(sha(rootDb)).toBe(rootHash);
+    expect(fs.existsSync(fake.calls)).toBe(false);
+    s.untouched();
+  });
+
+  it("run as root with --cible, gives the restored file and the quarantine to the owner of the target's folder, also when no database was there", async () => {
+    const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
+    const chowns: Array<[string, number, number]> = [];
+    const spy = vi.spyOn(fs, "chownSync").mockImplementation((file, uid, gid) => { chowns.push([String(file), Number(uid), Number(gid)]); });
+    try {
+      // A database in place: it goes to the quarantine, which belongs to the folder's owner like the restored file.
+      const s = laterState();
+      const fake = fakeSystemctl("inactive");
+      const e = { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin };
+      const automaton = path.dirname(s.live);
+      const folder = fs.statSync(automaton);
+      const r1 = await captured(() => restaurer(s.copy, { confirmed: true, cible: s.live, getuid: () => 0, env: e }));
+      expect(r1.value, r1.stdout + r1.stderr).toBe(0);
+      const q = /quarantaine=(.+)$/.exec(lastLine(r1.stdout))![1];
+      expect(chowns).toEqual([[q, folder.uid, folder.gid], [`${s.live}.restauration-partielle`, folder.uid, folder.gid]]);
+
+      // No database there (--sans-base-actuelle): the restored file still goes to the folder's owner, not root.
+      chowns.length = 0;
+      const empty = path.join(tmp("sonni-deploy-empty-"), ".automaton");
+      fs.mkdirSync(empty, { mode: 0o700 });
+      const target = path.join(empty, "state.db");
+      const r2 = await captured(() => restaurer(s.copy, { confirmed: true, cible: target, sansBaseActuelle: true, getuid: () => 0, env: e }));
+      expect(r2.value, r2.stdout + r2.stderr).toBe(0);
+      const owner = fs.statSync(empty);
+      expect(chowns).toEqual([[`${target}.restauration-partielle`, owner.uid, owner.gid]]);
+      expect(sha(target)).toBe(sha(s.copy));
+
+      // Not root: nothing is given away.
+      chowns.length = 0;
+      fs.renameSync(target, `${target}.vu`);
+      const r3 = await captured(() => restaurer(s.copy, { confirmed: true, cible: target, sansBaseActuelle: true, getuid: () => 1000, env: e }));
+      expect(r3.value, r3.stdout + r3.stderr).toBe(0);
+      expect(chowns).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("refuses a target with no database in place (exit 2) unless --sans-base-actuelle, which a database in place refuses", () => {
+    const s = stoppedWithCopy();
+    const fake = fakeSystemctl("inactive");
+    const e = env(s.h, { SONNI_SYSTEMCTL: fake.bin });
+    const dir = path.join(tmp("sonni-deploy-empty-"), ".automaton");
+    fs.mkdirSync(dir, { mode: 0o700 });
+    const target = path.join(dir, "state.db");
+    const r1 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", target], e);
+    expect(r1.status, r1.stdout + r1.stderr).toBe(2);
+    expect(r1.stderr).toContain(`Refusé : aucune base en place à ${target}, donc rien à mettre de côté : c'est sans doute le mauvais chemin`);
+    expect(r1.stderr).toContain("relance avec --sans-base-actuelle");
+    expect(lastLine(r1.stdout)).toBe("RÉSULTAT : code=2 cible=inchangée quarantaine=aucune");
+    expect(fs.readdirSync(dir)).toEqual([]);
+    expect(fs.existsSync(fake.calls)).toBe(false);
+
+    const r2 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", target, "--sans-base-actuelle"], e);
+    expect(r2.status, r2.stdout + r2.stderr).toBe(0);
+    expect(r2.stdout).toContain("Aucune base n'était en place : rien à mettre de côté.");
+    expect(lastLine(r2.stdout)).toBe(`RÉSULTAT : code=0 cible=${target} quarantaine=aucune`);
+    expect(fs.readdirSync(dir)).toEqual(["state.db"]);
+    expect(sha(target)).toBe(sha(s.copy));
+    expect(mode(target)).toBe(0o600);
+
+    const liveHash = sha(s.live);
+    const r3 = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live, "--sans-base-actuelle"], e);
+    expect(r3.status, r3.stdout + r3.stderr).toBe(2);
+    expect(r3.stderr).toContain(`Refusé : --sans-base-actuelle, mais une base est en place à ${s.live}. Retire --sans-base-actuelle`);
+    expect(sha(s.live)).toBe(liveHash);
+    expect(fs.readdirSync(path.dirname(s.live)).sort()).toEqual(["predeploiement", "state.db"]);
+
+    const r4 = run(RESTAURATION, ["--essai", s.copy, "--sans-base-actuelle"], e);
+    expect(r4.status).toBe(2);
+    expect(r4.stderr).toContain("ne servent qu'avec --restaurer");
+  });
+
+  it("refuses when anything sits at the partial file's name, a dangling symbolic link included (exit 2), before moving anything", () => {
+    const s = laterState();
+    const partial = `${s.live}.restauration-partielle`;
+    const elsewhere = path.join(tmp("sonni-deploy-elsewhere-"), "absent");
+    fs.symlinkSync(elsewhere, partial);
+    expect(fs.existsSync(partial)).toBe(false);
+    const fake = fakeSystemctl("inactive");
+    const r = run(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stderr).toContain(`Refusé : ${partial} existe déjà (fichier ou lien, reste d'une restauration interrompue ?)`);
+    expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=2 cible=inchangée quarantaine=aucune");
+    expect(fs.lstatSync(partial).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(elsewhere)).toBe(false);
+    expect(fs.existsSync(fake.calls)).toBe(false);
+    s.untouched();
+  });
+
+  it("restores with umask 077: the partial file is created 600 even from a 644 copy, the quarantine 700", () => {
+    const s = laterState();
+    fs.chmodSync(s.copy, 0o644);
+    const fake = fakeSystemctl("inactive");
+    const r = runObserved(RESTAURATION, ["--restaurer", s.copy, "--confirmer", "--cible", s.live], env(s.h, { SONNI_SYSTEMCTL: fake.bin }));
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stderr).toContain("OBSERVE umask 77\n");
+    const q = /quarantaine=(.+)$/.exec(lastLine(r.stdout))![1];
+    expect(r.stderr).toContain(`OBSERVE avant-chmod ${q} 700\n`);
+    expect(r.stderr).toContain(`OBSERVE avant-chmod ${s.live}.restauration-partielle 600\n`);
+    expect(mode(s.live)).toBe(0o600);
+    expect(sha(s.live)).toBe(sha(s.copy));
   });
 });

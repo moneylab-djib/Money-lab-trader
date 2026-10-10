@@ -21,7 +21,7 @@ import { ensureTraderSchema } from "../../trader/schema.js";
 import { isoSeconds } from "../../trader/prices.js";
 import { brokerTick, placeOrder } from "../../trader/portfolio.js";
 // @ts-expect-error plain ESM script without type declarations (tests are not type-checked)
-import { predictPendingOrders, predictStops, resume } from "../../../sonni/vps/controle-predeploiement.mjs";
+import { KEY_PATTERN, pointKey, predictPendingOrders, predictStops, resume } from "../../../sonni/vps/controle-predeploiement.mjs";
 // @ts-expect-error plain ESM script without type declarations
 import { openPrivateCopy } from "../../../sonni/vps/copie-privee.mjs";
 
@@ -147,6 +147,10 @@ const counts = (last: string) => {
   const m = /bloquants=(\d+) a_decider=(\d+) infos=(\d+)/.exec(last);
   return m ? { b: Number(m[1]), d: Number(m[2]), i: Number(m[3]) } : null;
 };
+/** The keys of the conclusion's "Pour accepter exactement ces points" line, or null when it has none. */
+const acceptKeys = (stdout: string) => /^Pour accepter exactement ces points : --accepter-a-decider (\S+)$/m.exec(stdout)?.[1] ?? null;
+/** The conclusion addressed to the owner when a BLOQUANT is found. */
+const BLOCKED = "Déploiement bloqué : ne démarre pas la nouvelle version ; envoie-moi ce rapport et décide de la suite";
 
 describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts", () => {
   it("lets a clean copy written by the new broker through: exit 0, nothing blocks, copy unchanged", () => {
@@ -202,9 +206,11 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
       const r = run(file);
       expect(r.status, r.stdout + r.stderr).toBe(1);
       expect(r.stdout).toMatch(expected);
-      expect(r.stdout).toContain("Déploiement bloqué : envoie ce rapport au propriétaire et attends sa décision");
+      expect(r.stdout).toContain(BLOCKED);
+      expect(r.stdout).not.toContain("propriétaire");
       expect(counts(r.last)!.b).toBeGreaterThan(0);
-      const accepted = run(file, ["--accepter-a-decider"]);
+      // Accepting every point to decide the run lists (or a key when it lists none) never lifts a BLOQUANT.
+      const accepted = run(file, ["--accepter-a-decider", acceptKeys(r.stdout) ?? "sans-stop:BTC"]);
       expect(accepted.status).toBe(1);
       expect(accepted.stdout).toMatch(expected);
       expect(accepted.last).toMatch(/^RÉSULTAT : code=1 bloquants=[1-9]/);
@@ -225,63 +231,72 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     const fd = fs.openSync(file, "r+");
     fs.writeSync(fd, Buffer.alloc(pageSize, 0), 0, pageSize, (root - 1) * pageSize);
     fs.closeSync(fd);
-    const r = run(file, ["--accepter-a-decider"]);
+    const r = run(file, ["--accepter-a-decider", "sans-stop:BTC"]);
     expect(r.status, r.stdout + r.stderr).toBe(1);
     expect(r.stdout).toMatch(/\[BLOQUANT\] contrôle d'intégrité SQLite en échec \(\d+ problèmes?\)/);
-    expect(r.stdout).toContain("Déploiement bloqué");
+    expect(r.stdout).toContain(BLOCKED);
   });
 
-  const DECISIONS: [string, (db: Database.Database) => void, RegExp][] = [
+  const DECISIONS: [string, (db: Database.Database) => void, RegExp, string][] = [
     ["an averaged position whose stored cost drifts by a cent or more", (db) => {
       db.prepare("UPDATE trader_positions SET avg_cost = 0.86 WHERE asset = 'USDC'").run();
-    }, /\[À DÉCIDER\] USDC : coût moyen enregistré 0,86 € contre 0,8\d+ € d'après le registre, écart -0,\d\d € sur la position : écart historique d'arrondi, aucune réparation automatique/],
+    }, /\[À DÉCIDER\] \(clé ecart-moyen:USDC\) USDC : coût moyen enregistré 0,86 € contre 0,8\d+ € d'après le registre, écart -0,\d\d € sur la position : écart historique d'arrondi, aucune réparation automatique/,
+    "ecart-moyen:USDC"],
     ["market fills further than 0.5 % from the market", (db) => {
       rawPrice(db, "ADA", hours(6), 0.403);
       rawOrder(db, { id: "o_ada_ancien", at: hours(5.9), asset: "ADA", side: "buy", amountEur: 40, status: "filled", settledAt: isoSeconds(hours(6)), fillPrice: 0.4, fillQuantity: 99.2, fillEur: 40, feeEur: 0.32 });
       db.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_ada', ?, 'buy', 'ADA', 99.2, 0.4, -40, 0.32, 'o_ada_ancien', NULL)").run(isoSeconds(hours(6)));
-    }, /\[À DÉCIDER\] ADA : 1 exécution au marché à plus de 0,5 % du prix du marché \(jusqu'à 0,74 %, dix fois le glissement configuré\)/],
+      db.prepare("INSERT INTO trader_positions (asset, quantity, avg_cost, opened_at, open_order_id, invalidation, horizon_until, thesis, updated_at) VALUES ('ADA', 99.2, 0.4, ?, 'o_ada_ancien', 0.3, NULL, ?, ?)").run(isoSeconds(hours(6)), THESIS, isoSeconds(hours(6)));
+    }, /\[À DÉCIDER\] \(clé derive:ADA\) ADA : 1 exécution au marché à plus de 0,5 % du prix du marché \(jusqu'à 0,74 %, dix fois le glissement configuré\)/, "derive:ADA"],
     ["a pending sell the broker rejects (nothing to sell)", (db) => {
       rawOrder(db, { id: "o_vente_vide", at: hours(9), asset: "ETH", side: "sell", quantity: 0.04 });
       rawPrice(db, "ETH", hours(9.5), 2_700);
-    }, /\[À DÉCIDER\] o_vente_vide : vente au marché ETH passé le 07\/10\/2026 17:00 UTC : refusé \(rien à vendre\)/],
+    }, /\[À DÉCIDER\] \(clé ordre-refuse:o_vente_vide\) o_vente_vide : vente au marché ETH passé le 07\/10\/2026 17:00 UTC : refusé \(rien à vendre\)/, "ordre-refuse:o_vente_vide"],
     ["a pending market order that expires", (db) => {
       rawOrder(db, { id: "o_expire", at: hours(-20), asset: "SPY", side: "buy", amountEur: 30 });
-    }, /\[À DÉCIDER\] o_expire : achat au marché SPY passé le 06\/10\/2026 12:00 UTC : expiré \(aucun prix enregistré dans les 24 h suivant l'ordre\)/],
+    }, /\[À DÉCIDER\] \(clé ordre-expire:o_expire\) o_expire : achat au marché SPY passé le 06\/10\/2026 12:00 UTC : expiré \(aucun prix enregistré dans les 24 h suivant l'ordre\)/, "ordre-expire:o_expire"],
     ["a pending order filled at an old stored price", (db) => {
       rawOrder(db, { id: "o_prix_ancien", at: hours(5), asset: "ADA", side: "buy", amountEur: 20, invalidation: 0.3 });
       rawPrice(db, "ADA", hours(5.1), 0.4);
-    }, /\[À DÉCIDER\] o_prix_ancien : achat au marché ADA .* exécuté au prix enregistré du 07\/10\/2026 13:06 UTC \(0,4 € ; prix d'exécution 0,4002 €\) : exécution à un prix ancien du 07\/10\/2026 13:06 UTC \(il y a 4 h 54\)/],
+    }, /\[À DÉCIDER\] \(clé prix-ancien:o_prix_ancien\) o_prix_ancien : achat au marché ADA .* exécuté au prix enregistré du 07\/10\/2026 13:06 UTC \(0,4 € ; prix d'exécution 0,4002 €\) : exécution à un prix ancien du 07\/10\/2026 13:06 UTC \(il y a 4 h 54\)/,
+    "prix-ancien:o_prix_ancien"],
     ["a position without a stop", (db) => {
       db.prepare("UPDATE trader_positions SET invalidation = NULL WHERE asset = 'BTC'").run();
-    }, /\[À DÉCIDER\] BTC : position sans stop \(aucun niveau d'invalidation, aucune vente en attente\)/],
+    }, /\[À DÉCIDER\] \(clé sans-stop:BTC\) BTC : position sans stop \(aucun niveau d'invalidation, aucune vente en attente\)/, "sans-stop:BTC"],
     ["a stop already crossed by the last known price", (db) => {
       db.prepare("UPDATE trader_positions SET invalidation = 70000 WHERE asset = 'BTC'").run();
-    }, /\[À DÉCIDER\] BTC : stop franchi d'après le dernier prix connu \(61\s000,00 € le 07\/10\/2026 17:57 UTC\) : vente au premier relevé si le prix reste sous 70\s000,00 € ; prix frais \(il y a 3 min\) : la nouvelle version pose le stop dès le premier relevé/],
+    }, /\[À DÉCIDER\] \(clé stop-franchi:BTC\) BTC : stop franchi d'après le dernier prix connu \(61\s000,00 € le 07\/10\/2026 17:57 UTC\) : vente au premier relevé si le prix reste sous 70\s000,00 € ; prix frais \(il y a 3 min\) : la nouvelle version pose le stop dès le premier relevé/,
+    "stop-franchi:BTC"],
     // The stored level (42,000) is far below the price; a pending added buy fills on a fresh price and its level
     // (57,950) replaces it, and that price is already under the new level: the first tick sells the whole position.
     ["a stop placed on the level a pending added buy sets", (db) => {
       rawOrder(db, { id: "o_achat_ajout", at: hours(9.5), asset: "BTC", side: "buy", kind: "limit", limitPrice: 58_000, amountEur: 50, invalidation: 57_950 });
       rawPrice(db, "BTC", hours(9.96), 57_900);
-    }, /\[À DÉCIDER\] BTC : stop franchi d'après le dernier prix connu \(57\s900,00 € le 07\/10\/2026 17:57 UTC\) : vente au premier relevé si le prix reste sous 57\s950,00 € ; prix frais \(il y a 2 min\) : la nouvelle version pose le stop dès le premier relevé ; niveau fixé au premier relevé \(niveau enregistré : 42\s000,00 €\)/],
+    }, /\[À DÉCIDER\] \(clé stop-franchi:BTC\) BTC : stop franchi d'après le dernier prix connu \(57\s900,00 € le 07\/10\/2026 17:57 UTC\) : vente au premier relevé si le prix reste sous 57\s950,00 € ; prix frais \(il y a 2 min\) : la nouvelle version pose le stop dès le premier relevé ; niveau fixé au premier relevé \(niveau enregistré : 42\s000,00 €\)/,
+    "stop-franchi:BTC"],
     // A legacy pending buy without a level opens a position the first tick leaves without a stop.
     ["a position the first tick opens without a stop", (db) => {
       rawOrder(db, { id: "o_achat_sans_niveau", at: hours(9.92), asset: "ETH", side: "buy", amountEur: 30, invalidation: null });
       rawPrice(db, "ETH", hours(9.96), 2_650);
-    }, /\[À DÉCIDER\] ETH : position sans stop \(aucun niveau d'invalidation, aucune vente en attente\) ; position ouverte au premier relevé par un achat en attente/],
+    }, /\[À DÉCIDER\] \(clé sans-stop:ETH\) ETH : position sans stop \(aucun niveau d'invalidation, aucune vente en attente\) ; position ouverte au premier relevé par un achat en attente/, "sans-stop:ETH"],
   ];
 
-  for (const [name, mutate, expected] of DECISIONS) {
-    it(`asks the owner about ${name}: exit 1, then exit 0 with --accepter-a-decider`, () => {
+  for (const [name, mutate, expected, key] of DECISIONS) {
+    it(`asks the owner about ${name}: exit 1 with its key ${key}, then exit 0 once that key is accepted`, () => {
       const file = variant(mutate);
       const r = run(file);
       expect(r.status, r.stdout + r.stderr).toBe(1);
       expect(r.stdout).toMatch(expected);
       expect(counts(r.last)).toMatchObject({ b: 0, d: 1 });
-      expect(r.stdout).toContain("S'il accepte les points à décider, relance le contrôle avec --accepter-a-decider.");
-      const accepted = run(file, ["--accepter-a-decider"]);
+      expect(r.stdout).toContain(`Déploiement bloqué : ne démarre pas la nouvelle version ; envoie-moi ce rapport et décide de chaque point « À DÉCIDER » (1 point non accepté : ${key}).`);
+      expect(acceptKeys(r.stdout)).toBe(key);
+      expect(r.stdout).not.toContain("propriétaire");
+      const accepted = run(file, ["--accepter-a-decider", key]);
       expect(accepted.status, accepted.stdout).toBe(0);
       expect(accepted.stdout).toMatch(expected);
-      expect(accepted.stdout).toContain("Conclusion : rien ne bloque (1 point à décider accepté par le propriétaire avec --accepter-a-decider).");
+      expect(accepted.stdout).toContain(`- [À DÉCIDER, accepté] (clé ${key}) `);
+      expect(accepted.stdout).toContain(`Conclusion : rien ne bloque (1 point à décider levé par --accepter-a-decider : ${key}).`);
+      expect(accepted.stdout).not.toContain("Pour accepter exactement ces points");
       expect(accepted.last).toMatch(/^RÉSULTAT : code=0 bloquants=0 a_decider=1 infos=\d+$/);
     });
   }
@@ -291,10 +306,17 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
       db.prepare("UPDATE trader_positions SET invalidation = NULL WHERE asset = 'BTC'").run();
       db.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_neg', ?, 'contribution', NULL, NULL, NULL, -5000, 0, NULL, 'test')").run(isoSeconds(hours(6)));
     });
-    const r = run(file, ["--accepter-a-decider"]);
+    const r = run(file, ["--accepter-a-decider", "sans-stop:BTC"]);
     expect(r.status).toBe(1);
-    expect(r.stdout).toContain("L'option --accepter-a-decider ne lève jamais un point bloquant.");
+    expect(r.stdout).toContain("- [À DÉCIDER, accepté] (clé sans-stop:BTC) BTC : position sans stop");
+    expect(r.stdout).toContain(`${BLOCKED} (rien n'a été modifié ; une réparation demande une procédure séparée et ton accord). L'option --accepter-a-decider ne lève jamais un point bloquant.`);
+    expect(r.stdout).not.toContain("Pour accepter exactement ces points");
     expect(counts(r.last)).toMatchObject({ b: 1, d: 1 });
+    // Without the key, the conclusion still gives the option to copy, and says it never lifts the BLOQUANT.
+    const plain = run(file);
+    expect(plain.status).toBe(1);
+    expect(plain.stdout).toContain("L'option --accepter-a-decider ne lève jamais un point bloquant.");
+    expect(acceptKeys(plain.stdout)).toBe("sans-stop:BTC");
   });
 
   it("reports a fill at a recent stored price as INFO (up to 60 minutes old), with the stop of the position it opens", () => {
@@ -450,8 +472,12 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     expect(clean.stdout).toMatch(/^Contrôle avant déploiement de Sonni : rien ne bloque\n/);
     expect(clean.stdout.length).toBeLessThanOrEqual(3_500);
     // The cut also holds for a few very long lines.
-    const long = resume(Array.from({ length: 40 }, (_, i) => ({ level: "D", text: `${i} ${"x".repeat(400)}` })), { file, now: NOW, accept: false, code: 1 });
+    const long = resume(Array.from({ length: 40 }, (_, i) => ({ level: "D", key: `sans-stop:A${i}`, text: `${i} ${"x".repeat(400)}` })), { file, now: NOW, accepted: [], code: 1 });
     expect(long.length).toBeLessThanOrEqual(3_500);
+    // So does a list of keys too long for one message: the full report gives it, the summary points there.
+    expect(full.stdout).toContain(`Pour accepter exactement ces points : --accepter-a-decider sans-stop:Z000,sans-stop:Z001,`);
+    expect(acceptKeys(full.stdout)!.split(",")).toHaveLength(150);
+    expect(r.stdout).toContain("Pour accepter exactement ces points : 150 clés, liste trop longue pour ce message : copie-la depuis le terminal");
   });
 
   it("reads staleMinutes from --config, else from ~/.automaton/automaton.json, else 15 min with a note", () => {
@@ -478,7 +504,7 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     const without = path.join(tmp("sonni-controle-config-"), "automaton.json");
     fs.writeFileSync(without, JSON.stringify({ ...EXAMPLE, trader: { ...EXAMPLE.trader, assets: [{ symbol: "ETH", krakenPair: "ETHEUR" }] } }), "utf-8");
     const unfollowed = run(file, ["--config", without]);
-    expect(unfollowed.stdout).toContain("[À DÉCIDER] BTC : actif plus suivi d'après la configuration, aucun prix ne sera relevé et aucun stop ne peut être posé");
+    expect(unfollowed.stdout).toContain("[À DÉCIDER] (clé actif-non-suivi:BTC) BTC : actif plus suivi d'après la configuration, aucun prix ne sera relevé et aucun stop ne peut être posé");
     expect(unfollowed.stdout).toContain("actif plus suivi : le stop ne peut pas être posé");
   });
 
@@ -494,11 +520,161 @@ describe("Pre-deployment gate (sonni/vps/controle-predeploiement.mjs): verdicts"
     const r = run(file);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("[INFO] Sonni reprendra son sommeil jusqu'au 07/10/2026 21:00 UTC : pas de cycle payé au redémarrage");
-    expect(r.stdout).toContain("[INFO] Sonni est en pause (budget du jour atteint)");
+    expect(r.stdout).toContain("[INFO] Sonni est en pause (budget du jour atteint) : aucun cycle tant que tu ne l'as pas relancé (/reprendre)");
     expect(r.stdout).toContain("[INFO] échéance de la position USDC passée (07/10/2026 17:00 UTC) : réveil payé pour revoir USDC");
     expect(r.stdout).toContain("[INFO] versement virtuel du mois au premier relevé (50,00 €, dernier mois versé : 2026-09)");
     const awake = run(cleanCopy());
     expect(awake.stdout).toMatch(/\[INFO\] le redémarrage lancera un cycle payé : Sonni n'était pas endormi, état enregistré : \S+/);
+  });
+
+  /** BTC left without a stop (the point the GO accepted after Phase 1) and an ETH sale the first tick rejects (new). */
+  const twoPoints = () => variant((db) => {
+    db.prepare("UPDATE trader_positions SET invalidation = NULL WHERE asset = 'BTC'").run();
+    rawOrder(db, { id: "o_vente_vide", at: hours(9), asset: "ETH", side: "sell", quantity: 0.04 });
+    rawPrice(db, "ETH", hours(9.5), 2_700);
+  });
+
+  it("lifts only the keys listed: a new point to decide that is not listed still blocks", () => {
+    const file = twoPoints();
+    const first = run(file);
+    expect(first.status).toBe(1);
+    expect(first.stdout).toContain("[À DÉCIDER] (clé ordre-refuse:o_vente_vide) o_vente_vide : vente au marché ETH");
+    expect(first.stdout).toContain("[À DÉCIDER] (clé sans-stop:BTC) BTC : position sans stop");
+    expect(first.stdout).toContain("(2 points non acceptés : ordre-refuse:o_vente_vide, sans-stop:BTC).");
+    expect(acceptKeys(first.stdout)).toBe("ordre-refuse:o_vente_vide,sans-stop:BTC");
+    // The GO accepted BTC only: the rejected sale that appeared since keeps the deployment blocked.
+    const partial = run(file, ["--accepter-a-decider", "sans-stop:BTC"]);
+    expect(partial.status, partial.stdout).toBe(1);
+    expect(partial.stdout).toContain("- [À DÉCIDER, accepté] (clé sans-stop:BTC) BTC : position sans stop");
+    expect(partial.stdout).toContain("- [À DÉCIDER] (clé ordre-refuse:o_vente_vide) o_vente_vide : vente au marché ETH");
+    expect(partial.stdout).toContain("Déploiement bloqué : ne démarre pas la nouvelle version ; envoie-moi ce rapport et décide de chaque point « À DÉCIDER » (1 point non accepté : ordre-refuse:o_vente_vide).");
+    expect(acceptKeys(partial.stdout)).toBe("ordre-refuse:o_vente_vide,sans-stop:BTC");
+    expect(partial.stdout).not.toContain("rien ne bloque");
+    expect(partial.last).toMatch(/^RÉSULTAT : code=1 bloquants=0 a_decider=2 infos=\d+$/);
+    const short = run(file, ["--accepter-a-decider", "sans-stop:BTC", "--resume"]);
+    expect(short.status).toBe(1);
+    expect(short.stdout).toContain("Bloquants : 0 ; à décider : 2 (dont 1 accepté) ;");
+    expect(short.stdout).toContain("À DÉCIDER :\n- (clé ordre-refuse:o_vente_vide) o_vente_vide : vente au marché ETH");
+    expect(short.stdout).toContain("\n- [accepté] (clé sans-stop:BTC) BTC : position sans stop");
+    expect(short.stdout).toContain("\nPour accepter exactement ces points : --accepter-a-decider ordre-refuse:o_vente_vide,sans-stop:BTC\n");
+    // Both keys, in one list or with the option repeated: nothing blocks.
+    for (const args of [["--accepter-a-decider", acceptKeys(first.stdout)!], ["--accepter-a-decider", "sans-stop:BTC", "--accepter-a-decider", " ordre-refuse:o_vente_vide ,"]]) {
+      const all = run(file, args);
+      expect(all.status, all.stdout).toBe(0);
+      expect(all.stdout).toContain("Conclusion : rien ne bloque (2 points à décider levés par --accepter-a-decider : ordre-refuse:o_vente_vide, sans-stop:BTC).");
+      expect(all.last).toMatch(/^RÉSULTAT : code=0 bloquants=0 a_decider=2 infos=\d+$/);
+    }
+  });
+
+  it("reports a listed key that matches no point as INFO (it lifts nothing and blocks nothing)", () => {
+    const file = twoPoints();
+    const both = run(file, ["--accepter-a-decider", "ordre-refuse:o_vente_vide,sans-stop:BTC"]);
+    const extra = run(file, ["--accepter-a-decider", "ordre-refuse:o_vente_vide,sans-stop:BTC,stop-franchi:ETH"]);
+    expect(extra.status, extra.stdout).toBe(0);
+    expect(extra.stdout).toContain("- [INFO] clé acceptée sans objet : stop-franchi:ETH (aucun point à décider de cette copie ne porte cette clé ; elle ne lève rien)");
+    expect(counts(extra.last)).toEqual({ ...counts(both.last), i: counts(both.last)!.i + 1 });
+    const clean = run(cleanCopy(), ["--accepter-a-decider", "ordre-expire:o_01ABC"]);
+    expect(clean.status).toBe(0);
+    expect(clean.stdout).toContain("- [INFO] clé acceptée sans objet : ordre-expire:o_01ABC");
+    expect(clean.stdout).toContain("Conclusion : rien ne bloque, le déploiement peut continuer.");
+    const short = run(cleanCopy(), ["--accepter-a-decider", "ordre-expire:o_01ABC", "--resume"]);
+    expect(short.stdout).toContain("INFO :\n- clé acceptée sans objet : ordre-expire:o_01ABC");
+    // A key naming another point than the one found does not lift it.
+    const other = run(file, ["--accepter-a-decider", "sans-stop:ETH,ordre-refuse:o_autre"]);
+    expect(other.status).toBe(1);
+    expect(other.stdout).toContain("(2 points non acceptés : ordre-refuse:o_vente_vide, sans-stop:BTC).");
+  });
+
+  it("gives keys that are short, stable and safe to type: kind and asset or order id, other bytes percent-encoded", () => {
+    expect(pointKey("stop-franchi", "BTC")).toBe("stop-franchi:BTC");
+    expect(pointKey("ordre-refuse", "o_01M4J4K14XTJKACH99H20NHMHK")).toBe("ordre-refuse:o_01M4J4K14XTJKACH99H20NHMHK");
+    // A legacy id with a comma, a space or an accent cannot split the list or clash with another id.
+    expect(pointKey("ordre-expire", "o,a b")).toBe("ordre-expire:o%2Ca%20b");
+    expect(pointKey("ordre-expire", "o_é")).toBe("ordre-expire:o_%C3%A9");
+    expect(pointKey("ordre-expire", "o%2C")).not.toBe(pointKey("ordre-expire", "o,"));
+    for (const k of [pointKey("sans-stop", ""), pointKey("derive", "a'b;c"), pointKey("ordre-expire", "o,a b")]) expect(k).toMatch(KEY_PATTERN);
+    const file = variant((db) => { rawOrder(db, { id: "o,legacy id", at: hours(-20), asset: "SPY", side: "buy", amountEur: 30 }); });
+    const r = run(file);
+    expect(r.stdout).toContain("[À DÉCIDER] (clé ordre-expire:o%2Clegacy%20id) o,legacy id : achat au marché SPY");
+    expect(acceptKeys(r.stdout)).toBe("ordre-expire:o%2Clegacy%20id");
+    expect(run(file, ["--accepter-a-decider", acceptKeys(r.stdout)!]).status).toBe(0);
+  });
+
+  it("refuses --accepter-a-decider without its list of keys, or with something that is not a key (exit 2, nothing read)", () => {
+    const file = cleanCopy();
+    for (const args of [["--accepter-a-decider"], ["--accepter-a-decider", "--resume"], ["--accepter-a-decider", ""], ["--accepter-a-decider", " , "]]) {
+      const r = run(file, args);
+      expect(r.status, args.join(" ")).toBe(2);
+      expect(r.stderr).toContain("L'option --accepter-a-decider demande la liste des clés que ton GO accepte, séparées par des virgules, par exemple : --accepter-a-decider stop-franchi:BTC,ecart-moyen:USDC.");
+      expect(r.stderr).toContain("Lance d'abord le contrôle sans cette option : sa conclusion donne la ligne exacte à recopier.");
+      expect(r.last).toBe("RÉSULTAT : code=2 controle=refusé");
+      expect(r.stdout).not.toContain("A. Intégrité");
+    }
+    const short = run(file, ["--resume", "--accepter-a-decider"]);
+    expect(short.status).toBe(2);
+    expect(short.stdout).toContain("Contrôle avant déploiement de Sonni : refusé. L'option --accepter-a-decider demande la liste des clés");
+    // The copy's path after the option (its list forgotten) is not a key.
+    const swapped = spawnSync(process.execPath, [SCRIPT, "--accepter-a-decider", file], { encoding: "utf-8", env: { ...process.env, HOME: tmp("sonni-controle-home-"), TMPDIR: tmp("sonni-controle-tmp-") } });
+    expect(swapped.status).toBe(2);
+    expect(swapped.stderr).toContain("Clé invalide après --accepter-a-decider : « ");
+    expect(swapped.stdout.trimEnd().split("\n").pop()).toBe("RÉSULTAT : code=2 controle=refusé");
+  });
+
+  it("predicts by default at the moment of the copy (its newest stored price), --maintenant still overrides it", () => {
+    const file = variant((db) => {
+      // A market buy placed two minutes before the copy's last price, still waiting for its own.
+      rawOrder(db, { id: "o_eth_marche", at: hours(9.92), asset: "ETH", side: "buy", amountEur: 30, invalidation: 2_000 });
+    });
+    const byDefault = run(file, [], { now: null });
+    expect(byDefault.status, byDefault.stdout).toBe(0);
+    expect(byDefault.stdout).toContain("Prévision : si Sonni redémarrait le 07/10/2026 17:57 UTC avec cette copie\n(prévision au moment de la copie : 07/10/2026 17:57 UTC, son dernier prix enregistré");
+    expect(byDefault.stdout).toContain("E. Ordres en attente : ce que ferait le premier relevé du 07/10/2026 17:57 UTC");
+    expect(byDefault.stdout).toContain("[INFO] o_eth_marche : achat au marché ETH passé le 07/10/2026 17:55 UTC : attend un prix");
+    expect(byDefault.stdout).toContain("[INFO] dernier prix enregistré : 07/10/2026 17:57 UTC (il y a moins d'une minute)");
+    const short = run(file, ["--resume"], { now: null });
+    expect(short.stdout).toContain("Copie : state.db.predeploiement-20261007T180000Z ; prévision au moment de la copie : 07/10/2026 17:57 UTC\n");
+    // The exported prediction has the same default.
+    const copy = openPrivateCopy(file, "sonni-controle-test-");
+    try {
+      expect(predictPendingOrders(copy.db, { staleMinutes: 15 }).find((o: any) => o.id === "o_eth_marche")?.outcome).toBe("wait");
+      expect(predictPendingOrders(copy.db, { now: hours(58), staleMinutes: 15 }).find((o: any) => o.id === "o_eth_marche")?.outcome).toBe("expire");
+    } finally {
+      copy.close();
+    }
+    // Two days later the same order has expired: that is a point to decide, at the moment the option names.
+    const later = run(file, [], { now: hours(58) });
+    expect(later.status).toBe(1);
+    expect(later.stdout).toContain("Prévision : si Sonni redémarrait le 09/10/2026 18:00 UTC avec cette copie\n(moment choisi avec --maintenant)");
+    expect(later.stdout).toContain("[À DÉCIDER] (clé ordre-expire:o_eth_marche) o_eth_marche : achat au marché ETH passé le 07/10/2026 17:55 UTC : expiré");
+    // A copy without any price: the current time, said so.
+    const empty = path.join(tmp("sonni-controle-vide-"), COPY);
+    openDb(empty).close();
+    const none = run(empty, [], { now: null });
+    expect(none.status, none.stdout).toBe(0);
+    expect(none.stdout).toContain("(aucun prix dans la copie : prévision à l'heure actuelle)");
+    expect(none.stdout).toContain(`E. Ordres en attente : ce que ferait le premier relevé du ${new Date().toISOString().slice(8, 10)}/`);
+  });
+
+  it("reconciles the ledger both ways: units the ledger holds without a position, a closed position the ledger does not bring back to 0", () => {
+    const file = variant((db) => {
+      // A filled SPY buy with its ledger row and no position row.
+      rawPrice(db, "SPY", hours(6), 500);
+      rawOrder(db, { id: "o_spy_sans_position", at: hours(5.9), asset: "SPY", side: "buy", amountEur: 100, status: "filled", settledAt: isoSeconds(hours(6)), fillPrice: 500.25, fillQuantity: 0.198, fillEur: 100, feeEur: 0.8 });
+      db.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_spy', ?, 'buy', 'SPY', 0.198, 500.25, -100, 0.8, 'o_spy_sans_position', NULL)").run(isoSeconds(hours(6)));
+      // ETH is closed (quantity 0) but the ledger holds one more buy.
+      db.prepare("INSERT INTO trader_ledger (id, at, kind, asset, quantity, price, amount_eur, fee_eur, order_id, note) VALUES ('l_eth_fantome', ?, 'buy', 'ETH', 0.01, 2500, -25, 0.2, NULL, NULL)").run(isoSeconds(hours(6)));
+    });
+    const r = run(file);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("[BLOQUANT] actif SPY : le registre en donne 0,198 unité au total (achats moins ventes), aucune position enregistrée (écart 0,198)");
+    expect(r.stdout).toMatch(/\[BLOQUANT\] actif ETH : le registre en donne 0,01 unité au total \(achats moins ventes\), la position enregistrée est à 0 \(close\) \(écart 0,01\)/);
+    expect(r.stdout).not.toContain("registre, positions, ordres et opérations concordent");
+    expect(counts(r.last)).toMatchObject({ b: 2, d: 0 });
+    expect(run(file, ["--accepter-a-decider", "sans-stop:SPY"]).status).toBe(1);
+    // A position the replay already reports is not reported a second time by the net.
+    const replayed = run(variant((db) => { db.prepare("UPDATE trader_positions SET quantity = quantity + 0.5 WHERE asset = 'BTC'").run(); }));
+    expect(counts(replayed.last)).toMatchObject({ b: 1, d: 0 });
+    expect(replayed.stdout).not.toContain("actif BTC");
   });
 });
 

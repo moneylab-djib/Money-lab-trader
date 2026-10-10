@@ -3,17 +3,21 @@
  * Deployment gate of the controlled deployment of 2026-10-10 (steps 0.1-0.3). It reads a COPY of Sonni's memory
  * (made by sauvegarde.mjs) and reports, in French, what must stop the deployment or needs the owner's decision
  * before the new version starts on that memory:
- * - BLOQUANT: a data anomaly (failed integrity check, figures no fill may hold, negative cash, a position the
- *   ledger does not add up to, a filled order without its ledger row, a trade closed by an order that is not
- *   filled). Nothing lifts it: a repair is a separate procedure the owner approves.
+ * - BLOQUANT: a data anomaly (failed integrity check, figures no fill may hold, negative cash, an asset whose
+ *   ledger does not add up to its position, either way, a filled order without its ledger row, a trade closed by
+ *   an order that is not filled). Nothing lifts it: a repair is a separate procedure the owner approves.
  * - À DÉCIDER: what the first broker tick would do on its own (an order rejected, expired or filled at an old
  *   price, a stop placed) and historical gaps the owner must accept (cent-rounded averages, market fills that
- *   drifted from the market, a position without a stop).
+ *   drifted from the market, a position without a stop). Each point carries a short stable key (kind and order
+ *   id or asset, e.g. stop-franchi:BTC, ordre-refuse:o_01J…): the owner's GO accepts points BY KEY, so a point
+ *   that appears after the GO keeps blocking.
  * - INFO: freshness of the copy, orders that fill normally or wait, stop distances, restart and cost notes.
- * The broker predictions read "if Sonni restarted at <now> with this copy": they mirror brokerTick and applyFill
- * of src/trader/portfolio.ts on the copy's stored prices (predictPendingOrders and predictStops are exported;
- * src/__tests__/trader/deploy-predeploy.test.ts runs the real brokerTick on the same copies and compares them
- * order by order). At a real restart Sonni first collects a new price, which can fill an order still waiting.
+ * The broker predictions read "if Sonni restarted at <now> with this copy", <now> being by default the copy's
+ * newest stored price (the moment the copy was made; the current time when it holds no price): they mirror
+ * brokerTick and applyFill of src/trader/portfolio.ts on the copy's stored prices (predictPendingOrders and
+ * predictStops are exported; src/__tests__/trader/deploy-predeploy.test.ts runs the real brokerTick on the same
+ * copies and compares them order by order). At a real restart Sonni first collects a new price, which can fill
+ * an order still waiting.
  *
  * Safety: read-only. It refuses the live database (a file named state.db, ~/.automaton/state.db by name or
  * inode, a file with -wal or -shm beside it) and never opens the given file with SQLite: it is copied byte for
@@ -21,17 +25,23 @@
  * the end and on Ctrl+C, a stop or a closed SSH session, and the given file's SHA-256 must be the same before
  * and after (sonni/vps/copie-privee.mjs). It never calls the runtime, never writes, never uses the network.
  *
- * Exit codes: 0 nothing blocks (À DÉCIDER points accepted with --accepter-a-decider count as nothing); 1 at
- * least one BLOQUANT, or À DÉCIDER points not accepted (the guide stops there; --accepter-a-decider never lifts
- * a BLOQUANT); 2 refused or usage error (nothing read); 3 technical error (not SQLite, not a copy of Sonni's
- * memory, unreadable file, or the file changed during the check); 130 interrupted (temporary copy removed).
- * The last line of stdout is `RÉSULTAT : code=<n> bloquants=<b> a_decider=<d> infos=<i>`.
+ * Exit codes: 0 nothing blocks (every À DÉCIDER point's key is listed in --accepter-a-decider); 1 at least one
+ * BLOQUANT, or an À DÉCIDER point whose key is not listed (the guide stops there; --accepter-a-decider never
+ * lifts a BLOQUANT; a listed key that matches no point is reported as INFO and lifts nothing); 2 refused or
+ * usage error (nothing read; also --accepter-a-decider without its list of keys); 3 technical error (not
+ * SQLite, not a copy of Sonni's memory, unreadable file, or the file changed during the check); 130
+ * interrupted (temporary copy removed). The last line of stdout is
+ * `RÉSULTAT : code=<n> bloquants=<b> a_decider=<d> infos=<i>` (a_decider counts every point to decide, accepted
+ * or not). When points to decide remain, the conclusion prints the exact option that accepts them all:
+ * `Pour accepter exactement ces points : --accepter-a-decider <clé1>,<clé2>`.
  *
  * Usage: node sonni/vps/controle-predeploiement.mjs <copie> [--config <automaton.json>] [--maintenant <ISO>]
- *          [--accepter-a-decider] [--resume]
+ *          [--accepter-a-decider <clé1,clé2,…>] [--resume]
  *   --config: trader.staleMinutes, fees, slippage and followed assets (default ~/.automaton/automaton.json if
  *     readable, else 15 min and the runtime's default fees); --maintenant: the restart moment to predict
- *     (default now); --resume: a short report for Telegram (at most 3,500 characters).
+ *     (default the copy's newest stored price); --accepter-a-decider: the keys of the points to decide the
+ *     owner's GO accepted, comma-separated (the option may be repeated); --resume: a short report for Telegram
+ *     (at most 3,500 characters).
  *   e.g. node sonni/vps/controle-predeploiement.mjs ~/.automaton/predeploiement/state.db.predeploiement-20261010T080000Z
  */
 
@@ -58,6 +68,25 @@ export const RESUME_MAX = 3500;
 
 export const LEVEL = { B: "BLOQUANT", D: "À DÉCIDER", I: "INFO" };
 
+/** A key as the owner types it after --accepter-a-decider: a kind, a colon, an asset or an order id. */
+export const KEY_PATTERN = /^[a-z][a-z-]*:[A-Za-z0-9_.%-]+$/;
+
+/**
+ * The stable key of a point to decide: its kind (ecart-moyen, derive, prix-ancien, ordre-refuse, ordre-expire,
+ * prevision-echouee, actif-non-suivi, sans-stop, stop-franchi) and the asset or order id it is about. Bytes
+ * outside [A-Za-z0-9_.-] are percent-encoded, so a key never holds a comma, a space or a shell character and two
+ * different ids never share a key.
+ */
+export function pointKey(kind, ident) {
+  const raw = String(ident ?? "");
+  let out = "";
+  for (const byte of Buffer.from(raw === "" ? "?" : raw, "utf-8")) {
+    const c = String.fromCharCode(byte);
+    out += byte < 128 && /[A-Za-z0-9_.-]/.test(c) ? c : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return `${kind}:${out}`;
+}
+
 /** A refusal or usage error (exit 2) or a technical error the owner can read (exit 3). */
 export class Stop extends Error {
   constructor(code, message) {
@@ -75,6 +104,22 @@ const positive = (v) => Number.isFinite(v) && v > 0;
 export const isoSeconds = (date) => date.toISOString().slice(0, 19) + "Z";
 const ageMinutes = (point, now) => (now.getTime() - Date.parse(point.ts)) / 60_000;
 const hasTable = (db, table) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+
+/**
+ * The moment the copy was made, as the check reads it: its newest stored price ({ts, now}). Null when the copy
+ * holds no readable price; the caller then predicts at the current time. A copy is up to a day old in Phase 1:
+ * predicting at the current time would report orders the running Sonni settled minutes after the copy.
+ */
+export function copyMoment(db) {
+  try {
+    if (!hasTable(db, "trader_prices")) return null;
+    const ts = db.prepare("SELECT MAX(ts) AS ts FROM trader_prices").get()?.ts;
+    const t = Date.parse(ts ?? "");
+    return typeof ts === "string" && Number.isFinite(t) ? { ts, now: new Date(t) } : null;
+  } catch {
+    return null;
+  }
+}
 
 /** positionProblem of src/trader/portfolio.ts, on a trader_positions row. */
 export function positionProblem(p) {
@@ -99,12 +144,13 @@ function latestPrice(db, asset) {
 /**
  * What the first broker tick at `now` would do with this copy: brokerTick of src/trader/portfolio.ts replayed in
  * memory (pending orders by placed_at, each fill changing the positions the next orders see, then the stops and
- * the horizons). Funding and the snapshot change nothing these decisions read. Options: now, staleMinutes,
+ * the horizons). Funding and the snapshot change nothing these decisions read. Options: now (default the copy's
+ * newest stored price, see copyMoment), staleMinutes,
  * portfolio ({takerFeePct, makerFeePct, slippageBps}), assets (the followed symbols, or null when unknown:
  * a stop on an asset that is not followed cannot be placed).
  */
 export function simulateFirstTick(db, opts = {}) {
-  const now = opts.now ?? new Date();
+  const now = opts.now ?? copyMoment(db)?.now ?? new Date();
   const staleMinutes = opts.staleMinutes ?? DEFAULT_STALE_MINUTES;
   const pc = { ...DEFAULT_PORTFOLIO, ...(opts.portfolio ?? {}) };
   const followed = opts.assets ? new Set(opts.assets) : null;
@@ -455,7 +501,8 @@ const examples = (list, n = 5) => `${list.slice(0, n).join(", ")}${list.length >
 
 /**
  * Runs sections A to H on an open read-only copy. Returns the report lines and the findings
- * ({level: "B" | "D" | "I", text}); throws Stop(3) when the copy is not Sonni's memory.
+ * ({level: "B" | "D" | "I", text, key}; every À DÉCIDER finding has a key, see pointKey); throws Stop(3) when
+ * the copy is not Sonni's memory.
  */
 export function controle(db, ctx) {
   const now = ctx.now;
@@ -464,9 +511,10 @@ export function controle(db, ctx) {
   const lines = [];
   const findings = [];
   const say = (line = "") => lines.push(line);
-  const add = (level, text) => {
-    findings.push({ level, text });
-    say(`   [${LEVEL[level]}] ${text}`);
+  const add = (level, text, key) => {
+    const f = key ? { level, text, key } : { level, text };
+    findings.push(f);
+    say(`   ${findingLine(f)}`);
   };
   const get = (sql, ...params) => db.prepare(sql).get(...params);
   const all = (sql, ...params) => db.prepare(sql).all(...params);
@@ -544,7 +592,8 @@ export function controle(db, ctx) {
     for (const a of averagedPositions(db)) {
       if (Math.abs(a.gap) < GAP_ALERT_EUR) continue;
       classified += 1;
-      add("D", `${a.asset} : coût moyen enregistré ${price(a.storedAvg)} contre ${price(a.ledgerAvg)} d'après le registre, écart ${fr(a.gap)} € sur la position : écart historique d'arrondi, aucune réparation automatique`);
+      add("D", `${a.asset} : coût moyen enregistré ${price(a.storedAvg)} contre ${price(a.ledgerAvg)} d'après le registre, écart ${fr(a.gap)} € sur la position : écart historique d'arrondi, aucune réparation automatique`,
+        pointKey("ecart-moyen", a.asset));
     }
     const byAsset = new Map();
     for (const f of marketFillDrifts(db)) {
@@ -556,7 +605,8 @@ export function controle(db, ctx) {
     }
     for (const [asset, a] of byAsset) {
       classified += 1;
-      add("D", `${asset} : ${count(a.n, "exécution au marché", "exécutions au marché")} à plus de ${fr(DRIFT_ALERT_PCT, 1)} % du prix du marché (jusqu'à ${fr(a.max)} %, dix fois le glissement configuré) : écart historique d'arrondi, aucune réparation automatique`);
+      add("D", `${asset} : ${count(a.n, "exécution au marché", "exécutions au marché")} à plus de ${fr(DRIFT_ALERT_PCT, 1)} % du prix du marché (jusqu'à ${fr(a.max)} %, dix fois le glissement configuré) : écart historique d'arrondi, aucune réparation automatique`,
+        pointKey("derive", asset));
     }
     if (classified === 0) say("   - rien à classer");
   });
@@ -568,15 +618,49 @@ export function controle(db, ctx) {
       problems += 1;
       add("B", `liquidités ${Number.isFinite(cash) ? `négatives : ${fr(cash)} €` : "non calculables"} d'après le registre`);
     } else say(`   - liquidités d'après le registre : ${fr(cash)} €`);
+    // Each open position against the ledger replayed from its opening order.
+    const replayed = new Set();
     for (const p of all("SELECT * FROM trader_positions WHERE quantity > 0 AND quantity <= ? ORDER BY asset", HUGE)) {
       const replay = ledgerReplay(db, p);
       const diff = replay.held - p.quantity;
       if (!(Math.abs(diff) <= 1e-6)) {
         problems += 1;
+        replayed.add(p.asset);
         add("B", `position ${p.asset} : ${units(p.quantity, "unité enregistrée", "unités enregistrées")}, le registre en donne ${qty(replay.held)} (écart ${qty(diff)})` +
           `${replay.fromOpeningOrder ? "" : " ; ligne d'achat de l'ordre d'ouverture introuvable, registre relu depuis la date d'ouverture"}`);
       }
     }
+    // The other way: every asset of the ledger (and of the positions table) nets to its position, 0 when there is
+    // no row or the row is closed. Catches units the ledger still holds without a position, and a closed position
+    // whose ledger does not come back to 0. Assets already reported above, and figures section C reports as
+    // invalid (an infinite or missing ledger quantity, an infinite position), are not counted twice.
+    const ledgerMoves = new Map();
+    for (const m of all("SELECT asset, kind, quantity FROM trader_ledger WHERE kind IN ('buy', 'sell') AND asset IS NOT NULL ORDER BY at, rowid")) {
+      const a = ledgerMoves.get(m.asset) ?? { net: 0, peak: 0, unreadable: false };
+      if (typeof m.quantity !== "number" || !Number.isFinite(m.quantity)) a.unreadable = true;
+      else {
+        a.net += m.kind === "buy" ? m.quantity : -m.quantity;
+        a.peak = Math.max(a.peak, Math.abs(a.net), Math.abs(m.quantity));
+      }
+      ledgerMoves.set(m.asset, a);
+    }
+    const positionRows = new Map(all("SELECT asset, quantity FROM trader_positions").map((r) => [r.asset, r]));
+    const netMismatches = [];
+    for (const asset of [...new Set([...ledgerMoves.keys(), ...positionRows.keys()])].sort()) {
+      if (replayed.has(asset)) continue;
+      const moves = ledgerMoves.get(asset) ?? { net: 0, peak: 0, unreadable: false };
+      const row = positionRows.get(asset);
+      if (moves.unreadable || (row && typeof row.quantity === "number" && row.quantity > HUGE)) continue;
+      const held = row ? (typeof row.quantity === "number" ? row.quantity : NaN) : 0;
+      const diff = moves.net - held;
+      // Float sums of round8 quantities: a millionth of a unit, or a billionth of the largest quantity involved.
+      const tolerance = Math.max(1e-6, 1e-9 * Math.max(Math.abs(held), moves.peak));
+      if (Math.abs(diff) <= tolerance) continue;
+      netMismatches.push(asset);
+      add("B", `actif ${asset} : le registre en donne ${units(moves.net, "unité", "unités")} au total (achats moins ventes), ` +
+        `${!row ? "aucune position enregistrée" : held > 0 ? `la position en compte ${qty(held)}` : `la position enregistrée est à ${qty(held)} (close)`} (écart ${qty(diff)})`);
+    }
+    problems += netMismatches.length;
     const unbooked = all(
       `SELECT * FROM (SELECT o.id, o.asset, o.side, o.settled_at,
          (SELECT COUNT(*) FROM trader_ledger l WHERE l.order_id = o.id AND l.kind IN ('buy', 'sell')) AS n
@@ -610,17 +694,18 @@ export function controle(db, ctx) {
       if (o.outcome === "fill") {
         const old = now.getTime() - Date.parse(o.priceTs) > OLD_FILL_MINUTES * 60_000;
         const text = `${head} : exécuté au prix enregistré du ${when(o.priceTs)} (${price(o.price)} ; prix d'exécution ${price(o.fillPrice)})`;
-        if (old) add("D", `${text} : exécution à un prix ancien du ${when(o.priceTs)} (${ago(o.priceTs, now)})`);
+        if (old) add("D", `${text} : exécution à un prix ancien du ${when(o.priceTs)} (${ago(o.priceTs, now)})`, pointKey("prix-ancien", o.id));
         else add("I", text);
       } else if (o.outcome === "reject") {
         const detail = detailFr(o.reason, o.detail);
-        add("D", `${head} : refusé (${REJECT_FR[o.reason] ?? o.reason}${detail ? ` : ${detail}` : ""}) ; rien n'est inscrit au registre, un incident « courtier virtuel » est noté`);
+        add("D", `${head} : refusé (${REJECT_FR[o.reason] ?? o.reason}${detail ? ` : ${detail}` : ""}) ; rien n'est inscrit au registre, un incident « courtier virtuel » est noté`,
+          pointKey("ordre-refuse", o.id));
       } else if (o.outcome === "expire") {
         add("D", o.kind === "market"
           ? `${head} : expiré (aucun prix enregistré dans les ${MARKET_ORDER_TTL_HOURS} h suivant l'ordre)`
-          : `${head} : expiré (limite ${price(o.limitPrice)} non atteinte avant l'échéance du ${when(o.horizonUntil)})`);
+          : `${head} : expiré (limite ${price(o.limitPrice)} non atteinte avant l'échéance du ${when(o.horizonUntil)})`, pointKey("ordre-expire", o.id));
       } else if (o.reason === "error") {
-        add("D", `${head} : la prévision échoue (${technicalFr(o.detail)}) ; le courtier le laisserait en attente avec un incident`);
+        add("D", `${head} : la prévision échoue (${technicalFr(o.detail)}) ; le courtier le laisserait en attente avec un incident`, pointKey("prevision-echouee", o.id));
       } else {
         add("I", o.kind === "market"
           ? `${head} : attend un prix (exécuté au premier prix relevé, expiré après le ${when(o.until)})`
@@ -667,13 +752,13 @@ export function controle(db, ctx) {
       const origin = !before ? " ; position ouverte au premier relevé par un achat en attente"
         : before.invalidation !== level ? ` ; niveau fixé au premier relevé (niveau enregistré : ${before.invalidation === null ? "aucun" : price(before.invalidation)})` : "";
       if (followed && !followed.has(asset)) {
-        add("D", `${asset} : actif plus suivi d'après la configuration, aucun prix ne sera relevé et aucun stop ne peut être posé`);
+        add("D", `${asset} : actif plus suivi d'après la configuration, aucun prix ne sera relevé et aucun stop ne peut être posé`, pointKey("actif-non-suivi", asset));
       }
       const last = latestPrice(db, asset);
       if (level === null) {
         const waiting = sellWaiting(asset);
         if (waiting) add("I", `${asset} : pas de niveau de stop, une vente est en attente (ordre ${waiting.id})${origin}`);
-        else add("D", `${asset} : position sans stop (aucun niveau d'invalidation, aucune vente en attente)${origin}`);
+        else add("D", `${asset} : position sans stop (aucun niveau d'invalidation, aucune vente en attente)${origin}`, pointKey("sans-stop", asset));
         continue;
       }
       const check = checks.get(asset);
@@ -685,7 +770,8 @@ export function controle(db, ctx) {
         else if (check?.decision === "not_followed") next = "actif plus suivi : le stop ne peut pas être posé";
         else if (!fresh) next = `prix ancien (${ago(last.ts, now)}, au-delà de ${staleMinutes} min) : le stop sera posé dès qu'un prix frais arrive, s'il reste sous le niveau`;
         else next = "le stop n'est pas posé au premier relevé";
-        add("D", `${asset} : stop franchi d'après le dernier prix connu (${price(last.price)} le ${when(last.ts)}) : vente au premier relevé si le prix reste sous ${price(level)} ; ${next}${origin}`);
+        add("D", `${asset} : stop franchi d'après le dernier prix connu (${price(last.price)} le ${when(last.ts)}) : vente au premier relevé si le prix reste sous ${price(level)} ; ${next}${origin}`,
+          pointKey("stop-franchi", asset));
       } else if (last) {
         add("I", `${asset} : stop à ${price(level)}, ${fr(((last.price - level) / last.price) * 100)} % sous le dernier prix (${price(last.price)} le ${when(last.ts)})${origin}`);
       } else {
@@ -703,7 +789,7 @@ export function controle(db, ctx) {
     if (state === "sleeping" && Number.isFinite(until) && until > now.getTime() + 60_000 && waiting === 0) {
       add("I", `Sonni reprendra son sommeil jusqu'au ${when(new Date(until).toISOString())} : pas de cycle payé au redémarrage`);
     } else {
-      const why = waiting > 0 ? `${count(waiting, "message du propriétaire attend", "messages du propriétaire attendent")}`
+      const why = waiting > 0 ? `${count(waiting, "message de ta part attend", "messages de ta part attendent")}`
         : state !== "sleeping" ? `Sonni n'était pas endormi, état enregistré : ${state ?? "aucun"}`
           : Number.isFinite(until) ? `son sommeil finit le ${when(new Date(until).toISOString())}` : "aucune fin de sommeil enregistrée";
       add("I", `le redémarrage lancera un cycle payé : ${why}`);
@@ -714,7 +800,7 @@ export function controle(db, ctx) {
       try {
         reason = String(JSON.parse(paused)?.reason ?? reason);
       } catch { /* an unreadable record still means paused */ }
-      add("I", `Sonni est en pause (${reason.slice(0, 120)}) : aucun cycle tant que le propriétaire ne l'a pas relancé (/reprendre)`);
+      add("I", `Sonni est en pause (${reason.slice(0, 120)}) : aucun cycle tant que tu ne l'as pas relancé (/reprendre)`);
     }
     for (const h of sim?.horizons ?? []) add("I", `échéance de la position ${h.asset} passée (${when(h.horizonUntil)}) : réveil payé pour revoir ${h.asset}`);
     const month = kv("sonni.portfolio_month");
@@ -762,43 +848,109 @@ export function controle(db, ctx) {
   return { lines, findings };
 }
 
-/** Exit code of a finished check (before the SHA-256 comparison). */
-export function verdictCode(findings, accept) {
-  const b = findings.filter((f) => f.level === "B").length;
-  const d = findings.filter((f) => f.level === "D").length;
-  return b > 0 || (d > 0 && !accept) ? 1 : 0;
+// ─── Verdict ─────────────────────────────────────────────────────
+
+/** A finding as printed: "[À DÉCIDER] (clé stop-franchi:BTC) BTC : …", "[À DÉCIDER, accepté] …" once its key is listed. */
+export function findingLine(f, accepted) {
+  const tag = f.level === "D" && f.key && accepted?.has(f.key) ? `${LEVEL.D}, accepté` : LEVEL[f.level];
+  return `[${tag}]${f.key ? ` (clé ${f.key})` : ""} ${f.text}`;
 }
 
-/** The French rule line of the conclusion. */
-function ruleLine(findings, accept) {
+/**
+ * What the keys listed with --accepter-a-decider lift. Only a point to decide whose key is listed is lifted (a
+ * point without a key never is); a BLOQUANT is never touched. Returns the distinct keys of all points to decide in
+ * report order, the lifted keys, the points still to decide and the listed keys that match no point.
+ */
+export function acceptance(findings, acceptedKeys = []) {
+  const accepted = new Set(acceptedKeys);
+  const decide = findings.filter((f) => f.level === "D");
+  const keys = [...new Set(decide.map((f) => f.key).filter(Boolean))];
+  return {
+    accepted,
+    keys,
+    lifted: keys.filter((k) => accepted.has(k)),
+    remaining: decide.filter((f) => !(f.key && accepted.has(f.key))),
+    unused: [...accepted].filter((k) => !keys.includes(k)),
+  };
+}
+
+/** Exit code of a finished check (before the SHA-256 comparison): 1 on any BLOQUANT or any point to decide not listed. */
+export function verdictCode(findings, acceptedKeys = []) {
   const b = findings.filter((f) => f.level === "B").length;
-  const d = findings.filter((f) => f.level === "D").length;
+  return b > 0 || acceptance(findings, acceptedKeys).remaining.length > 0 ? 1 : 0;
+}
+
+/** INFO findings for listed keys that match no point to decide: reported, they lift nothing and block nothing. */
+export function unusedKeyFindings(findings, acceptedKeys = []) {
+  return acceptance(findings, acceptedKeys).unused.map((k) => ({
+    level: "I", unusedKey: k, text: `clé acceptée sans objet : ${k} (aucun point à décider de cette copie ne porte cette clé ; elle ne lève rien)`,
+  }));
+}
+
+const ACCEPT_PREFIX = "Pour accepter exactement ces points : ";
+
+/** The French conclusion, addressed to the owner: the verdict and, when points to decide remain, the option to copy. */
+function ruleLines(findings, acceptedKeys) {
+  const b = findings.filter((f) => f.level === "B").length;
+  const { accepted, keys, lifted, remaining } = acceptance(findings, acceptedKeys);
+  const option = remaining.length > 0 ? [`${ACCEPT_PREFIX}--accepter-a-decider ${keys.join(",")}`] : [];
   if (b > 0) {
-    return "Déploiement bloqué : envoie ce rapport au propriétaire et attends sa décision (rien n'a été modifié ; une réparation demande une procédure séparée et son accord)." +
-      (accept && d > 0 ? " L'option --accepter-a-decider ne lève jamais un point bloquant." : "");
+    return [
+      "Déploiement bloqué : ne démarre pas la nouvelle version ; envoie-moi ce rapport et décide de la suite (rien n'a été modifié ; une réparation demande une procédure séparée et ton accord)." +
+        (accepted.size > 0 || remaining.length > 0 ? " L'option --accepter-a-decider ne lève jamais un point bloquant." : ""),
+      ...option,
+    ];
   }
-  if (d > 0 && !accept) return "Déploiement bloqué : envoie ce rapport au propriétaire. S'il accepte les points à décider, relance le contrôle avec --accepter-a-decider.";
-  if (d > 0) return `Conclusion : rien ne bloque (${count(d, "point à décider accepté", "points à décider acceptés")} par le propriétaire avec --accepter-a-decider).`;
-  return "Conclusion : rien ne bloque, le déploiement peut continuer.";
+  if (remaining.length > 0) {
+    const open = [...new Set(remaining.map((f) => f.key))];
+    return [
+      `Déploiement bloqué : ne démarre pas la nouvelle version ; envoie-moi ce rapport et décide de chaque point « À DÉCIDER » (${count(open.length, "point non accepté", "points non acceptés")} : ${examples(open, 10)}).`,
+      ...option,
+    ];
+  }
+  if (lifted.length > 0) return [`Conclusion : rien ne bloque (${count(lifted.length, "point à décider levé", "points à décider levés")} par --accepter-a-decider : ${examples(lifted, 20)}).`];
+  return ["Conclusion : rien ne bloque, le déploiement peut continuer."];
 }
 
 const resultLine = (code, findings) =>
   `RÉSULTAT : code=${code} bloquants=${findings.filter((f) => f.level === "B").length} a_decider=${findings.filter((f) => f.level === "D").length} infos=${findings.filter((f) => f.level === "I").length}`;
 
-/** The short French report for Telegram: verdict, counts, BLOQUANT and À DÉCIDER lines, at most `max` characters. */
-export function resume(findings, { file, now, accept, code, unchanged = true }, max = RESUME_MAX) {
+/** Where the predicted moment comes from, in French. */
+function momentFr(now, source) {
+  const at = when(isoSeconds(now));
+  if (source === "copie") return `prévision au moment de la copie : ${at}`;
+  if (source === "horloge") return `prévision à l'heure actuelle : ${at}, la copie n'a aucun prix`;
+  return `prévision au ${at} (--maintenant)`;
+}
+
+/**
+ * The short French report for Telegram: verdict, counts, BLOQUANT and À DÉCIDER lines with their keys, the keys
+ * that matched nothing, the conclusion, at most `max` characters. `nowSource`: "copie", "horloge" or "option".
+ */
+export function resume(findings, { file, now, nowSource = "option", accepted = [], code, unchanged = true }, max = RESUME_MAX) {
+  const acc = acceptance(findings, accepted);
   const b = findings.filter((f) => f.level === "B");
   const d = findings.filter((f) => f.level === "D");
+  const unused = findings.filter((f) => f.unusedKey);
+  const liftedCount = d.length - acc.remaining.length;
   const head = [
     `Contrôle avant déploiement de Sonni : ${code === 0 ? "rien ne bloque" : code === 1 ? "déploiement bloqué" : "contrôle impossible"}`,
-    `Copie : ${path.basename(file)} ; prévision au ${when(isoSeconds(now))}`,
-    `Bloquants : ${b.length} ; à décider : ${d.length}${accept && d.length ? " (acceptés)" : ""} ; infos : ${findings.length - b.length - d.length}`,
+    `Copie : ${path.basename(file)} ; ${momentFr(now, nowSource)}`,
+    `Bloquants : ${b.length} ; à décider : ${d.length}${liftedCount ? ` (dont ${liftedCount} accepté${liftedCount > 1 ? "s" : ""})` : ""} ; infos : ${findings.length - b.length - d.length}`,
   ];
-  const tail = [ruleLine(findings, accept), unchanged ? "Fichier contrôlé inchangé (SHA-256 identique avant et après)." : "ATTENTION : le fichier a changé pendant le contrôle.", resultLine(code, findings)];
+  const size = (list) => list.reduce((s, l) => s + l.length + 1, 0);
+  const tailOf = (rules) => [...rules, unchanged ? "Fichier contrôlé inchangé (SHA-256 identique avant et après)." : "ATTENTION : le fichier a changé pendant le contrôle.", resultLine(code, findings)];
+  let rules = ruleLines(findings, accepted);
+  let tail = tailOf(rules);
+  // A very long list of keys does not fit in a message: the terminal report has it in full.
+  if (size(head) + size(tail) > max - 1000) {
+    rules = rules.map((l) => (l.startsWith(ACCEPT_PREFIX) ? `${ACCEPT_PREFIX}${count(acc.keys.length, "clé", "clés")}, liste trop longue pour ce message : copie-la depuis le terminal` : l));
+    tail = tailOf(rules);
+  }
   const body = [];
   if (b.length) body.push("BLOQUANT :", ...b.map((f) => `- ${f.text.slice(0, 300)}`));
-  if (d.length) body.push("À DÉCIDER :", ...d.map((f) => `- ${f.text.slice(0, 300)}`));
-  const size = (list) => list.reduce((s, l) => s + l.length + 1, 0);
+  if (d.length) body.push("À DÉCIDER :", ...d.map((f) => `- ${`${acc.accepted.has(f.key) ? "[accepté] " : ""}(clé ${f.key}) ${f.text}`.slice(0, 300)}`));
+  if (unused.length) body.push("INFO :", ...unused.map((f) => `- ${f.text.slice(0, 300)}`));
   const fixed = size(head) + size(tail);
   const kept = [];
   for (let i = 0; i < body.length; i += 1) {
@@ -815,10 +967,12 @@ export function resume(findings, { file, now, accept, code, unchanged = true }, 
 
 // ─── Command line ────────────────────────────────────────────────
 
-const USAGE = "Usage : node sonni/vps/controle-predeploiement.mjs <copie> [--config <automaton.json>] [--maintenant <date ISO>] [--accepter-a-decider] [--resume]";
+const USAGE = "Usage : node sonni/vps/controle-predeploiement.mjs <copie> [--config <automaton.json>] [--maintenant <date ISO>] [--accepter-a-decider <clé1,clé2,…>] [--resume]";
+const ACCEPT_HELP = "L'option --accepter-a-decider demande la liste des clés que ton GO accepte, séparées par des virgules, par exemple : " +
+  "--accepter-a-decider stop-franchi:BTC,ecart-moyen:USDC. Lance d'abord le contrôle sans cette option : sa conclusion donne la ligne exacte à recopier.";
 
 export function parseArgs(argv) {
-  const args = { file: null, config: null, now: null, accept: false, resume: false };
+  const args = { file: null, config: null, now: null, accepted: [], resume: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     const value = () => {
@@ -833,8 +987,18 @@ export function parseArgs(argv) {
       const t = Date.parse(v);
       if (!/^\d{4}-\d{2}-\d{2}/.test(v) || !Number.isFinite(t)) throw new Stop(2, `Date invalide pour --maintenant : ${v} (exemple : 2026-10-10T08:00:00Z).`);
       args.now = new Date(t);
-    } else if (a === "--accepter-a-decider") args.accept = true;
-    else if (a === "--resume") args.resume = true;
+    } else if (a === "--accepter-a-decider") {
+      // Never a bare flag: accepting "whatever the run finds" would lift points the owner's GO never saw.
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith("--")) throw new Stop(2, `${ACCEPT_HELP}\n${USAGE}`);
+      i += 1;
+      const keys = v.split(",").map((k) => k.trim()).filter(Boolean);
+      if (keys.length === 0) throw new Stop(2, `${ACCEPT_HELP}\n${USAGE}`);
+      for (const k of keys) {
+        if (!KEY_PATTERN.test(k)) throw new Stop(2, `Clé invalide après --accepter-a-decider : « ${k.slice(0, 80)} ». ${ACCEPT_HELP}`);
+        if (!args.accepted.includes(k)) args.accepted.push(k);
+      }
+    } else if (a === "--resume") args.resume = true;
     else if (a.startsWith("--")) throw new Stop(2, `Option inconnue : ${a}.\n${USAGE}`);
     else if (args.file === null) args.file = a;
     else throw new Stop(2, `Un seul fichier à contrôler.\n${USAGE}`);
@@ -880,11 +1044,16 @@ function main() {
     if (err instanceof Stop) return stop(err.exitCode, err.message);
     return stop(2, `Refusé : ${technicalFr(err)}`);
   }
-  const now = args.now ?? new Date();
 
+  const clock = new Date();
   let report;
+  let now;
+  let moment = null;
   try {
     copy = openPrivateCopy(file, "sonni-controle-");
+    // By default the restart is predicted at the moment the copy was made (its newest stored price).
+    moment = args.now ? null : copyMoment(copy.db);
+    now = args.now ?? moment?.now ?? clock;
     const assets = followedAssets(copy.db, cfg.assets);
     const notes = [...cfg.notes];
     if (cfg.file) notes.push(`configuration lue : ${cfg.file} (prix jugé ancien après ${cfg.staleMinutes} min)`);
@@ -896,24 +1065,34 @@ function main() {
     return stop(3, `Contrôle impossible : ${technicalFr(err)}`);
   }
   copy.close();
+  const nowSource = args.now ? "option" : moment ? "copie" : "horloge";
+  const unused = unusedKeyFindings(report.findings, args.accepted);
+  report.findings.push(...unused);
   const unchanged = sha256File(file) === copy.before;
-  const code = unchanged ? verdictCode(report.findings, args.accept) : 3;
+  const code = unchanged ? verdictCode(report.findings, args.accepted) : 3;
 
   if (args.resume) {
-    say(resume(report.findings, { file, now, accept: args.accept, code, unchanged }));
+    say(resume(report.findings, { file, now, nowSource, accepted: args.accepted, code, unchanged }));
   } else {
+    const acc = acceptance(report.findings, args.accepted);
     say("Contrôle avant déploiement — copie en lecture seule (étapes 0.1 à 0.3)");
     say(`Fichier : ${file}`);
     say(`Prévision : si Sonni redémarrait le ${when(isoSeconds(now))} avec cette copie`);
+    if (nowSource === "copie") {
+      const age = clock.getTime() - now.getTime();
+      say(`(${momentFr(now, nowSource)}, son dernier prix enregistré${age >= 60_000 ? `, il y a ${duration(age)}` : ""} ; --maintenant <date ISO> pour un autre moment)`);
+    } else if (nowSource === "horloge") say("(aucun prix dans la copie : prévision à l'heure actuelle)");
+    else say("(moment choisi avec --maintenant)");
     say("");
     for (const line of report.lines) say(line);
     const count3 = (level) => report.findings.filter((f) => f.level === level).length;
     say("Bilan");
     say(`- ${count(count3("B"), "point bloquant", "points bloquants")}, ${count(count3("D"), "point à décider", "points à décider")}, ${count(count3("I"), "information", "informations")}`);
     for (const level of ["B", "D"]) {
-      for (const f of report.findings.filter((x) => x.level === level)) say(`- [${LEVEL[level]}] ${f.text}`);
+      for (const f of report.findings.filter((x) => x.level === level)) say(`- ${findingLine(f, acc.accepted)}`);
     }
-    say(ruleLine(report.findings, args.accept));
+    for (const f of unused) say(`- ${findingLine(f)}`);
+    for (const line of ruleLines(report.findings, args.accepted)) say(line);
     say(unchanged ? "Fichier contrôlé inchangé (SHA-256 identique avant et après)." : "ATTENTION : le fichier a changé pendant le contrôle (un autre programme l'écrit ?) : contrôle à refaire sur une copie fermée.");
     say(resultLine(code, report.findings));
   }

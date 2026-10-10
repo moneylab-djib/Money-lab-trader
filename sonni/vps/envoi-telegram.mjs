@@ -1,26 +1,37 @@
 #!/usr/bin/env node
 /**
  * Sends a French report to the owner's Telegram chat (controlled deployment of 2026-10-10). The owner pipes the
- * `--resume` output of a check into it, as root, because the bot token lives in /etc/sonni.env (root only):
- *   sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs … --resume | node sonni/vps/envoi-telegram.mjs
+ * `--resume` output of a check into it, as root, because the bot token lives in /etc/sonni.env (root only).
+ *
+ * Run it as root ONLY from a root-owned copy whose SHA-256 matches the one published with the approved commit,
+ * never from the checkout: /opt/sonni belongs to the sonni user, so any code running as sonni (a dependency's
+ * install script, the runtime itself) can rewrite sonni/vps/envoi-telegram.mjs there, and root running that file
+ * hands it /etc/sonni.env and the whole VPS. The guide's steps, as root:
+ *   install -o root -g root -m 0500 sonni/vps/envoi-telegram.mjs /root/envoi-telegram.mjs
+ *   sha256sum /root/envoi-telegram.mjs        (compare with the published value; stop if it differs)
+ *   sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs … --resume | node /root/envoi-telegram.mjs
+ * The copy needs nothing beside it: it imports Node built-ins only.
  *
  * Safety: the token is read from the environment file only (never from the command line, where `ps` would show
- * it, nor from the shell's environment), under the variable the configuration names
- * (moneyLab.telegram.botTokenEnv, default TELEGRAM_BOT_TOKEN). It is never printed: not the token, not the URL
- * that carries it, not a network error text that could hold either; a piped message holding the token or anything
- * shaped like a key is shown masked and never sent. The message goes only to the chat of
- * moneyLab.telegram.ownerChatId. The one network call is a POST to https://api.telegram.org; tests point it at a
- * local server through SONNI_TELEGRAM_API, accepted only as http://127.0.0.1:<port>. The script loads Node
- * built-ins only (no native module runs as root), writes no file and changes nothing in Sonni's memory.
+ * it, nor from the shell's environment), and only under the name TELEGRAM_BOT_TOKEN. The configuration it reads
+ * (/home/sonni/.automaton/automaton.json) is writable by sonni, so it may not choose which root-only secret is
+ * sent: a moneyLab.telegram.botTokenEnv other than TELEGRAM_BOT_TOKEN is refused. The token is never printed:
+ * not the token, not the URL that carries it, not a network error text that could hold either; a piped message
+ * holding the token or anything shaped like a key is shown masked and never sent. The message goes only to the
+ * chat of moneyLab.telegram.ownerChatId (its last three digits are shown). The one network call is a POST to
+ * https://api.telegram.org; tests point it at a local server through SONNI_TELEGRAM_API, accepted only as
+ * http://127.0.0.1:<port>. The script writes no file and changes nothing in Sonni's memory.
  *
  * Exit codes: 0 sent (or simulated with --essai); 1 Telegram refused the message (HTTP status and Telegram's
  * description shown); 2 refused or usage error (empty message, a message holding something shaped like a token or
- * a key, unreadable configuration or environment file, missing token or chat, SONNI_TELEGRAM_API not local;
- * nothing sent); 3 network error (Telegram unreachable,
- * no answer within 20 s); 130 interrupted. The last line of stdout is
- * `RÉSULTAT : code=<n> envoi=<fait|simulé|aucun|inconnu> caractères=<n>`.
+ * a key, unreadable configuration or environment file, botTokenEnv other than TELEGRAM_BOT_TOKEN, missing token
+ * or chat, SONNI_TELEGRAM_API not local; nothing sent); 3 network error (Telegram unreachable, no answer within
+ * 20 s); 130 interrupted. These codes are the SENDING's, not the report's. The last line of stdout is
+ * `RÉSULTAT : code=<n> envoi=<fait|simulé|aucun|inconnu> caractères=<n>`, followed by ` rapport=code <r>` when
+ * the piped report has its own `RÉSULTAT : code=<r>` line (the last one counts); when r is not 0 a French line
+ * just before it says that the report's code is the one that counts for the deployment.
  *
- * Usage: <commande> --resume | node sonni/vps/envoi-telegram.mjs [--env /etc/sonni.env]
+ * Usage: <commande> --resume | node /root/envoi-telegram.mjs [--env /etc/sonni.env]
  *          [--config /home/sonni/.automaton/automaton.json] [--essai]
  *   --essai: checks the configuration, the environment file and the token, prints the message, sends nothing.
  */
@@ -37,8 +48,6 @@ export const MAX_MESSAGE = 4000;
 export const CUT_AT = 3950;
 export const CUT_NOTE = "… (rapport coupé, la suite dans le terminal)";
 export const TIMEOUT_MS = 20_000;
-/** src/money-lab/profile.ts ENV_NAME. */
-const ENV_NAME = /^[A-Z][A-Z0-9_]*$/;
 /** A Telegram bot token: the bot's number, a colon, the secret part. Anything else could change the URL. */
 const TOKEN_SHAPE = /^\d{3,20}:[A-Za-z0-9_-]{20,100}$/;
 /** Standard input above this is not a report. */
@@ -52,7 +61,7 @@ export class Failure extends Error {
   }
 }
 
-const USAGE = "Usage : <commande> --resume | node sonni/vps/envoi-telegram.mjs [--env /etc/sonni.env] [--config /home/sonni/.automaton/automaton.json] [--essai]";
+const USAGE = "Usage : <commande> --resume | node /root/envoi-telegram.mjs [--env /etc/sonni.env] [--config /home/sonni/.automaton/automaton.json] [--essai]";
 
 /** Parses the command line; throws a Failure(2) on a usage error. The token is never an option. */
 export function parseArgs(argv) {
@@ -111,7 +120,12 @@ function readFailure(err) {
   return err?.code ? `erreur ${err.code}` : "illisible";
 }
 
-/** The owner's chat and the name of the token variable, from Sonni's configuration. */
+/**
+ * The owner's chat from Sonni's configuration, and the name of the token variable: always TELEGRAM_BOT_TOKEN.
+ * The configuration is writable by sonni while this script runs as root, so its botTokenEnv may only confirm
+ * that name (or be absent): any other value would let it choose which root-only secret of the environment file
+ * goes into the Telegram URL. The refusal never repeats the configured value.
+ */
 export function readTelegramConfig(file) {
   let raw;
   try {
@@ -121,14 +135,13 @@ export function readTelegramConfig(file) {
   }
   const tg = raw?.moneyLab?.telegram;
   if (!tg || typeof tg !== "object") throw new Failure(2, `Pas de bloc moneyLab.telegram dans ${file} : Telegram n'est pas configuré. Rien n'a été envoyé.`);
-  const tokenEnv = tg.botTokenEnv === undefined ? DEFAULT_TOKEN_ENV : tg.botTokenEnv;
-  if (typeof tokenEnv !== "string" || !ENV_NAME.test(tokenEnv)) {
-    throw new Failure(2, `moneyLab.telegram.botTokenEnv de ${file} n'est pas un nom de variable (lettres majuscules, chiffres, _). Rien n'a été envoyé.`);
+  if (tg.botTokenEnv !== undefined && tg.botTokenEnv !== DEFAULT_TOKEN_ENV) {
+    throw new Failure(2, `moneyLab.telegram.botTokenEnv de ${file} ne vaut pas ${DEFAULT_TOKEN_ENV} : lancé en root, ce script ne lit que ${DEFAULT_TOKEN_ENV} dans le fichier d'environnement, et la configuration de Sonni ne peut pas choisir un autre secret. Ce n'est pas la configuration du guide : arrête-toi et envoie-moi cette sortie. Rien n'a été envoyé.`);
   }
   if (!Number.isSafeInteger(tg.ownerChatId)) {
     throw new Failure(2, `moneyLab.telegram.ownerChatId manque ou n'est pas un entier dans ${file}. Rien n'a été envoyé.`);
   }
-  return { tokenEnv, chatId: tg.ownerChatId };
+  return { tokenEnv: DEFAULT_TOKEN_ENV, chatId: tg.ownerChatId };
 }
 
 /** The bot token from the environment file; the messages name the variable, never its value. */
@@ -235,8 +248,32 @@ export async function readStdin(stream = process.stdin) {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-/** Shared state for an interruption: whether the message may already be on its way. */
-export const progress = { sending: false };
+/** The piped report's own verdict: the code of its last `RÉSULTAT : code=<n>` line, or null when it has none. */
+export function reportCode(text) {
+  let code = null;
+  for (const line of String(text ?? "").split(/\r?\n/)) {
+    const m = /^RÉSULTAT : code=(\d{1,3})(?=\s|$)/.exec(line.trim());
+    if (m) code = Number(m[1]);
+  }
+  return code;
+}
+
+/**
+ * The last lines on screen. The RÉSULTAT code is the sending's; ` rapport=code <r>` repeats the piped report's
+ * own verdict, and when that verdict is not 0 a French line says it is the one that counts: the guide's rule
+ * reads the last line, and a report with alerts that was sent fine must not end on a bare `code=0`.
+ */
+export function closingLines(code, sent, chars, report) {
+  const lines = [];
+  if (report !== null && report !== 0) {
+    lines.push(`Le rapport${sent === "fait" ? " envoyé" : ""} signale code=${report} : c'est ce code qui compte, pas celui de l'envoi.`);
+  }
+  lines.push(`RÉSULTAT : code=${code} envoi=${sent} caractères=${chars}${report === null ? "" : ` rapport=code ${report}`}`);
+  return lines;
+}
+
+/** Shared state for an interruption: whether the message may already be on its way, and the report's verdict. */
+export const progress = { sending: false, report: null };
 
 /**
  * Checks everything, then sends the message (or prints it with --essai). Writes the French report with `say`
@@ -247,13 +284,16 @@ export async function envoiTelegram(options = {}) {
   const say = options.say ?? ((line = "") => process.stdout.write(`${line}\n`));
   const warn = options.warn ?? ((line) => process.stderr.write(`${line}\n`));
   let chars = 0;
+  let report = null;
   const done = (code, sent, message) => {
     if (message) (code === 0 ? say : warn)(message);
-    say(`RÉSULTAT : code=${code} envoi=${sent} caractères=${chars}`);
+    for (const line of closingLines(code, sent, chars, report)) say(line);
     return { code };
   };
   try {
     const raw = (options.message ?? "").replace(/\s+$/, "");
+    report = reportCode(raw);
+    progress.report = report;
     if (raw.trim() === "") {
       return done(2, "aucun", `Aucun message reçu sur l'entrée standard. ${USAGE}`);
     }
@@ -306,7 +346,8 @@ async function main() {
     process.on(signal, () => {
       if (process.exitCode !== undefined) process.exit(process.exitCode);
       const sent = progress.sending ? "inconnu" : "aucun";
-      process.stdout.write(`Interrompu${progress.sending ? " pendant l'envoi : le rapport a pu partir ou non" : " : rien n'a été envoyé"}.\nRÉSULTAT : code=130 envoi=${sent} caractères=0\n`);
+      const closing = closingLines(130, sent, 0, progress.report).join("\n");
+      process.stdout.write(`Interrompu${progress.sending ? " pendant l'envoi : le rapport a pu partir ou non" : " : rien n'a été envoyé"}.\n${closing}\n`);
       process.exit(130);
     });
   }

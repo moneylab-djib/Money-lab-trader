@@ -15,8 +15,9 @@
  *
  * Safety: it never writes. The live database is opened read-only (readonly + query_only), and only while Sonni
  * runs: without the -wal and -shm files beside it, the database is refused before anything is opened, because a
- * read-only open of a stopped WAL database would leave -wal and -shm files beside it (owned by the user who ran
- * the check). Besides the database it only runs
+ * read-only open of a stopped WAL database would create -wal and -shm files beside it, and the check must leave
+ * nothing in Sonni's folder. (Ownership is not the reason: SQLite gives a -wal or -shm it creates the database
+ * file's owner, even when root opens it.) Besides the database it only runs
  * `git -C <depot> rev-parse HEAD` and reads two compiled files. No network, no inference, no temporary file,
  * no runtime code.
  *
@@ -213,8 +214,8 @@ export function liveRefusal(base) {
   if (!fs.existsSync(`${base}-wal`)) {
     return "Sonni ne semble pas tourner : la base n'a pas de journal WAL ; ce contrôle se lance pendant qu'il tourne (systemctl is-active sonni doit afficher active). Rien n'a été ouvert.";
   }
-  // A running Sonni keeps both files. Without -shm, SQLite would create it, owned by whoever runs the check
-  // (root would leave a file Sonni cannot write).
+  // A running Sonni keeps both files. Without -shm, SQLite would create it beside the live database, and the check
+  // writes nothing there (SQLite would give it the database's owner even as root: the point is not writing).
   if (!fs.existsSync(`${base}-shm`)) {
     return "Sonni ne semble pas tourner : la base a un journal WAL mais pas de fichier -shm ; ce contrôle se lance pendant qu'il tourne. Rien n'a été ouvert.";
   }

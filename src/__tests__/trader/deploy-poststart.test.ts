@@ -639,7 +639,9 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(tg.requests[0].body).toEqual({ chat_id: 987654242, text: REPORT.trimEnd() });
     expect(r.stdout).toContain(REPORT.trimEnd());
     expect(r.stdout).toContain("Rapport envoyé sur Telegram. (chat …242)");
-    expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 envoi=fait caractères=${REPORT.trimEnd().length}`);
+    // The report's own verdict (0 here) is repeated, without the line a non-zero verdict gets.
+    expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 envoi=fait caractères=${REPORT.trimEnd().length} rapport=code 0`);
+    expect(r.stdout).not.toContain("c'est ce code qui compte");
     expect(r.stdout + r.stderr).not.toContain("/bot");
     noToken(r);
   });
@@ -651,7 +653,7 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(tg.requests).toHaveLength(0);
     expect(r.stdout).toContain(REPORT.trimEnd());
     expect(r.stdout).toContain("Essai : envoi simulé au chat …242 (jeton TELEGRAM_BOT_TOKEN présent, non affiché). Rien n'a été envoyé.");
-    expect(lastLine(r.stdout)).toMatch(/^RÉSULTAT : code=0 envoi=simulé caractères=\d+$/);
+    expect(lastLine(r.stdout)).toMatch(/^RÉSULTAT : code=0 envoi=simulé caractères=\d+ rapport=code 0$/);
     noToken(r);
     // Without a test server: still nothing sent, nothing reached.
     expect((await send(REPORT, secrets(), undefined, ["--essai"])).status).toBe(0);
@@ -694,6 +696,56 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
       noToken(r);
     }
     expect(tg.requests).toHaveLength(0);
+  });
+
+  it("ends on the report's own verdict: a report with alerts sent fine never ends on a bare code=0", async () => {
+    const ALERTS = "Sonni — contrôle après démarrage : 1 alerte\n2. Prix : ALERTE — aucun prix de ETH depuis le démarrage\nRÉSULTAT : code=1 alertes=1\n";
+    const WARNING = "Le rapport envoyé signale code=1 : c'est ce code qui compte, pas celui de l'envoi.";
+    const tg = await fakeTelegram();
+    const r = await send(ALERTS, secrets(), tg.url);
+    expect(r.status, r.stderr).toBe(0);
+    expect(tg.requests[0].body.text).toBe(ALERTS.trimEnd());
+    const lines = r.stdout.trimEnd().split("\n");
+    expect(lines.slice(-3)).toEqual([
+      "Rapport envoyé sur Telegram. (chat …242)",
+      WARNING,
+      `RÉSULTAT : code=0 envoi=fait caractères=${ALERTS.trimEnd().length} rapport=code 1`,
+    ]);
+
+    // --essai and a failed sending: the same verdict, without claiming the report was sent.
+    const essai = await send(ALERTS, secrets(), tg.url, ["--essai"]);
+    expect(essai.status).toBe(0);
+    expect(essai.stdout.trimEnd().split("\n").slice(-2)).toEqual([
+      "Le rapport signale code=1 : c'est ce code qui compte, pas celui de l'envoi.",
+      `RÉSULTAT : code=0 envoi=simulé caractères=${ALERTS.trimEnd().length} rapport=code 1`,
+    ]);
+    const refused = await fakeTelegram(() => ({ status: 400, body: { ok: false, description: "Bad Request: chat not found" } }));
+    const failed = await send(ALERTS, secrets(), refused.url);
+    expect(failed.status).toBe(1);
+    expect(failed.stdout).not.toContain(WARNING);
+    expect(failed.stdout.trimEnd().split("\n").slice(-2)).toEqual([
+      "Le rapport signale code=1 : c'est ce code qui compte, pas celui de l'envoi.",
+      `RÉSULTAT : code=1 envoi=aucun caractères=${ALERTS.trimEnd().length} rapport=code 1`,
+    ]);
+
+    // The last RÉSULTAT line of the report counts (a full check's output piped by mistake still ends on its own).
+    const twice = await send(`RÉSULTAT : code=0 alertes=0\nSonni — contrôle\n  RÉSULTAT : code=3 alertes=0\n`, secrets(), tg.url);
+    expect(lastLine(twice.stdout)).toMatch(/ rapport=code 3$/);
+    expect(twice.stdout).toContain("Le rapport envoyé signale code=3 : c'est ce code qui compte, pas celui de l'envoi.");
+    expect(tg.requests).toHaveLength(2);
+
+    const mod = await import(pathToFileURL(ENVOI).href);
+    expect(mod.reportCode("Sonni\nRÉSULTAT : code=2 bloquants=0 a_decider=1 infos=0")).toBe(2);
+    expect(mod.reportCode("RÉSULTAT : code=130\r\n")).toBe(130);
+    for (const none of ["", "Sonni — rien", "RÉSULTAT : code=12abc", "RÉSULTAT : code=", "Avant RÉSULTAT : code=1", "RÉSULTAT : code=1234"]) {
+      expect(mod.reportCode(none), none).toBeNull();
+    }
+    // A report without a verdict line: the RÉSULTAT line keeps its old form.
+    expect(mod.closingLines(0, "fait", 10, null)).toEqual(["RÉSULTAT : code=0 envoi=fait caractères=10"]);
+    expect(mod.closingLines(130, "inconnu", 0, 1)).toEqual([
+      "Le rapport signale code=1 : c'est ce code qui compte, pas celui de l'envoi.",
+      "RÉSULTAT : code=130 envoi=inconnu caractères=0 rapport=code 1",
+    ]);
   });
 
   it("exits 3 when Telegram cannot be reached", async () => {
@@ -739,7 +791,7 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     child.kill("SIGTERM");
     expect(await closed).toBe(130);
     expect(stdout).toContain("Interrompu pendant l'envoi : le rapport a pu partir ou non.");
-    expect(lastLine(stdout)).toBe("RÉSULTAT : code=130 envoi=inconnu caractères=0");
+    expect(lastLine(stdout)).toBe("RÉSULTAT : code=130 envoi=inconnu caractères=0 rapport=code 0");
     noToken({ status: 130, stdout, stderr });
   });
 
@@ -773,7 +825,7 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(cut.startsWith("a".repeat(3949) + "\n…")).toBe(true);
   });
 
-  it("reads the token from the env file under the variable the configuration names (quotes, comments), never from the shell", async () => {
+  it("reads the token from the env file under TELEGRAM_BOT_TOKEN (quotes, comments), never from the shell", async () => {
     const mod = await import(pathToFileURL(ENVOI).href);
     expect(mod.parseEnvFile([
       "# commentaire",
@@ -794,9 +846,10 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
 
     const tg = await fakeTelegram();
     const other = "987654321:BBH_autre-JETON-secret9876543210fedcba";
+    // botTokenEnv absent: TELEGRAM_BOT_TOKEN, the only name read; the other token-shaped secret is never used.
     const s = secrets({
-      envText: `# Sonni\nTELEGRAM_BOT_TOKEN=${other}\nSONNI_BOT="${TOKEN}"   # le bot de Sonni\n`,
-      config: { moneyLab: { telegram: { botTokenEnv: "SONNI_BOT", ownerChatId: -100123 } } },
+      envText: `# Sonni\nSECOND_BRAIN_API_KEY=${other}\nTELEGRAM_BOT_TOKEN="${TOKEN}"   # le bot de Sonni\n`,
+      config: { moneyLab: { telegram: { ownerChatId: -100123 } } },
     });
     const r = await send(REPORT, s, tg.url);
     expect(r.status, r.stderr).toBe(0);
@@ -815,13 +868,45 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(tg.requests).toHaveLength(1);
   });
 
+  it("refuses (exit 2, nothing sent) a configuration that names another variable than TELEGRAM_BOT_TOKEN, and never prints its value", async () => {
+    // Run as root, the script must not let Sonni's own (sonni-writable) configuration pick which root-only secret
+    // of /etc/sonni.env goes into the Telegram URL: a token-shaped key of the second brain would otherwise leave.
+    const tg = await fakeTelegram();
+    const brainKey = "555666777:CCH_cle-SECONDE-cerveau0123456789abcdef";
+    const envText = `TELEGRAM_BOT_TOKEN=${TOKEN}\nSECOND_BRAIN_API_KEY=${brainKey}\nSONNI_BOT=${TOKEN}\n`;
+    for (const botTokenEnv of ["SECOND_BRAIN_API_KEY", "SONNI_BOT", "telegram_bot_token", "mauvais-nom", "", null, 42]) {
+      const s = secrets({ envText, config: { moneyLab: { telegram: { botTokenEnv, ownerChatId: 987654242 } } } });
+      for (const extra of [[], ["--essai"]]) {
+        const r = await send(`${REPORT}`, s, tg.url, extra);
+        expect(r.status, `${String(botTokenEnv)} ${extra}`).toBe(2);
+        expect(r.stderr).toContain(`moneyLab.telegram.botTokenEnv de ${s.config} ne vaut pas TELEGRAM_BOT_TOKEN : lancé en root, ce script ne lit que TELEGRAM_BOT_TOKEN dans le fichier d'environnement`);
+        expect(r.stderr).toContain("arrête-toi et envoie-moi cette sortie. Rien n'a été envoyé.");
+        expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=2 envoi=aucun caractères=0 rapport=code 0");
+        expect(r.stdout + r.stderr).not.toContain(brainKey);
+        expect(r.stdout + r.stderr).not.toContain(brainKey.split(":")[1]);
+        if (typeof botTokenEnv === "string" && botTokenEnv !== "") expect(r.stdout + r.stderr).not.toContain(botTokenEnv);
+        noToken(r);
+      }
+    }
+    expect(tg.requests).toHaveLength(0);
+    // TELEGRAM_BOT_TOKEN written out, or no botTokenEnv at all, is what the guide's configuration holds: accepted.
+    const mod = await import(pathToFileURL(ENVOI).href);
+    const named = secrets({ envText });
+    expect(mod.readTelegramConfig(named.config)).toEqual({ tokenEnv: "TELEGRAM_BOT_TOKEN", chatId: 987654242 });
+    const absent = secrets({ envText, config: { moneyLab: { telegram: { ownerChatId: 987654242 } } } });
+    expect(mod.readTelegramConfig(absent.config)).toEqual({ tokenEnv: "TELEGRAM_BOT_TOKEN", chatId: 987654242 });
+    const r = await send(REPORT, named, tg.url);
+    expect(r.status, r.stderr).toBe(0);
+    expect(tg.requests.map((q) => q.url)).toEqual([`/bot${TOKEN}/sendMessage`]);
+  });
+
   it("refuses (exit 2, nothing sent) a missing configuration, chat or env file, a malformed token and any token option", async () => {
     const tg = await fakeTelegram();
     const cases: { s: { envFile: string; config: string }; extra?: string[]; expected: string }[] = [
       { s: { ...secrets(), config: path.join(tmp("sonni-telegram-"), "absent.json") }, expected: "Configuration illisible" },
       { s: secrets({ config: { moneyLab: { telegram: { botTokenEnv: "TELEGRAM_BOT_TOKEN" } } } }), expected: "moneyLab.telegram.ownerChatId manque ou n'est pas un entier" },
       { s: secrets({ config: { moneyLab: {} } }), expected: "Pas de bloc moneyLab.telegram" },
-      { s: secrets({ config: { moneyLab: { telegram: { botTokenEnv: "mauvais-nom", ownerChatId: 1 } } } }), expected: "n'est pas un nom de variable" },
+      { s: secrets({ config: { moneyLab: { telegram: { botTokenEnv: "mauvais-nom", ownerChatId: 1 } } } }), expected: "ne vaut pas TELEGRAM_BOT_TOKEN" },
       { s: { ...secrets(), envFile: path.join(tmp("sonni-telegram-"), "absent.env") }, expected: "Fichier d'environnement illisible" },
       { s: secrets({ envText: `TELEGRAM_BOT_TOKEN=${TOKEN}/../../autre\n` }), expected: "n'a pas la forme d'un jeton de bot Telegram" },
       { s: secrets(), extra: ["--jeton", TOKEN], expected: "Option inconnue : --jeton" },
@@ -846,5 +931,17 @@ describe("Telegram report to the owner (sonni/vps/envoi-telegram.mjs)", () => {
     expect(text.startsWith("Sonni — contrôle après démarrage : aucune alerte\n")).toBe(true);
     expect(text.endsWith("RÉSULTAT : code=0 alertes=0")).toBe(true);
     expect(text.length).toBeLessThanOrEqual(3500);
+    expect(lastLine(r.stdout)).toBe(`RÉSULTAT : code=0 envoi=fait caractères=${text.length} rapport=code 0`);
+
+    // The check finds an alert: the sending succeeds (exit 0), and its last lines still carry the check's code=1.
+    live.db.raw.prepare("INSERT INTO money_lab_outbox (id, text, created_at) VALUES ('msg_1', 'Bonjour', ?)").run(new Date(Date.now() - 20 * 60_000).toISOString());
+    const alert = control(live, ["--resume"]);
+    expect(alert.status).toBe(1);
+    const r2 = await send(alert.stdout, secrets(), tg.url);
+    expect(r2.status, r2.stderr).toBe(0);
+    expect(r2.stdout.trimEnd().split("\n").slice(-2)).toEqual([
+      "Le rapport envoyé signale code=1 : c'est ce code qui compte, pas celui de l'envoi.",
+      `RÉSULTAT : code=0 envoi=fait caractères=${tg.requests[1].body.text.length} rapport=code 1`,
+    ]);
   });
 });

@@ -17,10 +17,16 @@
  * `.sha256` file that `sha256sum -c` checks from the folder. The default folder ~/.automaton/predeploiement
  * is outside ~/.automaton/backups, whose 7-day rotation would delete the copy (that folder is refused, as is
  * the database's own folder). A failed or interrupted run removes only the files it created.
+ * Privacy: the copy is all of Sonni's memory. main() sets the umask to 077, so every file the run creates
+ * (the partial copy, SQLite's journal beside it, the .sha256) is private from its creation; the cold byte copy
+ * is created 600 rather than with the live file's mode. An existing folder open to the group or to others
+ * is set to 700 when it belongs to the user running the script, and refused otherwise.
+ * Names: the copy's name, its partial file, its .sha256 and SQLite's files beside the partial file must not
+ * exist, not even as a dangling symbolic link; the run refuses before it creates or changes anything.
  *
  * Exit codes: 0 copy made and verified; 1 verification failed (copy removed); 2 refused or usage error
- * (nothing read or written); 3 technical error (disk space, not SQLite, unreadable file; copy removed);
- * 130 interrupted (temporary files removed, no copy kept). The last line of stdout is
+ * (nothing read or written, the folder left as it was); 3 technical error (disk space, not SQLite, unreadable
+ * file; copy removed); 130 interrupted (temporary files removed, no copy kept). The last line of stdout is
  * `RÉSULTAT : code=<n> copie=<chemin|aucune>`.
  * Interruption (Ctrl+C, a stop, a closed SSH session): Node handles a signal between two steps, never inside
  * one. Before the snapshot of a hot copy starts (opening, counting), the run stops, removes its files and
@@ -165,6 +171,56 @@ export function backupRefusal(source, dossier, env = process.env) {
   return null;
 }
 
+/**
+ * True when a directory entry exists at `file`, a dangling symbolic link included (fs.existsSync follows links
+ * and answers false for one, and a later create or rename would then go through or replace that link).
+ */
+export function entryExists(file) {
+  try {
+    fs.lstatSync(file);
+    return true;
+  } catch (err) {
+    if (err?.code === "ENOENT" || err?.code === "ENOTDIR") return false;
+    throw err;
+  }
+}
+
+/**
+ * Byte copy of `from` into a NEW file `to`, created 600 (fs.copyFileSync gives the copy the source's mode,
+ * whatever the umask, so a 644 database would be copied readable by everyone). Never replaces an entry: an
+ * existing `to` (a dangling link included) fails with EEXIST. On any failure after `to` was created, it is
+ * removed: once this throws, nothing of this call remains.
+ */
+export function copyPrivate(from, to) {
+  const input = fs.openSync(from, "r");
+  let output;
+  try {
+    output = fs.openSync(to, "wx", 0o600);
+    const buffer = Buffer.allocUnsafe(1 << 20);
+    for (;;) {
+      const n = fs.readSync(input, buffer, 0, buffer.length, null);
+      if (n === 0) break;
+      for (let done = 0; done < n;) done += fs.writeSync(output, buffer, done, n - done);
+    }
+    fs.closeSync(output);
+    output = undefined;
+  } catch (err) {
+    if (output !== undefined) {
+      try { fs.closeSync(output); } catch { /* reported by the error below */ }
+      fs.rmSync(to, { force: true });
+    }
+    throw err;
+  } finally {
+    fs.closeSync(input);
+  }
+}
+
+/** The uid of the user running the script, or null where the platform has none (no POSIX permissions). */
+export const currentUid = () => (typeof process.getuid === "function" ? process.getuid() : null);
+
+/** Mode bits in the usual octal form ("755"). */
+export const octal = (mode) => (mode & 0o777).toString(8);
+
 /** Flushes a file (or a folder entry) to the disk; a folder that cannot be synced is not an error. */
 function flush(file, isDir = false) {
   let fd;
@@ -180,7 +236,8 @@ function flush(file, isDir = false) {
 
 /**
  * Makes and verifies the copy, writing the French report with `say` (stdout) and problems with `warn`
- * (stderr). Returns `{ code, copy }`; never exits, so tests can call it with an injected `freeSpace`.
+ * (stderr). Returns `{ code, copy }`; never exits, so tests can call it with an injected `freeSpace` (and
+ * `getuid`, the uid the folder's owner is compared with; the command line always uses the real one).
  */
 export async function sauvegarde(options = {}) {
   const env = options.env ?? process.env;
@@ -188,6 +245,7 @@ export async function sauvegarde(options = {}) {
   const warn = options.warn ?? ((line) => process.stderr.write(`${line}\n`));
   const now = options.now ?? new Date();
   const free = options.freeSpace ?? freeSpace;
+  const getuid = options.getuid ?? currentUid;
   const home = env.HOME || os.homedir();
   const source = path.resolve(options.source ?? liveDatabasePath(env));
   const dossier = path.resolve(options.dossier ?? path.join(home, ".automaton", "predeploiement"));
@@ -203,8 +261,31 @@ export async function sauvegarde(options = {}) {
   const final = path.join(dossier, name);
   const partial = `${final}.partial`;
   const shaFile = `${final}.sha256`;
-  if ([final, partial, shaFile, ...SIDECARS.map((s) => `${partial}${s}`)].some((f) => fs.existsSync(f))) {
-    return done(2, `Refusé : ${final} existe déjà (jamais écrasé). Relance dans une seconde.`);
+  // Every name this run will create must be free, a dangling symbolic link counting as taken: checked before
+  // anything is created or changed, so a refusal leaves the folder exactly as it was.
+  let taken;
+  let folder = null;
+  try {
+    taken = [final, partial, shaFile, ...SIDECARS.map((s) => `${partial}${s}`)].find((f) => entryExists(f));
+    folder = fs.statSync(dossier);
+  } catch (err) {
+    if (err?.code !== "ENOENT") return done(3, `Impossible d'examiner le dossier ${dossier} : ${technicalFr(err)}.`);
+  }
+  if (taken) return done(2, `Refusé : ${taken} existe déjà (fichier ou lien) : rien n'est jamais écrasé. Examine-le, ou relance dans une seconde.`);
+
+  // The copy is all of Sonni's memory: its folder must be closed to the group and to others.
+  const uid = getuid();
+  if (folder && uid !== null && (folder.mode & 0o077) !== 0) {
+    if (folder.uid !== uid) {
+      return done(2, `Refusé : le dossier ${dossier} est ouvert à d'autres utilisateurs (droits ${octal(folder.mode)}) et ne t'appartient pas. `
+        + "La copie contient toute la mémoire de Sonni : choisis un dossier à toi (par défaut ~/.automaton/predeploiement).");
+    }
+    try {
+      fs.chmodSync(dossier, 0o700);
+    } catch (err) {
+      return done(3, `Impossible de fermer le dossier ${dossier} aux autres utilisateurs : ${technicalFr(err)}.`);
+    }
+    say(`Dossier ${dossier} : droits ${octal(folder.mode)} ramenés à 700 (la copie contient toute la mémoire de Sonni).`);
   }
 
   try {
@@ -248,9 +329,9 @@ export async function sauvegarde(options = {}) {
         src?.close();
       }
     } else {
-      // Never opened with SQLite: a byte copy, the same before, after and in the copy.
+      // Never opened with SQLite: a byte copy (created 600), the same before, after and in the copy.
       const before = sha256File(source);
-      fs.copyFileSync(source, partial, fs.constants.COPYFILE_EXCL);
+      copyPrivate(source, partial);
       const copied = sha256File(partial);
       const after = sha256File(source);
       if (fs.existsSync(`${source}-wal`)) throw new Failure(1, "Sonni a démarré pendant la copie : copie supprimée. Relance la sauvegarde (elle se fera à chaud).");
@@ -289,7 +370,7 @@ export async function sauvegarde(options = {}) {
 
     fs.chmodSync(partial, 0o600);
     flush(partial);
-    if (fs.existsSync(final)) throw new Failure(3, `${final} est apparu pendant la sauvegarde : rien n'a été écrasé.`);
+    if (entryExists(final)) throw new Failure(3, `${final} est apparu pendant la sauvegarde : rien n'a été écrasé.`);
     fs.renameSync(partial, final);
     mine.push(final);
     const hash = sha256File(final);
@@ -343,6 +424,8 @@ export function parseArgs(argv) {
 }
 
 async function main() {
+  // Every file this run creates is private from its creation (the copy holds all of Sonni's memory).
+  process.umask(0o077);
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => {
       // The work is synchronous apart from awaits: a signal handled once the run is over (result printed)
