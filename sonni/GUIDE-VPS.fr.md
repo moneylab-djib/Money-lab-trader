@@ -501,9 +501,22 @@ des contrôles verts. Elle n'est « observée » qu'après ces 24 heures et ton 
 
 ### Retour arrière
 
-**Par défaut, on revient sur le code et on garde la base.** L'ancienne version relit ce que la nouvelle a
-écrit : la forme de la base ne change pas. Elle affichera de nouveau les résultats des opérations avant les
-frais d'achat.
+**Par défaut, on revient sur le code et on garde la base.** L'ancienne version relit sans erreur ce que la
+nouvelle a écrit : c'est vérifié sur les deux versions possibles du serveur, et la forme de la base ne change
+pas.
+
+Ce que tu verras de nouveau avec l'ancienne version :
+- les résultats sans les frais d'achat ;
+- les prix sous 1 € arrondis au centime (« 0,00 € ») ;
+- les refus du courtier virtuel en anglais.
+
+**Attention.** L'ancienne version ramène aussi le défaut que l'étape 0.3 corrige. Pendant qu'elle tourne, un
+achat à moins de 0,005 € redeviendrait une quantité infinie, et l'historique serait abîmé pour de bon.
+Donc :
+- **avant** le retour arrière, regarde `/portefeuille`. S'il y a un ordre d'achat en attente sur un actif à
+  moins de 1 €, dis-le-moi d'abord ;
+- **après**, mets Sonni en pause avec `/pause`, le temps qu'on corrige. En pause, il ne place plus d'ordre ;
+  le courtier exécute seulement ceux déjà en attente.
 
 R1. **Restaurer la base seulement en cas de corruption, et seulement sur ta décision.** La restauration
 efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres et dépenses d'IA déjà

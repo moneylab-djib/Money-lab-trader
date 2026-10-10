@@ -117,6 +117,49 @@ Load tests, rate limits, HTTP headers, a status page and legal retention do not 
 endpoint and no real money (decision 0001). The default verdict is NO-GO until each gate has executed
 evidence.
 
-## Rollback rehearsal
+## Rollback rehearsal (2026-10-10, sandbox)
 
-Filled in from the rehearsal run of 2026-10-10 (old builds opening data written by main); see below.
+Both ends of the possible VPS range were built in temporary worktrees. fd5916d shares main's lockfile;
+4c015b0 needed `pnpm install --frozen-lockfile`. Both builds then opened a database written by main's build.
+
+What main's build wrote:
+- funding;
+- fills at 12 significant digits: BTC 60,030, USDC 0.8940468, PUMP 0.0048874425;
+- a partial and a full sale, and a post-mortem;
+- an order rejected by code (stored price 9e999) with a `broker` incident;
+- 9 decisions, 3 snapshots, 2 day summaries, and a pending limit sale.
+
+Result:
+- Old code opening the new data: each old build opened it with its own createDatabase, schemas, catalog and
+  asset sync. It ran two broker ticks (it filled the pending limit sale), a decision, an order and a summary.
+  It built every view: /statut, /portefeuille, the evening and morning reports, /bilan, the pack, the prompt
+  block, /cerveau, /memoire, the carnets, /technique and the brain facts. There were 0 exceptions and no
+  computed NaN, Infinity or exponent.
+- New code reopening the old-written data: no error, two ticks, a decision and a sale.
+- There is no database incompatibility in either direction. The schema is unchanged from 4c015b0 to main.
+
+What the owner sees after a code rollback (display only, stored figures unchanged):
+- Trade and open-position results go back to before the purchase fee. USDC reads −1,79 € instead of −3,79 €
+  after all fees, and "(après tous les frais)" disappears.
+- Unit prices below 1 EUR show rounded to the cent: PUMP "acheté 0,00 €, stop 0,00 €", USDC "0,89 €".
+- Orders the new broker rejected show the raw English note, and its incidents the raw kind "broker".
+- /bilan shows the old decision lines.
+- Day summaries keep the convention of the version that wrote them, also after rolling forward again.
+- fd5916d only: the second brain's figure check gets the old, before-purchase-fee facts. A post-mortem written
+  with the new figures could then be flagged wrongly.
+
+The hazard is the old code, not the data. Variant B left two buys pending for the old broker: PUMP 50 EUR
+and USDC 50 EUR.
+- The old broker filled PUMP at a price of 0 for an infinite quantity, then wrote an Infinity snapshot and a
+  decision with infinite equity. Its views showed "Valeur ∞ €" and "+Infinity %".
+- It filled USDC at 0.89, giving 0.51 % too many units.
+- Rolled forward, the new code flagged PUMP as invalid and suspended buys, decisions and snapshots.
+
+A rollback therefore brings back the step 0.3 precision bug for every fill made while the old code runs. The
+rollback procedure says so:
+- check for pending buys on assets below 1 EUR before going back;
+- put Sonni on /pause while the old code runs, so the model places no new order. The broker still settles the
+  orders already pending.
+
+Not rehearsed: stop orders and restoreStopLevel on old code, predictions, Telegram handlers, model tool
+calls, the full process and the e2e.
