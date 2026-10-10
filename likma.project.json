@@ -462,7 +462,8 @@
         "systemctl disable sonni",
         "systemctl mask sonni",
         "systemctl kill sonni",
-        "sudo -u sonni"
+        "restauration.mjs --restaurer",
+        "sonni/vps/configure.mjs"
       ],
       "contexts": []
     },
