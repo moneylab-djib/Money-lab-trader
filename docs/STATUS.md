@@ -3,9 +3,13 @@
 - Branch / commit: main 43a029b after PR #36 (Likma 0.20.2), PR #35 (restore fixes, 405a384), PR #34 (Likma
   0.20.1 and the tool guard) and PR #33 (deployment preparation, 55ab453). The VPS runs 405a384 since
   2026-10-10 10:39:19 UTC (steps 0.2 and 0.3 in service; post-start check code=0; observation running, not
-  "observed" until the owner says so). Branch claude/sonni-brain-tasks (draft PR #37) holds the first entry below.
+  "observed" until the owner says so). PR #37 (brain tasks) merged by the owner on 2026-10-10 (main 256b86a);
+  its last commit (no task limit) missed the merge and is in branch claude/sonni-task-limits (its own pull request).
 - Tasks Sonni hands to the second brain (owner's request of 2026-10-10, feature `brain-tasks`, guard G18). Status:
-  built and verified (Likma `feature verify`, .likma/checks/b8ee3736fb8246098d37869760b2bb12.json); not merged, not deployed.
+  built, verified and merged (PR #37, main 256b86a); not deployed. The owner then asked for no task limit: branch
+  claude/sonni-task-limits removes the daily (40) and waiting (16) caps (20 tasks per call, priority 4.5 after the
+  time-bound jobs), verified again with Likma (.likma/checks/8416e8e3db894598b61f6ca3e3e646f6.json; the 3 removed
+  assertions were the limits' own, replaced by a priority test); not merged.
   - New tool `delegate_to_second_brain`: 1 to 20 tasks per call; no daily or waiting limit since the owner's decision of 2026-10-10 (priority 4.5, after the time-bound jobs). The PC answers from
     code's data only. A finished batch wakes Claude once (source `sonni_brain_tasks`) through the shared gate:
     8 a day, 20 min apart, within 6 h. There is no wake for a batch with no answer or for answers already read.

@@ -2063,9 +2063,9 @@
         "note": "delegate_to_second_brain queues batches (8/call, 16 waiting, 40/day); the PC answers from code's data; a finished batch wakes Claude once via sonni_brain_tasks through the shared gate (8/day, 20 min, 6 h); answers read only after a paid turn or a whole view; wake message bounded; queue expires when the brain is off; e2e: delegate, sleep, no Claude call, woken with the answers"
       },
       "verification": {
-        "at": "2026-10-10T11:52:41.483940+00:00",
+        "at": "2026-10-10T12:45:22.805383+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "b85879b2434cdf93472ef8e029ab21fde16a1338336944bc4f68a997b87a2682",
+        "fingerprint": "de0ed82d98775f72a3c80fd2d3c9903b07a9701a19758326d88207014aedbde9",
         "scope": [
           "src/trader/braintasks.ts",
           "src/trader/brain.ts",
@@ -2085,37 +2085,43 @@
           "5": "types"
         },
         "checks_hash": "7a145fb6cab48f110eb91ad76f40c324c5084444b316d354b59099d941a28d75",
-        "report": ".likma/checks/b8ee3736fb8246098d37869760b2bb12.json",
-        "contract": "d35964351576cae4d40b74bf55809ce499d6e84527608bd77141f6763c308837",
+        "report": ".likma/checks/8416e8e3db894598b61f6ca3e3e646f6.json",
+        "contract": "639eebb85f2962e8e4d74ae4814d8804192b15d0ad440f70643e306b5495a9e4",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 39.435,
-            "output_bytes": 40822,
-            "output_sha256": "8e29c78bd5cc6a5d2f89adf784d93cc9a38845cde8b8061a345632416b99964a"
+            "seconds": 39.449,
+            "output_bytes": 39394,
+            "output_sha256": "fd373da042bf0e0fdcdd17831ed0a29e2cf37323be6e14afe1cd00b4b4419117"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 735.863,
+            "seconds": 676.161,
             "output_bytes": 5491,
-            "output_sha256": "81104d846977a35391d9cd43a3a8abdfc89fcb6a3fabdc181758ca5f23080771"
+            "output_sha256": "de2916fc8894fa4eb56a6685cd4dc9d2d04a2c80398e3f672c97200d08020006"
           },
           {
             "name": "types",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 8.533,
+            "seconds": 8.161,
             "output_bytes": 72,
             "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
           }
         ],
         "integrity": {
-          "base": "43a029b36669e3302c8ce9df749741db28e37b95",
-          "flags": []
+          "base": "256b86a8d0e446e06733e7c19aabe8074362297b",
+          "flags": [
+            "3 assertion line(s) removed in src/__tests__/trader/braintasks.test.ts"
+          ],
+          "accepted": {
+            "at": "2026-10-10T12:45:22.883918+00:00",
+            "reason": "The owner removed the daily and waiting task limits on 2026-10-10: the assertions on those limits are replaced by a test that 80 queued tasks never hold back the owner's question, news triage or the situation note."
+          }
         }
       }
     }
