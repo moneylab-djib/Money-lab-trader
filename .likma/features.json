@@ -2046,7 +2046,7 @@
         "Claude sees the unread answers labelled as untrusted in the wake message, the pack and sonni_memory section tasks, its quota and the link state in the rules block, and the delegation rule in its mission; the owner sees the day's tasks in /cerveau",
         "docs/MEMORY.md, docs/GUARDS.md (G18) and docs/PLAN.fr.md describe the stores, limits and wake"
       ],
-      "status": "planned",
+      "status": "built",
       "paths": [
         "src/trader/braintasks.ts",
         "src/trader/brain.ts",
@@ -2057,7 +2057,11 @@
         "src/agent/loop.ts",
         "src/__tests__/trader/braintasks.test.ts",
         "sonni/e2e.mjs"
-      ]
+      ],
+      "implementation": {
+        "at": "2026-10-10T11:39:20.072285+00:00",
+        "note": "delegate_to_second_brain queues batches (8/call, 16 waiting, 40/day); the PC answers from code's data; a finished batch wakes Claude once via sonni_brain_tasks through the shared gate (8/day, 20 min, 6 h); answers read only after a paid turn or a whole view; wake message bounded; queue expires when the brain is off; e2e: delegate, sleep, no Claude call, woken with the answers"
+      }
     }
   ]
 }
