@@ -4,7 +4,8 @@
   c1638c0) and PR #30 (step 0.1, CI gate, 0ee7f7f). claude/sonni-deploy-prep (deployment preparation, separate
   pull request) holds the first entry below.
 - Deployment preparation for steps 0.1-0.3 (owner's request of 2026-10-09 evening, branch claude/sonni-deploy-prep).
-  Status: built (sandbox); not merged, not in service, not observed. Nothing was run on the VPS: the developer has
+  Status: built and verified (sandbox and GitHub CI, draft PR #33); not merged, not in service, not observed.
+  Nothing was run on the VPS: the developer has
   no access to it, and every VPS step waits for the owner (phases 0 and 1 read only; phases 2 and 3 need the owner's
   deployment GO).
   - Found (docs/research/deploy-prep.md):
@@ -72,7 +73,9 @@
       - stale counts in the Likma notes.
     - The Likma work-session limit ran out again during this work (0 failures, known cost 0 EUR). A new session
       was begun deliberately after reviewing progress; no check makes a paid call.
-    - Likma verify: pending.
+    - Likma: deploy-prep verified on the last source (report 72ba2c85: sonni, types, money-lab, runtime, build,
+      sonni-e2e 620 s); the 15 features sharing its files were re-verified (report 01fb191a, sonni-e2e 620 s).
+      GitHub CI on draft PR #33: `checks`, `e2e`, `audit` and `trufflehog` green on every pushed commit.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at
