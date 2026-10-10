@@ -85,6 +85,12 @@ Security checks: `deps` runs `pnpm audit --prod --audit-level critical` (fails o
 reported in its log); .github/workflows/secrets.yml scans new commits for verified credentials (TruffleHog).
 Claude Code deny rules protect .claude/, .git/hooks/, .mcp.json and .env files; agent_isolation in
 likma.project.json records why no Claude Code sandbox is configured.
+Likma tool guard (0.20, `tool_hooks` in likma.project.json, owner's decision of 2026-10-10): PreToolUse refuses
+secret files (plus ~/.automaton, Sonni's live memory and config, and sonni.env), policy files, destructive git and
+deletes, and production access: systemctl actions on the sonni service, the real restore
+(`restauration.mjs --restaurer`) and `sonni/vps/configure.mjs`. The hooks call `likma`, which must be on PATH
+(cloud setup script, owner's PC); without it the guard is installed but NOT working and `project audit` fails.
+Exceptions only by a reviewed `tool_hooks.allow` entry on main; fundamental rules never.
 
 <!-- likma:begin -->
 ## Likma routine
