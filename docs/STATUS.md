@@ -1,10 +1,13 @@
 # Working status
-- Updated: 2026-10-09
-- Branch / commit: main after PR #31 (step 0.2, trade fees, c1638c0); before it PR #30 (step 0.1, CI gate, 0ee7f7f).
-  claude/sonni-price-precision (step 0.3, separate pull request) holds the entry below.
+- Updated: 2026-10-10
+- Branch / commit: main b0479a3 after PR #32 (step 0.3, price precision); before it PR #31 (step 0.2, trade fees,
+  c1638c0) and PR #30 (step 0.1, CI gate, 0ee7f7f). claude/sonni-deploy-prep (deployment preparation, separate
+  pull request) holds the first entry below.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
-  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on draft PR #32,
-    re-run on each push); not merged, not in service, not observed.
+  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
+    commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at
+    23:24 UTC, tree identical to 4273322, ruleset "main protégée" not bypassed; main CI run 175, Secret scan and
+    Likma audit green on b0479a3); not in service (the VPS has not been updated); not observed by the owner.
   - Found (read-only analysis, docs/research/price-precision.md): fill prices and the average cost were rounded to the
     cent. Below 1 EUR fills drifted from the market (USDC 0.855 filled at 0.86, +0.58 %; an asset at 0.0123 at 0.01,
     a false open gain of 22 EUR); averaged positions drifted (USDC −0.58 EUR, ADA 2.70 EUR between trades and the

@@ -245,9 +245,10 @@ exactement comme avant.
 
 ## Mettre Sonni à jour
 
-Pour la mise à jour de l'étape 0.3 (précision des prix), arrête-toi après la ligne `pnpm run build` et fais
-d'abord l'audit en lecture seule décrit plus bas ; ne lance `configure.mjs` et `systemctl restart sonni`
-qu'ensuite.
+**La mise à jour qui apporte les étapes 0.1 à 0.3 (frais comptés partout, précision des prix) ne suit
+pas ce bloc** : elle suit la procédure « Déploiement contrôlé des étapes 0.1 à 0.3 » plus bas, avec
+sauvegarde, essai de restauration et contrôle avant de redémarrer. Le bloc ci-dessous reste la mise à jour
+ordinaire, pour plus tard.
 
 ```sh
 cd /opt/sonni
@@ -280,21 +281,8 @@ mois déjà terminés (le journal affiche « Résumés calculés : … »).
 Toutes les étapes sont fusionnées dans `main` depuis le 7 octobre : la ligne `git checkout main`
 ramène un serveur installé sur une branche d'étape (`claude/sonni-alive`) sur `main`, sans effet si tu y
 es déjà. `git status` doit ensuite afficher `On branch main`.
-Avec la mise à jour de l'étape 0.3 (précision des prix), fais d'abord un **audit en lecture seule** de
-l'historique, après `pnpm run build` et **avant** `configure.mjs` et `systemctl restart sonni`. Il lit la
-dernière copie quotidienne (jamais la base active : il refuse `state.db`) et ne modifie rien. Cette copie
-a jusqu'à un jour : ce qui s'est passé depuis, la nouvelle version le détecte elle-même au démarrage
-(incident « courtier virtuel » dans `/technique`, valeur « non fiable » dans `/portefeuille`) :
-```sh
-ls /home/sonni/.automaton/backups/
-sudo -u sonni -H node sonni/vps/audit-prix.mjs /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ
-```
-(remplace AAAA-MM-JJ par la date la plus récente de la liste). La dernière ligne doit dire « Fichier
-audité inchangé ». Si la conclusion dit « rien à réparer », continue la mise à jour. Sinon, arrête-toi
-et envoie-moi le résultat : **ne répare rien toi-même**, une réparation demande une procédure séparée et
-ton accord. Après la mise à jour, un ordre que le courtier virtuel refuse (prix ou quantité invalide)
-apparaît dans `/portefeuille` comme « refusé (refusé par le code : …) » et dans `/technique` comme
-incident « courtier virtuel ».
+Pour l'étape 0.3 (précision des prix), l'audit des prix fait partie du déploiement contrôlé ci-dessous :
+il ne se lance que sur une copie, jamais sur la base active.
 La ligne `configure.mjs` réécrit la configuration avec les nouveaux réglages (sources, lecteurs,
 réveils) en gardant tes valeurs ; elle ne touche pas aux clés ni à sa mémoire. Lance-la bien avec
 `sudo -u sonni -H` (en root seul, elle écrit un fichier que Sonni ne lit pas, et le dit). Elle doit
@@ -303,6 +291,248 @@ afficher la ligne « IA lectrices (gratuites, facultatives) : gemini …, groq �
 répond « Aucune IA lectrice configurée ». Ses prix, prédictions,
 intuitions, journal et identité sont conservés. La pause (`/pause`) aussi : relance avec
 `/reprendre`.
+
+## Déploiement contrôlé des étapes 0.1 à 0.3
+
+Ce déploiement apporte trois corrections :
+- 0.1 : la vérification automatique du code ;
+- 0.2 : les résultats des opérations comptent tous les frais ;
+- 0.3 : les prix gardent leur précision et le courtier virtuel refuse tout chiffre invalide.
+
+Il ne change ni la stratégie, ni les frais, ni les réglages, ni la forme de la base.
+
+**Rien ne change sur le serveur avant ton GO de déploiement** : les phases 0 et 1 ne font que lire.
+
+Règles pour tout ce qui suit :
+- tape les commandes une par une ;
+- chaque outil finit par une ligne `RÉSULTAT : code=…`. Seul `code=0` permet de continuer. Pour `code=1`,
+  `2` ou `3`, arrête-toi et envoie-moi toute la sortie ;
+- **ne répare rien toi-même**. Une réparation de l'historique demande une procédure séparée et ton accord.
+
+Dans les commandes :
+- `COMMIT` est le numéro de version que ton GO de déploiement approuve. Il contient les étapes 0.1 à 0.3
+  et les outils de cette procédure ;
+- `COPIE` est le chemin qu'affiche la sauvegarde.
+
+### Phase 0 — L'état actuel (lecture seule)
+
+Connecte-toi (étape 4), puis :
+```sh
+cd /opt/sonni
+sudo -u sonni -H git log -1 --format='%H %cd %s'
+sudo -u sonni -H git status --short
+systemctl is-active sonni
+systemctl show -p ActiveEnterTimestamp sonni
+ls -la /home/sonni/.automaton/ /home/sonni/.automaton/backups/
+df -h /home /root
+systemctl list-timers sonni-backup-export.timer --no-pager
+```
+Envoie-moi tout. La première ligne donne la version en service, qui servira de point de retour. Le reste
+montre l'état des sauvegardes et la place libre sur le disque.
+
+### Phase 1 — Pré-audit sur une copie, hors du serveur (aucun changement sur le VPS)
+
+**La copie.** Prends la dernière sauvegarde quotidienne. Sonni l'écrit lui-même avec la fonction de
+sauvegarde de SQLite et la vérifie chaque jour. Elle peut avoir jusqu'à un jour : ce qui s'est passé depuis
+sera contrôlé à la phase 2.
+
+**La récupérer sur ton PC**, au choix :
+- **Ton PC la reçoit déjà chaque nuit** (partie 6 de `sonni/GUIDE-PC.fr.md`) : prends le fichier le plus
+  récent de `C:\Sonni\sauvegardes`.
+- **Tu te connectes en `root`**, dans PowerShell :
+  ```powershell
+  scp root@ADRESSE_IP:/home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ C:\Sonni\pre-audit\
+  ```
+- **Tu te connectes en `ubuntu`.** Utilise `cmd`, car PowerShell abîmerait le fichier :
+  ```powershell
+  cmd /c "ssh ubuntu@ADRESSE_IP sudo cat /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ > C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ"
+  ```
+
+**Vérifier l'empreinte.** Sur le serveur, lance
+`sha256sum /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ`. Sur le PC, lance
+`Get-FileHash C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ`. Les deux empreintes doivent être identiques.
+
+**Faire le contrôle**, au choix :
+- **A, le plus simple** : envoie-moi ce fichier dans notre conversation. Je lance les deux contrôles et je te
+  présente le résultat. Le fichier contient toute la mémoire de Sonni : journal, ordres, prédictions et tes
+  messages. Il ne contient aucune clé, car elles restent dans `/etc/sonni.env`.
+- **B, sur ton PC** : il faut Node 22 et une copie de `main`, puis `pnpm install`. Lance :
+  ```sh
+  node sonni/vps/restauration.mjs --essai C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ
+  node sonni/vps/controle-predeploiement.mjs C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ
+  ```
+
+**Ce que font les contrôles.**
+- L'essai de restauration remet la copie en place dans un dossier temporaire. Il vérifie qu'elle est intacte
+  et complète, mesure le temps que prend la restauration, puis efface ce dossier.
+- Le contrôle avant déploiement comprend l'audit des prix de l'étape 0.3. Il rapproche aussi la caisse et
+  chaque position du registre. Il liste chaque ordre en attente et chaque stop, avec ce que le premier relevé
+  en fera. Il signale enfin si le redémarrage lancera un cycle payé.
+
+**Le résultat** classe chaque point en trois niveaux :
+- **BLOQUANT** : une anomalie dans les données, par exemple une position invalide ou un registre qui ne tombe
+  pas juste ;
+- **À DÉCIDER** : ce que le redémarrage déclenchera, ou un écart historique. Par exemple un stop déjà
+  franchi, un ordre ancien qui sera refusé ou un écart d'arrondi d'avant l'étape 0.3 ;
+- **INFO** : pour information seulement.
+
+Avec `code=1`, le déploiement est bloqué : je te présente les points et tu décides. Tu peux accepter les
+points « À DÉCIDER » dans ton GO de déploiement. Pour un point BLOQUANT, il faut d'abord une procédure de
+réparation séparée.
+
+### Phase 2 — La fenêtre de déploiement (seulement après ton GO de déploiement)
+
+**Choisis le moment.** Évite :
+- 19 h 00 à 20 h 00, heure de Paris (bilan du soir et résumé) ;
+- 02 h 15 à 02 h 45 UTC (copie pour le PC).
+
+L'idéal est que Sonni dorme : `/statut` le dit. Ne fais pas en même temps le redémarrage du serveur que
+propose Ubuntu.
+
+1. **Note le point de retour :**
+   ```sh
+   cd /opt/sonni
+   sudo -u sonni -H git rev-parse HEAD | tee /root/sonni-commit-avant.txt
+   cp -p /home/sonni/.automaton/automaton.json /root/automaton.json.avant-deploiement
+   ```
+2. **Arrête Sonni :**
+   ```sh
+   systemctl stop sonni
+   systemctl is-active sonni
+   ls -la /home/sonni/.automaton/state.db*
+   ```
+   La deuxième ligne doit afficher `inactive`. La troisième ne doit montrer que `state.db`. S'il reste un
+   `state.db-wal` ou un `state.db-shm`, l'arrêt n'a pas été propre : arrête-toi et envoie-moi la sortie.
+3. **Installe exactement la version approuvée :**
+   ```sh
+   sudo -u sonni -H git fetch origin
+   sudo -u sonni -H git checkout main
+   sudo -u sonni -H git merge --ff-only COMMIT
+   sudo -u sonni -H git rev-parse HEAD
+   sudo -u sonni -H pnpm install --frozen-lockfile
+   sudo -u sonni -H pnpm run build
+   ```
+   `git rev-parse HEAD` doit afficher `COMMIT`. Si `merge --ff-only` refuse, arrête-toi et redémarre
+   l'ancienne version avec `systemctl start sonni` : rien n'a changé.
+
+   Ne lance **pas** `configure.mjs` cette fois : aucun réglage ne change.
+4. **Fais la sauvegarde.** Sonni est arrêté, donc c'est une copie exacte du fichier :
+   ```sh
+   sudo -u sonni -H node sonni/vps/sauvegarde.mjs
+   ```
+   Elle écrit dans `/home/sonni/.automaton/predeploiement/`, à côté de son empreinte `.sha256`. Ce dossier
+   n'est jamais vidé par la rotation des sauvegardes quotidiennes. La dernière ligne donne `COPIE`.
+5. **Fais l'essai de restauration** (dans un dossier temporaire) :
+   ```sh
+   sudo -u sonni -H node sonni/vps/restauration.mjs --essai COPIE
+   ```
+6. **Fais le contrôle avant démarrage :**
+   ```sh
+   sudo -u sonni -H node sonni/vps/controle-predeploiement.mjs COPIE
+   ```
+   Ajoute `--accepter-a-decider` seulement si ton GO a accepté les points « À DÉCIDER » de la phase 1, et
+   s'ils sont les mêmes. Un point BLOQUANT bloque toujours.
+7. **Si une de ces trois commandes ne finit pas par `code=0`**, ne démarre pas la nouvelle version. Au
+   choix :
+   - redémarre l'ancienne : suis « Retour arrière » plus bas, étapes R3 et R4 ;
+   - ou laisse Sonni arrêté.
+
+   Envoie-moi la sortie : la décision est la tienne.
+8. **Démarre :**
+   ```sh
+   date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-demarrage.txt
+   systemctl start sonni
+   systemctl is-active sonni
+   ```
+
+### Phase 3 — Contrôles après démarrage et rapport Telegram
+
+**Attends 10 à 15 minutes**, le temps d'une collecte de prix et d'un passage du courtier virtuel, puis :
+```sh
+journalctl -u sonni -n 80 --no-pager
+sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT
+```
+
+**Dans le journal**, tu dois voir :
+- `[MONEY LAB] Canal Telegram actif.` ;
+- `[SONNI] Actif : …` ;
+- s'il dormait : `[SONNI] Redémarrage pendant le sommeil : pas de réveil payé`.
+
+Tu ne dois voir ni `Fatal`, ni `Les clés du programme sont lisibles`.
+
+**Le contrôle lit la base sans rien écrire.** Il vérifie :
+- la version en marche ;
+- les prix arrivés depuis le démarrage ;
+- les appels payés ;
+- les incidents ;
+- les ordres refusés ;
+- que chaque position est utilisable ;
+- les messages Telegram en attente.
+
+**Le rapport sur Telegram.** Cette ligne se lance en `root`, car elle lit le jeton du bot dans
+`/etc/sonni.env`. Le jeton n'est jamais affiché :
+```sh
+sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT --resume | node sonni/vps/envoi-telegram.mjs
+```
+
+**Sur ton téléphone**, envoie :
+- `/statut` ;
+- `/portefeuille`, où les résultats portent la mention « (après tous les frais) » ;
+- `/technique`, où aucun incident « courtier virtuel » ne doit apparaître.
+
+**Déclencheurs de retour arrière.** Décide dans les 15 minutes, et le retour arrière se fait sur ton accord.
+Les déclencheurs sont :
+- le contrôle finit par `code=1` ;
+- `systemctl is-active sonni` n'affiche pas `active`, ou Sonni redémarre en boucle (`systemctl status sonni`
+  montre des redémarrages) ;
+- un incident « courtier virtuel » dans `/technique` ;
+- « Valeur non fiable » dans `/portefeuille` ;
+- plusieurs cycles payés que tu n'as pas demandés ;
+- aucune réponse sur Telegram.
+
+**Observation de 24 heures.** Surveille :
+- la sauvegarde quotidienne suivante ;
+- le bilan du soir et le résumé de 20 h ;
+- la copie de nuit pour le PC ;
+- le rapport du matin.
+
+Le lendemain, envoie-moi `/technique` et `/bilan`. L'étape est dite « en service » une fois démarrée avec
+des contrôles verts. Elle n'est « observée » qu'après ces 24 heures et ton accord.
+
+### Retour arrière
+
+**Par défaut, on revient sur le code et on garde la base.** L'ancienne version relit ce que la nouvelle a
+écrit : la forme de la base ne change pas. Elle affichera de nouveau les résultats des opérations avant les
+frais d'achat.
+
+R1. **Restaurer la base seulement en cas de corruption, et seulement sur ta décision.** La restauration
+efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres et dépenses d'IA déjà
+comptées. S'il faut restaurer la base **et** revenir sur le code, restaure la base d'abord, car l'outil
+n'existe que dans la nouvelle version :
+```sh
+systemctl stop sonni
+sudo -u sonni -H node sonni/vps/restauration.mjs --restaurer COPIE --confirmer
+```
+L'outil vérifie l'empreinte et refuse tant que Sonni tourne. Il ne supprime rien : l'ancienne base et ses
+fichiers `-wal`/`-shm` partent dans un dossier `quarantaine-…` à côté.
+
+R2. **Arrête Sonni :** `systemctl stop sonni`
+
+R3. **Reviens à l'ancienne version :**
+```sh
+cd /opt/sonni
+sudo -u sonni -H git checkout --detach "$(cat /root/sonni-commit-avant.txt)"
+sudo -u sonni -H pnpm install --frozen-lockfile
+sudo -u sonni -H pnpm run build
+```
+
+R4. **Démarre et vérifie :**
+```sh
+systemctl start sonni
+journalctl -u sonni -n 80 --no-pager
+```
+Puis envoie `/statut`, `/portefeuille` et `/technique` sur Telegram. Les outils de contrôle n'existent pas
+dans l'ancienne version : on vérifie avec le journal et Telegram. Envoie-moi le résultat.
 
 ## Arrêter Sonni
 

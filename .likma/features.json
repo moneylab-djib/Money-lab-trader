@@ -1809,6 +1809,99 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "deploy-prep",
+      "title": "Controlled deployment of steps 0.1-0.3: consistent backup, restore drill, pre-deployment gate, post-start check, Telegram report and rollback",
+      "criteria": [
+        "WHEN the owner runs sauvegarde.mjs on the VPS, THE SYSTEM SHALL write a verified consistent copy of the live database outside the daily rotation: integrity ok, row counts at least the live ones, a SHA-256 file beside it",
+        "THE backup, drill, check and report scripts SHALL leave the live database and its folder unchanged: no write, no -wal or -shm created next to it, no file deleted outside their own temporary folder",
+        "WHEN the owner runs restauration.mjs --essai on a copy, THE SYSTEM SHALL restore it into a new temporary folder, report integrity, row counts, SHA-256, restore time and the copy's age, and remove that folder",
+        "WHEN the owner runs restauration.mjs --restaurer, THE SYSTEM SHALL refuse unless --confirmer is given, the SHA-256 file matches and Sonni is stopped, and SHALL move the current database files into a quarantine folder instead of deleting them",
+        "WHEN the owner runs controle-predeploiement.mjs on a copy, THE SYSTEM SHALL report from a private copy the price audit, ledger reconciliation and each pending order, stop and paid wake a restart would trigger",
+        "WHEN the pre-deployment check finds a blocking anomaly or a point to decide, THE SYSTEM SHALL exit with code 1; --accepter-a-decider SHALL lift points to decide only, never a blocking anomaly",
+        "THE pre-deployment check's predicted first-tick outcome of each pending order and each stop SHALL equal what the new broker does on the same data (tested against brokerTick)",
+        "WHEN the owner runs controle-apres-demarrage.mjs after a start, THE SYSTEM SHALL read the live database read-only and SHALL exit 1 on any rollback trigger: wrong build, no price since start, broker incident, rejected order, unusable position, Telegram backlog",
+        "WHEN envoi-telegram.mjs runs, THE SYSTEM SHALL send the given French report to the owner's chat with the configured bot token, which it SHALL never print or read from the command line",
+        "THE VPS guide SHALL give the owner, in French, the survey, the pre-audit on a copy, the deployment window pinned to the approved commit, post-start checks, the Telegram report, the observation window and the rollback",
+        "WHEN this tooling ships, THE SYSTEM SHALL keep Sonni's runtime code, configuration, schema, stored history and audit-prix.mjs output unchanged, with tests making no network call outside 127.0.0.1 and no paid call"
+      ],
+      "status": "planned",
+      "paths": [
+        "sonni/vps/copie-privee.mjs",
+        "sonni/vps/audit-prix.mjs",
+        "sonni/GUIDE-VPS.fr.md"
+      ],
+      "track": "deep",
+      "tasks": [
+        {
+          "id": "t1",
+          "title": "Shared private-copy safety block; audit-prix sections importable, output unchanged",
+          "criteria": [
+            2,
+            11
+          ],
+          "after": [],
+          "status": "done",
+          "done_at": "2026-10-10T00:03:23.258222+00:00",
+          "note": "copie-privee.mjs extracted; audit-prix.mjs exports invalidFigures, marketFillDrifts, averagedPositions, ledgerReplay, auditPrices; stdout, stderr and exit codes identical on six copies (commit 040060a)"
+        },
+        {
+          "id": "t2",
+          "title": "Consistent backup (sauvegarde.mjs) and restore drill / quarantined restore (restauration.mjs) with tests",
+          "criteria": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "after": [
+            "t1"
+          ],
+          "status": "todo"
+        },
+        {
+          "id": "t3",
+          "title": "Pre-deployment gate (controle-predeploiement.mjs) with exit-code contract and fidelity test against brokerTick",
+          "criteria": [
+            2,
+            5,
+            6,
+            7
+          ],
+          "after": [
+            "t1"
+          ],
+          "status": "todo"
+        },
+        {
+          "id": "t4",
+          "title": "Post-start check (controle-apres-demarrage.mjs) and Telegram report sender (envoi-telegram.mjs) with tests",
+          "criteria": [
+            2,
+            8,
+            9
+          ],
+          "after": [
+            "t1"
+          ],
+          "status": "todo"
+        },
+        {
+          "id": "t5",
+          "title": "French deployment and rollback procedure in GUIDE-VPS, rollback rehearsal of old code on new data, docs (STATUS, PLAN.fr, MEMORY, AGENTS, CODEMAP)",
+          "criteria": [
+            10,
+            11
+          ],
+          "after": [
+            "t2",
+            "t3",
+            "t4"
+          ],
+          "status": "todo"
+        }
+      ]
     }
   ]
 }
