@@ -42,6 +42,12 @@ Checks (configured in likma.project.json; `likma project check --path .`, or
   - deps: pnpm audit --prod --audit-level critical (needs registry access)
 Operator CLI: node dist/index.js --sonni statut | intuitions | idee "<texte>"
 Price audit (step 0.3; read-only, on a copy, refuses the active state.db): node sonni/vps/audit-prix.mjs <copy>
+Controlled deployment (2026-10-10, owner runs them, sonni/GUIDE-VPS.fr.md): sonni/vps/sauvegarde.mjs (verified copy of
+the live db), restauration.mjs --essai <copy> | --restaurer <copy> --confirmer, controle-predeploiement.mjs <copy>
+(gate: exit 1 blocks), controle-apres-demarrage.mjs --depuis <ISO>, envoi-telegram.mjs (stdin to the owner's chat),
+verification-environnement.mjs (read-only preflight), verifier-pause.mjs --copie <copy> | --en-marche (rollback guard);
+they run from an isolated git-archive folder before anything is installed. Counter-verification on fictitious
+databases (PC or sandbox, needs the build): node sonni/pc/contre-verification.mjs.
 Deployment: Sonni's own VPS (decision 0004), sonni/GUIDE-VPS.fr.md and sonni/vps/; the owner's PC (second brain,
 nightly memory copy): sonni/GUIDE-PC.fr.md and sonni/pc/, scripts tested in pc-scripts.test (keep them in sync
 with config keys and commands).

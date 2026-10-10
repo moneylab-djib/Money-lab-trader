@@ -349,6 +349,60 @@
       "path": "src/trader/brainchecks.ts",
       "purpose": "Consistency check of the figures in Claude's texts (the PC points, code judges) and night upkeep proposals about the lessons; what Claude and the owner see of them",
       "edit_when": "A fact sheet, a judging rule, the night schedule, the upkeep checks or their display changes"
+    },
+    {
+      "area": "Deployment safe copy",
+      "path": "sonni/vps/copie-privee.mjs",
+      "purpose": "Shared read-only block: refuses the live db, private temporary copy opened read-only, SHA-256 before and after",
+      "edit_when": "A script that reads a copy of Sonni's memory changes how it refuses or opens files"
+    },
+    {
+      "area": "Deployment backup",
+      "path": "sonni/vps/sauvegarde.mjs",
+      "purpose": "Owner-run verified copy of the live db outside the daily rotation (online backup API or byte copy, integrity, counts, .sha256)",
+      "edit_when": "Backup location, verification or the live database layout changes (keep GUIDE-VPS in sync)"
+    },
+    {
+      "area": "Deployment restore",
+      "path": "sonni/vps/restauration.mjs",
+      "purpose": "Restore drill in a temporary folder; owner-confirmed restore that quarantines the current files",
+      "edit_when": "Restore steps, quarantine or the service check change (keep GUIDE-VPS in sync)"
+    },
+    {
+      "area": "Deployment gate",
+      "path": "sonni/vps/controle-predeploiement.mjs",
+      "purpose": "Read-only pre-deployment check of a copy: audit, reconciliation, first-tick simulation of pending orders and stops; exit 1 blocks",
+      "edit_when": "brokerTick, applyFill, stops or the restart sleep rule change (its fidelity test compares it with brokerTick)"
+    },
+    {
+      "area": "Deployment post-start check",
+      "path": "sonni/vps/controle-apres-demarrage.mjs",
+      "purpose": "Read-only check of the live db after a start: build, prices, paid calls, incidents, rejections, positions, outbox, repeated failures",
+      "edit_when": "Health thresholds, incident kinds, table formats or the deployment procedure change"
+    },
+    {
+      "area": "Deployment Telegram report",
+      "path": "sonni/vps/envoi-telegram.mjs",
+      "purpose": "Sends a stdin report to the owner's chat with the configured bot token (never printed)",
+      "edit_when": "The Telegram config keys or env file change"
+    },
+    {
+      "area": "Deployment pause check",
+      "path": "sonni/vps/verifier-pause.mjs",
+      "purpose": "Rollback guard: the pause is recorded, no pending buy, no sub-cent or invalid position, nothing bought since the old version started",
+      "edit_when": "The pause record, the broker's pending orders or the rollback procedure change (keep GUIDE-VPS in sync)"
+    },
+    {
+      "area": "Deployment environment preflight",
+      "path": "sonni/vps/verification-environnement.mjs",
+      "purpose": "Read-only check that the VPS has what the tools need (Node, Sonni's better-sqlite3, user, ~/.automaton rights, disk, commands)",
+      "edit_when": "A deployment tool needs a new Node function, command, folder or right"
+    },
+    {
+      "area": "Deployment counter-verification",
+      "path": "sonni/pc/contre-verification.mjs",
+      "purpose": "Runs every deployment tool on fictitious databases built by Sonni's code, compares exit codes and messages, writes a French report",
+      "edit_when": "A deployment tool's exit code, message or option changes"
     }
   ],
   "bot_guards": {
@@ -372,12 +426,14 @@
     "owner_channel": [
       "src/__tests__/trader/guards.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
-      "sonni/e2e.mjs"
+      "sonni/e2e.mjs",
+      "src/__tests__/trader/deploy-poststart.test.ts"
     ],
     "secret_scrub": [
       "src/__tests__/trader/guards.test.ts",
       "src/__tests__/money-lab/money-lab-vps.test.ts",
-      "sonni/e2e.mjs"
+      "sonni/e2e.mjs",
+      "src/__tests__/trader/deploy-poststart.test.ts"
     ],
     "history_integrity": [
       "src/__tests__/trader/guards.test.ts",
@@ -385,7 +441,9 @@
       "src/__tests__/money-lab/money-lab-vps.test.ts",
       "sonni/e2e.mjs",
       "src/__tests__/trader/pc-scripts.test.ts",
-      "src/__tests__/trader/brainchecks.test.ts"
+      "src/__tests__/trader/brainchecks.test.ts",
+      "src/__tests__/trader/deploy-backup.test.ts",
+      "src/__tests__/trader/deploy-predeploy.test.ts"
     ],
     "stop_reasons": [
       "src/__tests__/trader/guards.test.ts"

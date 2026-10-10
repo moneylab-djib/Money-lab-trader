@@ -1,10 +1,145 @@
 # Working status
-- Updated: 2026-10-09
-- Branch / commit: main after PR #31 (step 0.2, trade fees, c1638c0); before it PR #30 (step 0.1, CI gate, 0ee7f7f).
-  claude/sonni-price-precision (step 0.3, separate pull request) holds the entry below.
+- Updated: 2026-10-10
+- Branch / commit: main b0479a3 after PR #32 (step 0.3, price precision); before it PR #31 (step 0.2, trade fees,
+  c1638c0) and PR #30 (step 0.1, CI gate, 0ee7f7f). claude/sonni-deploy-prep (deployment preparation, separate
+  pull request) holds the first entry below.
+- Deployment preparation for steps 0.1-0.3 (owner's request of 2026-10-09 evening, branch claude/sonni-deploy-prep).
+  Status: built and verified (sandbox and GitHub CI, draft PR #33); not merged, not in service, not observed.
+  Nothing was run on the VPS: the developer has
+  no access to it, and every VPS step waits for the owner (phases 0 and 1 read only; phases 2 and 3 need the owner's
+  deployment GO).
+  - Found (docs/research/deploy-prep.md):
+    - the VPS commit is unknown (somewhere in 4c015b0..fd5916d, and the runtime does not log it);
+    - backups were verified but never restored. There was no on-demand copy, and the daily copy can be 24 h old;
+    - the price audit exits 0 on findings and does not look at pending orders, stops, cash or ledger-versus-position
+      quantities;
+    - the guide's update deployed whatever main was (`git pull`), rewrote the config and built while the old process
+      ran;
+    - no post-start check or Telegram report existed.
+  - Change, five owner-run scripts in sonni/vps (Node and better-sqlite3 only; French output; exit codes 0 OK, 1
+    finding, 2 refused, 3 technical, 130 interrupted; a final `RÉSULTAT` line):
+    - sauvegarde.mjs: a verified copy of the live database outside the daily rotation (online backup API in one step
+      while Sonni runs, byte copy when stopped; integrity, row counts, `.sha256`, mode 600);
+    - restauration.mjs: `--essai` restores into a temporary folder and reports integrity, counts, restore time and
+      age; `--restaurer … --confirmer` runs only while Sonni is stopped, with a matching `.sha256`, and moves the
+      current files into a quarantine folder;
+    - controle-predeploiement.mjs: the gate. It covers the step 0.3 audit, cash and position reconciliation, and a
+      simulation of the first broker tick on the copy (pending orders, stops, paid wake at restart). BLOQUANT,
+      À DÉCIDER and INFO; exit 1 blocks;
+    - controle-apres-demarrage.mjs: a read-only check of the live database after the start (build, prices, paid
+      calls, incidents, rejections, positions, outbox, repeated failures); exit 1 is a rollback trigger;
+    - envoi-telegram.mjs: the report to the owner's chat, with the token read from /etc/sonni.env and never printed.
+
+    The read-only block of audit-prix.mjs is shared (copie-privee.mjs); the audit's output, errors and exit codes
+    are byte-identical. GUIDE-VPS has the French procedure and its rollback.
+  - Unchanged: Sonni's runtime code, configuration, schema and stored history; no paid call, no VPS change.
+  - Rollback rehearsal (sandbox, builds of fd5916d and 4c015b0): old code opens and runs on main's data and main
+    reopens what old code wrote, with no exception and no non-finite figure. A code rollback brings back the
+    pre-0.3 precision bug for fills made meanwhile (a buy under 0.005 EUR becomes an infinite quantity): the guide
+    asks to check pending buys under 1 EUR first and to /pause Sonni while the old code runs.
+  - Checks (before the owner's validation round): sonni 27 files, 366 tests; 119 of them are new (deploy-backup 32, deploy-predeploy 40,
+    deploy-poststart 40, deploy-guide 7), including a fidelity test of the gate against the real brokerTick and a
+    guide test that every command and option exists in the right order.
+  - Reviews:
+    - Three adversarial reviews, one per script group, with mutations: 3 major and 13 minor findings, all fixed
+      with tests. The major ones:
+      - a restore rollback could replay a crashed run's WAL into the old database;
+      - stops were judged on the stored level instead of the post-tick level;
+      - transient health events counted as rollback triggers.
+    - A final review through three lenses (acceptance, an owner walk-through of the guide on a simulated VPS, a
+      safety audit): no blocker, 7 major and 18 minor findings, all fixed. The major ones:
+      - --accepter-a-decider lifted every point; points now carry keys and only those the GO names are lifted;
+      - a root restore without sudo targeted /root; it is now refused;
+      - the Telegram sender ran as root from a sonni-writable folder; it now runs from a root-owned copy checked
+        against a published SHA-256, and only TELEGRAM_BOT_TOKEN can be read;
+      - the restore's next steps started Sonni before a code rollback;
+      - the guide missed `cd /opt/sonni` lines and the PC's folders.
+    - Each fix group was checked by an independent verifier (reproducing the original scenario, with mutations).
+      Their 7 follow-up minors are fixed too:
+      - section B's ages are measured on the real clock;
+      - incidents after the copy's moment are shown;
+      - a shared folder is never chmodded;
+      - root ownership changes go through no-follow descriptors;
+      - the start time is noted before the start;
+      - an incomplete report gives `rapport=code inconnu`;
+      - three missing tests were added.
+    - Fresh-context acceptance review (Likma `feature review`) of 9481152: all 11 criteria and the owner's 5
+      points met (366 tests, no runtime diff, audit-prix output byte-identical, hands-on runs). It raised 5 minor
+      guide points, all fixed:
+      - /pause before a rollback (the old code honours a stored pause at start);
+      - a fresh backup and gate when Sonni is stopped, with each pending order now showing its asset's last price;
+      - COMMIT wording in phase 1;
+      - the hot-backup label after an unclean stop;
+      - stale counts in the Likma notes.
+    - The Likma work-session limit ran out again during this work (0 failures, known cost 0 EUR). A new session
+      was begun deliberately after reviewing progress; no check makes a paid call.
+    - Likma: deploy-prep verified on the last source (report 72ba2c85: sonni, types, money-lab, runtime, build,
+      sonni-e2e 620 s); the 15 features sharing its files were re-verified (report 01fb191a, sonni-e2e 620 s).
+      GitHub CI on draft PR #33: `checks`, `e2e`, `audit` and `trufflehog` green on every pushed commit.
+  - Owner's validation round of 2026-10-10 (PR #33, five points; docs/research/deploy-prep.md, "Owner's validation
+    round"):
+    - backup before any install: the tools run from /home/sonni/outils-deploiement (git archive of COMMIT's sonni/vps
+      plus a node_modules link to Sonni's own). Stop, backup, drill and gate run before any checkout, install or
+      build, and deploy-guide.test pins that order;
+    - rollback guard, sonni/vps/verifier-pause.mjs. It requires:
+      - the pause recorded;
+      - no pending buy;
+      - no sale under 1 EUR the old broker would make on its own, unless the GO names the asset;
+      - nothing under 1 cent;
+      - every position priced;
+      - no BLOQUANT of the gate.
+
+      Then `--en-marche --depuis` re-checks live. The rollback records the pause and verifies it while the new
+      version is still installed, then rolls the code back;
+    - VPS compatibility: sonni/vps/verification-environnement.mjs is a read-only preflight, run before the stop.
+      Phase 0 adds read-only shell commands for the same facts;
+    - the gate blocks on corrupt data (tests cited in the research notes), and now before anything is installed;
+    - sonni/pc/contre-verification.mjs: 27 cases on fictitious databases for the owner's Windows agent. The
+      mission is in branch agent-reports.
+  - Independent adversarial review of these changes: 3 major and 5 minor findings, all fixed with tests. The
+    major ones:
+    - the rollback could start on data the gate blocks;
+    - sales by the old broker under 1 EUR were neither prevented nor detected;
+    - the pending-buy remedy was impossible after the code rollback.
+
+    Not fixed: a server reboot during the window starts the service as it stands (the guide says not to reboot).
+  - Fresh-context acceptance review (Likma `feature review`) of db20493: CONCERNS, no blocker, all 14 criteria
+    met. It raised 2 major and 6 minor points, all fixed with tests:
+    - a pending buy could be left to an OLD version restarted by the guide's option; the option now needs
+      `rev-parse HEAD` = COMMIT;
+    - verifier-pause accepted a stale copy; a copy older than the live database or its -wal is now refused;
+    - minor:
+      - stale R-step references in restauration.mjs and controle-apres-demarrage.mjs;
+      - Phase 2 step 7 wording;
+      - one read transaction for the checks;
+      - a pause set again after the start;
+      - R5 confirms the rollback commit;
+      - a duplicate entry in the mission header.
+  - Checks after the round: sonni 30 files, 399 tests; typecheck; build; contre-verification 28/28 on Linux. Not run
+    on Windows (the mission's purpose).
+  - Second fresh-context acceptance review, of 9c09e77: CONCERNS. MAJOR 2 and the minors were confirmed closed.
+    MAJOR 1 was only partly closed: `rev-parse HEAD` = COMMIT does not prove dist/ is the new build after a failed
+    install. Fixed:
+    - the new version may only be restarted for pending buys when step 9 ran and its post-start check gave
+      code=0 (also in restauration.mjs's next steps);
+    - verifier-pause --copie refuses while a state.db-wal is beside the live database;
+    - its RÉSULTAT line gives copie_a_jour.
+  - Third fresh-context acceptance review, of d41876e: PASS, no blocker or major. Every path to R4 with the old
+    dist/ was walked. Its 2 minor points and 2 nits are applied:
+    - a start time left by an earlier attempt is removed at Phase 2 step 1 and in R5;
+    - R5 compares HEAD with the rollback commit;
+    - R3/R4 wording.
+  - Likma after the round:
+    - deploy-prep verified on 1c3483b (report df7bd274: sonni, types, money-lab, runtime, build, sonni-e2e 620 s);
+    - the 13 features sharing its files re-verified (report e81d31f9, sonni-e2e 619 s);
+    - review recorded as pass.
+
+    GitHub CI on 1c3483b: `checks`, `e2e`, `audit` and `trufflehog` green.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
-  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on draft PR #32,
-    re-run on each push); not merged, not in service, not observed.
+  Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
+    commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at
+    23:24 UTC, tree identical to 4273322, ruleset "main protégée" not bypassed; main CI run 175, Secret scan and
+    Likma audit green on b0479a3); not in service (the VPS has not been updated); not observed by the owner.
   - Found (read-only analysis, docs/research/price-precision.md): fill prices and the average cost were rounded to the
     cent. Below 1 EUR fills drifted from the market (USDC 0.855 filled at 0.86, +0.58 %; an asset at 0.0123 at 0.01,
     a false open gain of 22 EUR); averaged positions drifted (USDC −0.58 EUR, ADA 2.70 EUR between trades and the

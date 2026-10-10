@@ -282,6 +282,14 @@ stores and comes back through the pack, `sonni_memory` and `recall`.
   (sonni/pc/backup-pull.ps1) fetches only names like a daily copy, keeps it only when the SHA-256
   matches, keeps 30 days and logs a failed or stale night. Restoring is a manual step with the
   owner.
+- Deployment copies and restore (2026-10-10, sonni/GUIDE-VPS.fr.md "Déploiement contrôlé"): the owner's
+  `sonni/vps/sauvegarde.mjs` writes `~/.automaton/predeploiement/state.db.predeploiement-<UTC time>` with a
+  `.sha256` file (online backup API while Sonni runs, byte copy when stopped; integrity and row counts
+  checked), outside the daily rotation and never deleted by code. `sonni/vps/restauration.mjs --essai`
+  restores a copy into a temporary folder only; `--restaurer … --confirmer` (owner's decision, Sonni
+  stopped, SHA-256 matched) moves the current `state.db`, `-wal` and `-shm` into
+  `~/.automaton/quarantaine-<UTC time>/` instead of deleting them. The pre-deployment and post-start checks
+  read copies or the live file read-only and write nothing.
 
 ## 8. Owner view and hygiene
 

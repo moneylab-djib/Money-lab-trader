@@ -206,7 +206,8 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    d'achat). Les prix d'exécution et le coût moyen sont arrondis au centime : pour un actif à moins de
    1 € le résultat peut s'écarter de plusieurs dixièmes de %, et sous 0,005 € le prix arrondi tomberait
    à 0 (défaut ancien, corrigé par l'étape 0.3 ci-dessous).
-   Étape 0.3, précision des prix (construite, PR séparée ; pas encore fusionnée ni en service). Une fois
+   Étape 0.3, précision des prix (fusionnée le 9 octobre au soir, PR #32 ; pas encore en service : le VPS
+   n'est pas mis à jour). Une fois
    déployée : le prix d'exécution et le coût moyen gardent 12 chiffres significatifs (les montants restent
    au centime) ; le glissement de 0,05 % s'applique à tous les prix, donc un aller-retour de 100 € coûte
    1,69 € partout (USDC : 1,69 € au lieu de 1,59 €, le chiffre juste) ; les actifs à moins de 0,01 € sont
@@ -221,8 +222,27 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    enregistrée avec des chiffres invalides est signalée, jamais évaluée : la valeur du portefeuille
    s'affiche « non fiable », achats et décisions sont suspendus jusqu'à une réparation que tu approuves.
    Les prix sous 1 € s'affichent avec au moins 5 chiffres (« 0,0048874 € ») ; à partir de 1 €, rien ne
-   change. Avant le déploiement : un audit en lecture seule d'une copie de sa mémoire
-   (`sonni/GUIDE-VPS.fr.md`, « Mettre Sonni à jour »). Rien de l'historique n'est réparé ni réécrit.
+   change. Rien de l'historique n'est réparé ni réécrit.
+   Déploiement des étapes 0.1 à 0.3 (préparé le 10 octobre, PR séparée ; rien n'a encore changé sur le
+   VPS) : une procédure contrôlée dans `sonni/GUIDE-VPS.fr.md` (« Déploiement contrôlé des étapes 0.1 à
+   0.3 »). D'abord, sans rien changer sur le serveur, l'état actuel et un pré-audit sur une copie de la
+   sauvegarde du jour, hors du serveur. Ensuite, seulement avec ton GO de déploiement : les outils de la
+   version approuvée sortis dans un dossier à part (rien n'est installé), une vérification en lecture seule
+   de ce que le serveur offre (Node, bibliothèque SQLite de Sonni, droits, place), l'arrêt, une sauvegarde
+   vérifiée (empreinte SHA-256), un essai de restauration dans un dossier temporaire, puis un contrôle qui
+   bloque jusqu'à ta décision, **tout cela avant la moindre installation** : anomalies
+   (positions invalides, registre qui ne tombe pas juste) et points à décider (ordres que le premier relevé
+   refuserait, ferait expirer ou exécuterait à un prix ancien, stops déjà franchis, positions sans stop,
+   écarts d'arrondi d'avant l'étape 0.3). Un point à décider ne passe que si ton GO le nomme par sa clé ;
+   une anomalie ne passe jamais. Après le démarrage : un contrôle en lecture
+   seule (version, prix, appels payés, incidents, ordres refusés), un rapport envoyé sur Telegram, 24 h
+   d'observation et un retour arrière prévu (le code d'abord ; la base seulement en cas de corruption et
+   sur ta décision, l'ancienne étant mise de côté, jamais effacée). L'ancienne version ramène le défaut de
+   précision : elle ne redémarre qu'avec une pause enregistrée **et vérifiée par un outil**. L'outil exige :
+   aucun achat en attente ; aucune vente sous 1 € que son courtier ferait seul, sauf actif nommé dans ton GO ;
+   rien sous 1 centime ; aucune anomalie BLOQUANT. Il revérifie ensuite en marche que rien n'a été acheté,
+   ni vendu à risque, depuis le démarrage. Une contre-vérification de tous les outils sur des bases fictives est prête pour ton agent
+   Windows. Le programme de Sonni lui-même ne change pas dans cette préparation.
 3. **Actualité et calendrier** ✅ (voir 1 ter).
 4. **Mémoire complète** — en cours, par tranches (ta décision du 7 octobre) :
    - *C1 — Dossiers et carnets* ✅ construit le 7 octobre : un dossier par actif suivi, écrit par Sonni
