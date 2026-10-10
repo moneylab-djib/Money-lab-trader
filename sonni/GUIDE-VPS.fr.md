@@ -326,11 +326,22 @@ sudo -u sonni -H git status --short
 systemctl is-active sonni
 systemctl show -p ActiveEnterTimestamp sonni
 ls -la /home/sonni/.automaton/ /home/sonni/.automaton/backups/
-df -h /home /root
+df -h /home /root /tmp
 systemctl list-timers sonni-backup-export.timer --no-pager
 ```
+Puis, toujours en lecture seule, ce dont les outils auront besoin :
+```sh
+id sonni
+sudo -u sonni -H node -v
+stat -c '%U %a %s %n' /home/sonni /home/sonni/.automaton /home/sonni/.automaton/state.db
+ls -la /opt/sonni/node_modules/better-sqlite3
+sudo -u sonni -H node -e "require('/opt/sonni/node_modules/better-sqlite3')(':memory:').close(); console.log('SQLite OK')"
+command -v git tar sha256sum systemctl
+```
 Envoie-moi tout. La première ligne donne la version en service, qui servira de point de retour. Le reste
-montre l'état des sauvegardes et la place libre sur le disque.
+montre l'état des sauvegardes, la place libre, la version de Node, la bibliothèque SQLite que les outils
+emprunteront à Sonni (sa version est dans le nom du lien) et les commandes présentes. Je compare avec ce que
+les outils demandent avant de te donner `COMMIT` ; la Phase 2 le revérifie avec un outil (étape 3).
 
 ### Phase 1 — Pré-audit sur une copie, hors du serveur (aucun changement sur le VPS)
 
@@ -405,6 +416,10 @@ Avec `code=1`, le déploiement est bloqué : je te présente les points et tu d�
 
 ### Phase 2 — La fenêtre de déploiement (seulement après ton GO de déploiement)
 
+**L'ordre est fait pour qu'aucune installation n'ait lieu avant une sauvegarde vérifiée.** Les outils de la
+nouvelle version sont d'abord sortis dans un dossier à part, `/home/sonni/outils-deploiement`. Le dossier du
+programme, `/opt/sonni`, ne change pas avant l'étape 8 : jusque-là, l'ancienne version reste intacte.
+
 **Choisis le moment.** Évite :
 - 19 h 00 à 20 h 00, heure de Paris (bilan du soir et résumé) ;
 - 02 h 15 à 02 h 45 UTC (copie pour le PC).
@@ -418,7 +433,29 @@ propose Ubuntu.
    sudo -u sonni -H git rev-parse HEAD | tee /root/sonni-commit-avant.txt
    cp -p /home/sonni/.automaton/automaton.json /root/automaton.json.avant-deploiement
    ```
-2. **Arrête Sonni :**
+2. **Sors les outils dans un dossier à part.** Sonni tourne encore. `git fetch` télécharge la nouvelle
+   version dans la réserve de Git sans toucher au programme en service :
+   ```sh
+   cd /opt/sonni
+   sudo -u sonni -H git fetch origin
+   sudo -u sonni -H git cat-file -e COMMIT^{commit} && echo "version trouvée"
+   sudo -u sonni -H mkdir -m 700 /home/sonni/outils-deploiement
+   sudo -u sonni -H sh -c 'git -C /opt/sonni archive COMMIT sonni/vps | tar -x -C /home/sonni/outils-deploiement'
+   sudo -u sonni -H ln -s /opt/sonni/node_modules /home/sonni/outils-deploiement/node_modules
+   ```
+   La deuxième commande doit afficher `version trouvée`. Si `mkdir` dit que le dossier existe déjà (essai
+   précédent), efface-le avec `rm -r /home/sonni/outils-deploiement` et refais ces trois dernières lignes.
+   Les outils n'ont besoin que de la bibliothèque SQLite déjà installée pour Sonni : le lien `node_modules`
+   la leur prête, sans rien installer.
+3. **Vérifie que le serveur a ce que les outils demandent** (lecture seule) :
+   ```sh
+   cd /home/sonni/outils-deploiement
+   sudo -u sonni -H node sonni/vps/verification-environnement.mjs
+   ```
+   Il contrôle la version de Node, la bibliothèque SQLite (la même que celle de Sonni), l'utilisateur, les
+   droits de `~/.automaton` et la place libre. Il faut `code=0`. Sinon arrête-toi ici : Sonni tourne
+   toujours, rien n'a changé.
+4. **Arrête Sonni :**
    ```sh
    systemctl stop sonni
    systemctl is-active sonni
@@ -426,10 +463,31 @@ propose Ubuntu.
    ```
    La deuxième ligne doit afficher `inactive`. La troisième ne doit montrer que `state.db`. S'il reste un
    `state.db-wal` ou un `state.db-shm`, l'arrêt n'a pas été propre : arrête-toi et envoie-moi la sortie.
-3. **Installe exactement la version approuvée :**
+5. **Fais la sauvegarde**, avec les outils du dossier à part. Sonni est arrêté, donc c'est une copie exacte
+   du fichier :
+   ```sh
+   cd /home/sonni/outils-deploiement
+   sudo -u sonni -H node sonni/vps/sauvegarde.mjs
+   ```
+   Elle écrit dans `/home/sonni/.automaton/predeploiement/`, à côté de son empreinte `.sha256`. Ce dossier
+   n'est jamais vidé par la rotation des sauvegardes quotidiennes. La dernière ligne donne `COPIE`.
+6. **Fais l'essai de restauration** (dans un dossier temporaire), puis **le contrôle avant démarrage**,
+   d'abord sans rien accepter :
+   ```sh
+   cd /home/sonni/outils-deploiement
+   sudo -u sonni -H node sonni/vps/restauration.mjs --essai COPIE
+   sudo -u sonni -H node sonni/vps/controle-predeploiement.mjs COPIE
+   ```
+   Si ton GO a accepté des points « À DÉCIDER », relance le contrôle en ajoutant `--accepter-a-decider`
+   suivi des clés que ton GO nomme, et seulement celles-là. Un point dont la clé n'est pas dans ton GO bloque
+   toujours, comme un point BLOQUANT : aucune option ne lève un point BLOQUANT.
+7. **Si une de ces trois commandes ne finit pas par `code=0`, n'installe rien.** Le programme n'a pas
+   changé. Laisse Sonni arrêté et envoie-moi la sortie : la décision est la tienne. Redémarrer l'ancienne
+   version ne se fait que par « Retour arrière » plus bas, pause vérifiée comprise (l'étape R3 est alors
+   inutile).
+8. **Seulement maintenant, installe exactement la version approuvée :**
    ```sh
    cd /opt/sonni
-   sudo -u sonni -H git fetch origin
    sudo -u sonni -H git checkout main
    sudo -u sonni -H git merge --ff-only COMMIT
    sudo -u sonni -H git rev-parse HEAD
@@ -437,42 +495,22 @@ propose Ubuntu.
    sudo -u sonni -H pnpm run build
    ```
    `git rev-parse HEAD` doit afficher `COMMIT`.
-   - Si `merge --ff-only` refuse, arrête-toi et redémarre l'ancienne version avec `systemctl start sonni` :
-     le programme compilé n'a pas changé.
+   - Si `merge --ff-only` refuse, arrête-toi : le programme n'a pas changé. Laisse Sonni arrêté et
+     envoie-moi la sortie.
    - Si `pnpm install` ou `pnpm run build` échoue, **ne démarre pas** : le programme compilé peut être à
-     moitié neuf. Reconstruis l'ancienne version (« Retour arrière », étapes R3 et R4), ou laisse Sonni
-     arrêté. Envoie-moi la sortie.
+     moitié neuf. Laisse Sonni arrêté et envoie-moi la sortie ; le retour à l'ancienne version passe par
+     « Retour arrière ».
 
    Ne lance **pas** `configure.mjs` cette fois : aucun réglage ne change.
-4. **Fais la sauvegarde.** Sonni est arrêté, donc c'est une copie exacte du fichier :
-   ```sh
-   sudo -u sonni -H node sonni/vps/sauvegarde.mjs
-   ```
-   Elle écrit dans `/home/sonni/.automaton/predeploiement/`, à côté de son empreinte `.sha256`. Ce dossier
-   n'est jamais vidé par la rotation des sauvegardes quotidiennes. La dernière ligne donne `COPIE`.
-5. **Fais l'essai de restauration** (dans un dossier temporaire) :
-   ```sh
-   sudo -u sonni -H node sonni/vps/restauration.mjs --essai COPIE
-   ```
-6. **Fais le contrôle avant démarrage**, d'abord sans rien accepter :
-   ```sh
-   sudo -u sonni -H node sonni/vps/controle-predeploiement.mjs COPIE
-   ```
-   Si ton GO a accepté des points « À DÉCIDER », relance-le en ajoutant `--accepter-a-decider` suivi des
-   clés que ton GO nomme, et seulement celles-là. Un point dont la clé n'est pas dans ton GO bloque toujours,
-   comme un point BLOQUANT.
-7. **Si une de ces trois commandes ne finit pas par `code=0`**, ne démarre pas la nouvelle version. Au
-   choix :
-   - redémarre l'ancienne : suis « Retour arrière » plus bas, étapes R3 et R4 ;
-   - ou laisse Sonni arrêté.
-
-   Envoie-moi la sortie : la décision est la tienne.
-8. **Démarre :**
+9. **Démarre :**
    ```sh
    date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-demarrage.txt
    systemctl start sonni
    systemctl is-active sonni
    ```
+
+Garde le dossier `/home/sonni/outils-deploiement` jusqu'à la fin de l'observation : un retour arrière en a
+besoin, car l'ancienne version n'a pas ces outils.
 
 ### Phase 3 — Contrôles après démarrage et rapport Telegram
 
@@ -562,37 +600,40 @@ Ce que tu verras de nouveau avec l'ancienne version :
 - les refus du courtier virtuel en anglais.
 
 **Attention.** L'ancienne version ramène aussi le défaut que l'étape 0.3 corrige. Pendant qu'elle tourne, un
-achat à moins de 0,005 € redeviendrait une quantité infinie, et l'historique serait abîmé pour de bon.
-Donc, **avant** le retour arrière :
-- **si Sonni répond sur Telegram, envoie `/pause`.** La pause est gardée dans sa mémoire et l'ancienne version
-  la respecte dès son démarrage. En pause, il ne place plus d'ordre ; le courtier exécute seulement ceux déjà en
-  attente. Garde-le en pause jusqu'à ce qu'on corrige : `/reprendre` relance un cycle payé.
-- **Regarde les ordres d'achat en attente sur un actif à moins de 1 €** :
-  - si Sonni tourne, dans `/portefeuille` ;
-  - s'il est arrêté, la nouvelle version est encore installée : fais une sauvegarde
-    (`sudo -u sonni -H node sonni/vps/sauvegarde.mjs`), puis le contrôle avant démarrage sur cette copie
-    (`sudo -u sonni -H node sonni/vps/controle-predeploiement.mjs COPIE`). Sa section E liste chaque ordre en
-    attente avec le dernier prix connu de son actif.
+achat à moins de 0,005 € redeviendrait une quantité infinie, et l'historique serait abîmé pour de bon. Elle
+ne démarre donc **qu'en pause, et une pause vérifiée par un outil**, pas seulement demandée :
+- la pause est gardée dans la mémoire de Sonni. L'ancienne version la respecte dès son démarrage : aucun
+  cycle payé, donc aucun nouvel ordre ;
+- mais le courtier virtuel exécute encore les ordres déjà en attente, même en pause. L'outil
+  `verifier-pause.mjs` refuse donc aussi tout ordre d'achat en attente, toute position sur un actif à moins
+  de 1 centime, que l'ancienne version vendrait à un prix arrondi à 0, et toute position invalide ;
+- `/reprendre` lève la pause et relance un cycle payé : ne l'envoie pas tant que l'ancienne version tourne.
 
-  S'il y en a, dis-le-moi d'abord.
-- **Si Sonni était arrêté** et ne pouvait pas recevoir `/pause`, envoie-la dès qu'il répond après R4.
+Les outils se lancent depuis `/home/sonni/outils-deploiement` (Phase 2, étape 2), car l'ancienne version ne
+les a pas. Toutes les commandes ci-dessous attendent `code=0` ; pour tout autre code, laisse Sonni arrêté et
+envoie-moi la sortie.
 
-R1. **Restaurer la base seulement en cas de corruption, et seulement sur ta décision.** La restauration
-efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres et dépenses d'IA déjà
-comptées. S'il faut restaurer la base **et** revenir sur le code, restaure la base d'abord, car l'outil
-n'existe que dans la nouvelle version :
+R1. **Si Sonni répond sur Telegram, envoie `/pause`**, pour qu'il ne place plus d'ordre pendant que tu
+prépares le retour. Puis arrête-le :
 ```sh
-cd /opt/sonni
 systemctl stop sonni
+systemctl is-active sonni
+```
+La deuxième ligne doit afficher `inactive`.
+
+R2. **Restaurer la base, seulement en cas de corruption et seulement sur ta décision.** La restauration
+efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres et dépenses d'IA déjà
+comptées. Elle se fait avant le retour sur le code :
+```sh
+cd /home/sonni/outils-deploiement
 sudo -u sonni -H node sonni/vps/restauration.mjs --restaurer COPIE --confirmer
 ```
 L'outil vérifie l'empreinte et refuse tant que Sonni tourne. Il ne supprime rien : l'ancienne base et ses
-fichiers `-wal`/`-shm` partent dans un dossier `quarantaine-…` à côté. Ne démarre pas encore si tu reviens
-aussi sur le code : enchaîne R3 et R4.
+fichiers `-wal`/`-shm` partent dans un dossier `quarantaine-…` à côté. La base restaurée a la pause de
+`COPIE`, pas celle de R1 : l'étape R4 la remet.
 
-R2. **Arrête Sonni :** `systemctl stop sonni`
-
-R3. **Reviens à l'ancienne version :**
+R3. **Reviens à l'ancienne version du programme** (inutile si l'installation de la Phase 2, étape 8, n'a pas
+eu lieu) :
 ```sh
 cd /opt/sonni
 sudo -u sonni -H git checkout --detach "$(cat /root/sonni-commit-avant.txt)"
@@ -600,13 +641,45 @@ sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
 ```
 
-R4. **Démarre et vérifie :**
+R4. **Enregistre la pause dans la base**, avec la commande de l'ancienne version (elle existe dans toutes les
+versions possibles). Sonni est arrêté, cela ne lance aucun cycle :
 ```sh
+cd /opt/sonni
+sudo -u sonni -H node dist/index.js --money-lab pause "retour arrière"
+```
+Si la pause existait déjà (`/pause` de R1), la commande la garde telle quelle.
+
+R5. **Vérifie la pause sur une copie fraîche :**
+```sh
+cd /home/sonni/outils-deploiement
+sudo -u sonni -H node sonni/vps/sauvegarde.mjs
+sudo -u sonni -H node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR
+```
+`COPIE_RETOUR` est le chemin qu'affiche cette nouvelle sauvegarde. Il faut `code=0`. Sinon **ne démarre
+pas** :
+- « aucune pause enregistrée » : refais R4, puis R5 ;
+- « ordre(s) d'achat en attente » ou « position … sous 1 centime » : laisse Sonni arrêté et envoie-moi la
+  sortie. Ces ordres doivent d'abord être exécutés ou expirer avec la nouvelle version, en pause : on en
+  décide ensemble ;
+- « position(s) invalide(s) » : laisse Sonni arrêté et envoie-moi la sortie. Aucune version ne redémarre sur
+  une position corrompue avant une réparation séparée, que tu décides.
+
+R6. **Démarre l'ancienne version et vérifie-la en marche :**
+```sh
+date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-retour.txt
 systemctl start sonni
+systemctl is-active sonni
 journalctl -u sonni -n 80 --no-pager
 ```
-Puis envoie `/statut`, `/portefeuille` et `/technique` sur Telegram. Les outils de contrôle n'existent pas
-dans l'ancienne version : on vérifie avec le journal et Telegram. Envoie-moi le résultat.
+Attends 10 à 15 minutes (un relevé de prix et un passage du courtier virtuel), puis :
+```sh
+cd /home/sonni/outils-deploiement
+sudo -u sonni -H node sonni/vps/verifier-pause.mjs --en-marche --depuis "$(cat /root/sonni-retour.txt)"
+```
+Il lit la base en marche sans rien écrire. S'il ne finit pas par `code=0` (pause levée, ou achat passé
+depuis le démarrage), **arrête Sonni tout de suite** (`systemctl stop sonni`) et envoie-moi la sortie.
+Relance la même vérification le lendemain. Envoie aussi `/statut`, `/portefeuille` et `/technique` sur
+Telegram, et envoie-moi le résultat.
 
 ## Arrêter Sonni
 

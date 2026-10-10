@@ -32,7 +32,8 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
 
   it("names every tool of the procedure", () => {
     const used = new Set(scriptCommands(section).map((c) => c.script));
-    for (const script of ["sauvegarde.mjs", "restauration.mjs", "controle-predeploiement.mjs", "controle-apres-demarrage.mjs", "envoi-telegram.mjs"]) {
+    for (const script of ["verification-environnement.mjs", "sauvegarde.mjs", "restauration.mjs", "controle-predeploiement.mjs", "controle-apres-demarrage.mjs",
+      "envoi-telegram.mjs", "verifier-pause.mjs"]) {
       expect(used.has(script), script).toBe(true);
     }
   });
@@ -57,12 +58,21 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     expect(section.indexOf("sha256sum /root/envoi-telegram.mjs")).toBeLessThan(section.indexOf("| node /root/envoi-telegram.mjs"));
   });
 
-  it("starts every server block that runs a tool from /opt/sonni", () => {
+  it("runs every tool from /opt/sonni or from the isolated tools folder, and the pre-install tools only from the isolated one", () => {
     for (const block of section.split("```sh").slice(1).map((b) => b.split("```")[0])) {
-      if (/node sonni\/vps\//.test(block) && !/node sonni\/vps\/(sauvegarde|restauration --essai|restauration\.mjs --essai|controle-predeploiement)/.test(block)) {
-        expect(block, block).toContain("cd /opt/sonni");
-      }
+      if (!/node sonni\/vps\//.test(block)) continue;
+      const isolated = block.includes("cd /home/sonni/outils-deploiement");
+      expect(isolated || block.includes("cd /opt/sonni"), block).toBe(true);
+      // Before the install (Phase 2) and during a rollback, /opt/sonni holds the old version, which lacks these tools.
+      if (/node sonni\/vps\/(verification-environnement|sauvegarde|restauration|controle-predeploiement|verifier-pause)\.mjs/.test(block)) expect(isolated, block).toBe(true);
     }
+  });
+
+  it("extracts the tools of the approved commit into a private folder, linked to Sonni's own SQLite library, without installing anything", () => {
+    expect(section).toContain("sudo -u sonni -H git cat-file -e COMMIT^{commit}");
+    expect(section).toContain("sudo -u sonni -H mkdir -m 700 /home/sonni/outils-deploiement");
+    expect(section).toContain("sudo -u sonni -H sh -c 'git -C /opt/sonni archive COMMIT sonni/vps | tar -x -C /home/sonni/outils-deploiement'");
+    expect(section).toContain("sudo -u sonni -H ln -s /opt/sonni/node_modules /home/sonni/outils-deploiement/node_modules");
   });
 
   it("pins the approved commit and never runs configure.mjs or a bare git pull in the procedure", () => {
@@ -71,25 +81,58 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     expect(section).not.toMatch(/^\s*sudo -u sonni -H node sonni\/vps\/configure\.mjs/m);
   });
 
-  it("stops Sonni before installing, and backs up, drills and checks before starting", () => {
-    const at = (s: string, from = 0) => {
-      const i = section.indexOf(s, from);
-      expect(i, s).toBeGreaterThan(-1);
+  it("backs up, drills and checks before anything is installed, built or checked out, and starts last", () => {
+    const at = (needle: string, from = 0) => {
+      const i = section.indexOf(needle, from);
+      expect(i, needle).toBeGreaterThan(-1);
       return i;
     };
     const phase2 = at("### Phase 2");
-    const stop = at("systemctl stop sonni", phase2);
-    const install = at("pnpm install --frozen-lockfile", phase2); // Phase 1 also installs, on the owner's PC
-    const backup = at("node sonni/vps/sauvegarde.mjs");
-    const drill = at("node sonni/vps/restauration.mjs --essai COPIE");
-    const gate = at("node sonni/vps/controle-predeploiement.mjs COPIE");
-    const start = at("systemctl start sonni", at("**Démarre :**")); // not the restart of the old version on a refused merge
-    const after = at("node sonni/vps/controle-apres-demarrage.mjs");
-    expect(stop).toBeLessThan(install);
-    expect(install).toBeLessThan(backup);
-    expect(backup).toBeLessThan(drill);
-    expect(drill).toBeLessThan(gate);
-    expect(gate).toBeLessThan(start);
-    expect(start).toBeLessThan(after);
+    const phase3 = at("### Phase 3");
+    const step = [
+      at("git rev-parse HEAD | tee /root/sonni-commit-avant.txt", phase2),
+      at("archive COMMIT sonni/vps", phase2),
+      at("node sonni/vps/verification-environnement.mjs", phase2),
+      at("systemctl stop sonni", phase2),
+      at("node sonni/vps/sauvegarde.mjs", phase2),
+      at("node sonni/vps/restauration.mjs --essai COPIE", phase2),
+      at("node sonni/vps/controle-predeploiement.mjs COPIE", phase2),
+      at("git checkout main", phase2),
+      at("git merge --ff-only COMMIT", phase2),
+      at("pnpm install --frozen-lockfile", phase2), // Phase 1 also installs, on the owner's PC
+      at("pnpm run build", phase2),
+      at("systemctl start sonni", phase2),
+      at("node sonni/vps/controle-apres-demarrage.mjs", phase2),
+    ];
+    for (let i = 1; i < step.length; i++) expect(step[i - 1], `step ${i}`).toBeLessThan(step[i]);
+    // Nothing in Phase 2 changes /opt/sonni's checkout, dependencies or build before the gate.
+    const beforeGate = section.slice(phase2, step[6]);
+    for (const change of ["git checkout", "git merge", "git pull", "pnpm install", "pnpm run build", "pnpm add", "npm install"]) expect(beforeGate).not.toContain(change);
+    expect(step[11]).toBeLessThan(phase3);
+  });
+
+  it("starts the old version only after the pause is recorded and verified by a tool, then checks it running", () => {
+    const at = (needle: string, from: number) => {
+      const i = section.indexOf(needle, from);
+      expect(i, needle).toBeGreaterThan(-1);
+      return i;
+    };
+    const rollback = at("### Retour arrière", 0);
+    const stop = at("systemctl stop sonni", rollback);
+    const restore = at("node sonni/vps/restauration.mjs --restaurer COPIE --confirmer", rollback);
+    const code = at("git checkout --detach", rollback);
+    const pause = at("node dist/index.js --money-lab pause", rollback);
+    const backup = at("node sonni/vps/sauvegarde.mjs", rollback);
+    const verify = at("node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR", rollback);
+    const start = at("systemctl start sonni", rollback);
+    const running = at("node sonni/vps/verifier-pause.mjs --en-marche --depuis", rollback);
+    // A restore brings back the copy's pause state: the pause is recorded after it, then checked on a fresh copy.
+    for (const [a, b] of [[stop, restore], [restore, code], [code, pause], [pause, backup], [backup, verify], [verify, start], [start, running]]) {
+      expect(a).toBeLessThan(b);
+    }
+    // The old pause CLI exists in every version the VPS may run (4c015b0..fd5916d), as in the current one.
+    expect(fs.readFileSync(path.join(ROOT, "src", "money-lab", "cli.ts"), "utf-8")).toContain('case "pause"');
+    // The rollback no longer sends the owner to /reprendre: it relaunches a paid cycle.
+    expect(section.slice(rollback)).not.toMatch(/envoie `\/reprendre`/);
   });
 });

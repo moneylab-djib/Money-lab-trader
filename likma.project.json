@@ -385,6 +385,24 @@
       "path": "sonni/vps/envoi-telegram.mjs",
       "purpose": "Sends a stdin report to the owner's chat with the configured bot token (never printed)",
       "edit_when": "The Telegram config keys or env file change"
+    },
+    {
+      "area": "Deployment pause check",
+      "path": "sonni/vps/verifier-pause.mjs",
+      "purpose": "Rollback guard: the pause is recorded, no pending buy, no sub-cent or invalid position, nothing bought since the old version started",
+      "edit_when": "The pause record, the broker's pending orders or the rollback procedure change (keep GUIDE-VPS in sync)"
+    },
+    {
+      "area": "Deployment environment preflight",
+      "path": "sonni/vps/verification-environnement.mjs",
+      "purpose": "Read-only check that the VPS has what the tools need (Node, Sonni's better-sqlite3, user, ~/.automaton rights, disk, commands)",
+      "edit_when": "A deployment tool needs a new Node function, command, folder or right"
+    },
+    {
+      "area": "Deployment counter-verification",
+      "path": "sonni/pc/contre-verification.mjs",
+      "purpose": "Runs every deployment tool on fictitious databases built by Sonni's code, compares exit codes and messages, writes a French report",
+      "edit_when": "A deployment tool's exit code, message or option changes"
     }
   ],
   "bot_guards": {
