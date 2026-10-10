@@ -1826,7 +1826,7 @@
         "THE VPS guide SHALL give the owner, in French, the survey, the pre-audit on a copy, the deployment window pinned to the approved commit, post-start checks, the Telegram report, the observation window and the rollback",
         "WHEN this tooling ships, THE SYSTEM SHALL keep Sonni's runtime code, configuration, schema, stored history and audit-prix.mjs output unchanged, with tests making no network call outside 127.0.0.1 and no paid call"
       ],
-      "status": "built",
+      "status": "verified",
       "paths": [
         "sonni/vps/copie-privee.mjs",
         "sonni/vps/audit-prix.mjs",
@@ -1929,6 +1929,93 @@
         "notes": "Fresh-context acceptance review (separate agent) of 9481152: all 11 criteria and the owner's 5 points met; 366 trader tests pass, no runtime diff from b0479a3, audit-prix output byte-identical on 5 inputs; hands-on runs in a scratch HOME confirmed the live folder untouched by backups, the restore quarantines and refuses root without --cible, the gate blocks and only listed keys lift points to decide, and the post-start check opens read-only. Its verdict was concerns for 5 minor guide/wording points (pause before rollback, fresh gate when Sonni is stopped with last prices in section E, COMMIT wording, hot-backup label, stale Likma counts), all fixed in c15cd0a; no criterion failed.",
         "fingerprint": "43cb8a2da6a807437b08e131f5c0b9cb28c72f4c626f783ee489060c5a3bb135",
         "contract": "ef4213a5abbd378b2383f5ef3b97e84b56917749c5ed52ea6d450be4e443189e"
+      },
+      "verification": {
+        "at": "2026-10-10T06:24:36.495004+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "43cb8a2da6a807437b08e131f5c0b9cb28c72f4c626f783ee489060c5a3bb135",
+        "scope": [
+          "sonni/vps/copie-privee.mjs",
+          "sonni/vps/audit-prix.mjs",
+          "sonni/vps/sauvegarde.mjs",
+          "sonni/vps/restauration.mjs",
+          "sonni/vps/controle-predeploiement.mjs",
+          "sonni/vps/controle-apres-demarrage.mjs",
+          "sonni/vps/envoi-telegram.mjs",
+          "src/__tests__/trader/deploy-backup.test.ts",
+          "src/__tests__/trader/deploy-predeploy.test.ts",
+          "src/__tests__/trader/deploy-poststart.test.ts",
+          "src/__tests__/trader/deploy-guide.test.ts",
+          "sonni/GUIDE-VPS.fr.md"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni",
+          "4": "sonni",
+          "5": "sonni",
+          "6": "sonni",
+          "7": "sonni",
+          "8": "sonni",
+          "9": "sonni",
+          "10": "sonni",
+          "11": [
+            "sonni",
+            "types",
+            "money-lab",
+            "runtime",
+            "sonni-e2e"
+          ]
+        },
+        "checks_hash": "3a8ae11b70bfaaa628b2c3ae0d7a10c608dbe08289b0924b8caacec70a5aa4c6",
+        "report": ".likma/checks/72ba2c85c02a4cab914193b15ead74f9.json",
+        "contract": "ef4213a5abbd378b2383f5ef3b97e84b56917749c5ed52ea6d450be4e443189e",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 34.309,
+            "output_bytes": 37034,
+            "output_sha256": "4141358b643527940324603d7bc04c22dde71c5da36abb0798f68dcc3b058845"
+          },
+          {
+            "name": "types",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 7.394,
+            "output_bytes": 72,
+            "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
+          },
+          {
+            "name": "money-lab",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 28.421,
+            "output_bytes": 40121,
+            "output_sha256": "16608ba09f649ede7c6a7ed6349d32064d2677faed04bc721ae302aad90046af"
+          },
+          {
+            "name": "runtime",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 26.92,
+            "output_bytes": 75222,
+            "output_sha256": "f3f79f619bb69e14d7dbd3b39567d4d68b0896bd7f545c56e68f06fbdd21fe49"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 620.08,
+            "output_bytes": 5084,
+            "output_sha256": "5a5ccc6aeb62393a02a806334463a9bc4f3fa06f97336d42a8ef2e4a128622f6"
+          }
+        ],
+        "integrity": {
+          "base": "b0479a392fbd031f73eb04cd91309d84c58af199",
+          "flags": []
+        }
       }
     }
   ]
