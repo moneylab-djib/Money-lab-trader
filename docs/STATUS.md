@@ -4,8 +4,15 @@
   before it PR #32 (step 0.3, price precision, b0479a3), PR #31 (step 0.2, trade fees, c1638c0) and PR #30
   (step 0.1, CI gate, 0ee7f7f). claude/sonni-likma-upgrade (Likma 0.20.1 and the tool guard, separate pull
   request) holds the first entry below.
+- Likma 0.20.1 -> 0.20.2 (branch claude/sonni-likma-0202). Status: built; not merged.
+  - Upstream fix for Windows: Claude Code runs the hooks through Git Bash, and the self-test now runs that
+    launcher. bin/likma skips the Windows Store Python stubs and falls back to `py -3`.
+  - In the project only docs/LIKMA.md (the revision CI pins), the AGENTS.md skill-index line and
+    .likma/vendor.json change.
+  - On the owner's PC (Git for Windows installed on 2026-10-10), `project audit` reported
+    "launcher tested: git-bash" and PASS.
 - Fixes from the Windows counter-verification (report local-win n°04 on main 55ab453, branch
-  claude/sonni-restore-fixes). Status: built; not merged.
+  claude/sonni-restore-fixes). Status: built, verified and merged (PR #35, main 405a384, owner's GO of 2026-10-10).
   - The report: 24 of 28 cases conformed on Windows, with 2 deviations and 2 not applicable. Its findings:
     - restauration.mjs: when securing the quarantine folder failed before anything moved, the message called
       the untouched previous database "base restaurée NON conforme, à déplacer". This happens on every platform:
