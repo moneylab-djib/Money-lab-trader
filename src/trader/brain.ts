@@ -39,15 +39,23 @@ import {
   type CheckSource,
 } from "./brainchecks.js";
 import { plainPrice } from "./format.js";
+import {
+  planDelegation, recordBatch, settleBatches, TASK_ANSWER_MAX, TASK_WAKE_GAP_MINUTES, MAX_TASK_WAKES_PER_DAY, taskLinesFr, taskPrompt, type TaskPayload,
+} from "./braintasks.js";
 
 type DB = Database.Database;
 type FetchFn = typeof fetch;
 
-export const JOB_KINDS = ["question", "triage", "parallel_prediction", "briefing", "counter_case", "postmortem_brief", "consistency_check", "upkeep"] as const;
+export const JOB_KINDS = ["question", "triage", "task", "parallel_prediction", "briefing", "counter_case", "postmortem_brief", "consistency_check", "upkeep"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
-/** Lower runs first: the owner's questions, then fresh news, then the rest; checks of Sonni's own memory last (9: night re-check). */
+/**
+ * Lower runs first: the owner's questions, then fresh news, the parallel predictions and the situation note (all
+ * time-bound), then the tasks Claude handed over while it sleeps (braintasks.ts: unlimited, so placed after those,
+ * at 4.5 to keep the stored priorities of the other kinds), then the rest; checks of Sonni's own memory last
+ * (9: night re-check).
+ */
 const PRIORITY: Record<JobKind, number> = {
-  question: 1, triage: 2, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, upkeep: 7, consistency_check: 8,
+  question: 1, triage: 2, task: 4.5, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, upkeep: 7, consistency_check: 8,
 };
 /**
  * The checks of Sonni's own memory are judged by code and an empty answer is a valid one, so they say little about
@@ -285,6 +293,8 @@ function prepare(db: DB, cfg: TraderConfig, job: BrainJob, now: Date): Prepared 
         maxTokens: 1200,
       };
     }
+    case "task":
+      return { system: SYSTEM, ...taskPrompt(db, job.payload as TaskPayload, pricesLines(db, cfg, now), now) };
     case "consistency_check": {
       const subject = consistencySubject(db, cfg, String(job.payload.source) as CheckSource, String(job.payload.id));
       return subject ? { system: SYSTEM, ...consistencyPrompt(subject) } : null;
@@ -332,7 +342,7 @@ function triageWakeAllowed(db: DB, now: Date): boolean {
 }
 
 export interface TickHooks {
-  /** Claude's wake, used only when the owner turned triage wakes on. */
+  /** Claude's wake: for triage only when the owner turned triage wakes on; for finished task batches (braintasks.ts). */
   wake?: (source: string, reason: string) => void;
   canWake?: () => boolean;
 }
@@ -383,6 +393,14 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
       storeOutput(db, job.id, "answer", null, answer, now, model);
       queueOwnerNotification(db, `🧠 Second cerveau — ta question « ${String(job.payload.question).slice(0, 120)} »\n\n${answer}\n\n` +
         "(Réponse du modèle local, tirée de la mémoire de Sonni ; à vérifier, ce n'est pas Claude.)");
+      return true;
+    }
+    case "task": {
+      // Read by Claude when it wakes (braintasks.ts), labelled as untrusted; the subject is the asset, so memory search finds it.
+      // One paragraph: a multi-line answer could imitate the batch headers or task lines around it.
+      const answer = cleanText(String(json?.answer ?? "").replace(/\s*\n\s*/g, " "), TASK_ANSWER_MAX);
+      if (!answer) return false;
+      storeOutput(db, job.id, "task", (job.payload as TaskPayload).asset ?? null, answer, now, model);
       return true;
     }
     case "parallel_prediction": {
@@ -535,11 +553,19 @@ export async function brainTick(
 ): Promise<TickOutcome> {
   const b = cfg.secondBrain;
   const key = b ? env[b.keyEnv] : undefined;
-  if (!b || !key || brainMode(db) === "off") return { ran: null, ok: false, online: false, queued: 0 };
+  if (!b || !key || brainMode(db) === "off") {
+    // Nothing runs, but Claude's task batches still expire and close on time instead of staying "with the second brain".
+    const t = now();
+    maintainQueue(db, t);
+    settleBatches(db, t, hooks);
+    return { ran: null, ok: false, online: false, queued: 0 };
+  }
   const t = now();
   const prev = brainHealth(db);
   const health = !prev || t.getTime() - Date.parse(prev.lastCheckAt) >= HEALTH_EVERY_SECONDS * 1000 ? await checkHealth(db, cfg, key, fetchFn, t) : prev;
   maintainQueue(db, t);
+  // Claude's batches whose tasks are all answered, failed or expired wake it once (braintasks.ts).
+  settleBatches(db, t, hooks);
   const queued = planJobs(db, cfg, t);
   if (!health.online) return { ran: null, ok: false, online: false, queued };
   const job = leaseNext(db, b.timeoutSeconds, t);
@@ -666,6 +692,7 @@ export function formatBrainFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv,
   if (s.parallel.n > 0 || mode === "parallel") {
     lines.push(`- Paris en parallèle${s.model ? ` (${s.model})` : ""} : ${s.parallel.n} noté(s) ; Brier du second cerveau ${fmtBrier(s.parallel.brain)} contre ${fmtBrier(s.parallel.claude)} pour Claude sur les mêmes (0 = parfait).`);
   }
+  lines.push(...taskLinesFr(db, now));
   lines.push(...checksLinesFr(db, cfg, now));
   lines.push("Modes : /cerveau arret | assistant | parallele | delegue. /question <texte> pour l'interroger sur la mémoire de Sonni. " +
     "/cerveau recompter remet le compteur de confirmation à zéro.");
@@ -746,4 +773,36 @@ export function brainLineFr(db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv, n
   return h.online
     ? `Second cerveau : en ligne, mode ${MODE_FR[mode]} ; ${s.queued} tâche(s) en attente, ${s.doneToday} faite(s) aujourd'hui (/cerveau).`
     : `Second cerveau : hors ligne depuis ${h.since.slice(11, 16)} UTC, ${s.queued} tâche(s) en attente ; Sonni continue sans lui (/cerveau).`;
+}
+
+/**
+ * delegate_to_second_brain: queues Claude's batch of tasks and returns what Claude should do next (English). Refused when
+ * the second brain is not configured, has no key or is off; queued (and dropped after the validity window) when the PC is offline.
+ */
+export function delegateToBrain(
+  db: DB, cfg: TraderConfig, env: NodeJS.ProcessEnv, raw: { tasks: unknown; purpose: unknown; validHours: unknown; wake: unknown }, now: Date = new Date(),
+): string {
+  const b = cfg.secondBrain;
+  if (!b) return "No second brain is configured on this runtime: do the work yourself or skip it.";
+  if (!env[b.keyEnv]) return "The second brain has no key on this runtime: do the work yourself or skip it.";
+  if (brainMode(db) === "off") return "The owner switched the second brain off: do the work yourself or skip it.";
+  const plan = planDelegation(db, raw, activeAssets(db, cfg).map((a) => a.symbol), now);
+  if ("error" in plan) return `Not queued: ${plan.error}`;
+  const ids: string[] = [];
+  db.transaction(() => {
+    recordBatch(db, plan, now);
+    for (const t of plan.tasks) {
+      const id = enqueueJob(db, "task", t.dedupeKey, t.payload, Math.round(plan.validHours * 60), now);
+      if (id) ids.push(id);
+    }
+  })();
+  const h = brainHealth(db);
+  const link = !h ? "It has not been contacted yet." : h.online ? "It is online." :
+    `It is OFFLINE since ${h.since.slice(0, 16).replace("T", " ")} UTC: the tasks wait up to ${plan.validHours} h, then are dropped and nothing wakes you.`;
+  return `Queued ${ids.length} task(s) for the second brain as batch ${plan.batch} (${ids.join(", ")}). ${link} ` +
+    "It answers one task at a time, from code's prices, the last observations, the asset's dossier and your memory. " +
+    (plan.wake
+      ? `Now sleep (sleep tool) instead of waiting awake: code wakes you once the whole batch is answered or dropped ` +
+        `(at most ${MAX_TASK_WAKES_PER_DAY} such wakes a UTC day, ${TASK_WAKE_GAP_MINUTES} min apart), and the answers come with the wake message.`
+      : "You asked for no wake: the answers appear in your memory pack and in sonni_memory section tasks.");
 }

@@ -1,9 +1,41 @@
 # Working status
 - Updated: 2026-10-10
-- Branch / commit: main 55ab453 after PR #33 (deployment preparation, merged on the owner's GO of 2026-10-10);
-  before it PR #32 (step 0.3, price precision, b0479a3), PR #31 (step 0.2, trade fees, c1638c0) and PR #30
-  (step 0.1, CI gate, 0ee7f7f). claude/sonni-likma-upgrade (Likma 0.20.1 and the tool guard, separate pull
-  request) holds the first entry below.
+- Branch / commit: main 43a029b after PR #36 (Likma 0.20.2), PR #35 (restore fixes, 405a384), PR #34 (Likma
+  0.20.1 and the tool guard) and PR #33 (deployment preparation, 55ab453). The VPS runs 405a384 since
+  2026-10-10 10:39:19 UTC (steps 0.2 and 0.3 in service; post-start check code=0; observation running, not
+  "observed" until the owner says so). PR #37 (brain tasks) merged by the owner on 2026-10-10 (main 256b86a);
+  its last commit (no task limit) missed the merge and is in branch claude/sonni-task-limits (its own pull request).
+- Tasks Sonni hands to the second brain (owner's request of 2026-10-10, feature `brain-tasks`, guard G18). Status:
+  built, verified and merged (PR #37, main 256b86a); not deployed. The owner then asked for no task limit: branch
+  claude/sonni-task-limits removes the daily (40) and waiting (16) caps (20 tasks per call, priority 4.5 after the
+  time-bound jobs), verified again with Likma (.likma/checks/8416e8e3db894598b61f6ca3e3e646f6.json; the 3 removed
+  assertions were the limits' own, replaced by a priority test); not merged.
+  - New tool `delegate_to_second_brain`: 1 to 20 tasks per call; no daily or waiting limit since the owner's decision of 2026-10-10 (priority 4.5, after the time-bound jobs). The PC answers from
+    code's data only. A finished batch wakes Claude once (source `sonni_brain_tasks`) through the shared gate:
+    8 a day, 20 min apart, within 6 h. There is no wake for a batch with no answer or for answers already read.
+  - Answers are marked read only after a paid turn ran with them, or when a view showed the whole batch. The wake
+    message is capped at 8,000 characters. Delegation counts as work for the no-progress guard. When the brain is
+    off, the queue still expires.
+  - Adversarial review (subagent, 2026-10-10) found:
+    - 1 blocker: the wake source `second_brain_tasks` was dropped by the sleep loop's filter (src/index.ts:908,
+      only `sonni_` sources pass). The e2e on the first build reproduced it: "no wake after the batch was
+      answered", log "Réveil ignoré pendant le sommeil (second_brain_tasks)".
+    - 2 majors: answers were marked read before the paid turn; a cut pack marked them read.
+    - Minors: the wake message had no size bound; the queue stuck when the brain was off; the no-progress count;
+      multi-line answers; nits.
+    All are fixed with tests.
+  - Same latent bug on main, not fixed here (separate change): the triage wake source `second_brain`
+    (src/trader/brain.ts) is dropped by the same filter. It is inert while `secondBrain.triageWakes` is false
+    (the default).
+  - Checks on the fixed tree:
+    - typecheck OK;
+    - sonni: 31 files, 417 tests;
+    - money-lab: 2 files, 110 tests;
+    - build OK;
+    - sonni-e2e PASS, through Likma's verify (736 s). The new e2e steps: Claude delegates two tasks and sleeps; the
+      PC answers both with no Claude call; the log shows "Woken by sonni_brain_tasks"; Claude gets the answers as
+      untrusted data; each task runs once.
+    - `project audit`: PASS, run with the `likma` launcher on PATH.
 - VPS survey (deployment Phase 0, read-only, run by the owner on 2026-10-10 about 10:30 UTC):
   - Sonni runs main 0ee7f7f (PR #30, step 0.1), not a commit in 4c015b0..fd5916d as assumed:
     - working tree clean;

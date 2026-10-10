@@ -34,6 +34,7 @@ import { decisionsPackLines, DECISION_HOURS } from "./decisions.js";
 import { getPredictionSnapshot } from "./snapshot.js";
 import { screenPackLines } from "./screen.js";
 import { latestOutput } from "./brain.js";
+import { markVisibleBatchesRead, pendingBatchLines, recentTaskBlocks, TASKS_TITLE, unreadBatches, type BatchBlock } from "./braintasks.js";
 import { analogLine, similarSituations } from "./analogs.js";
 import { describeEvidence, lessonEvidence } from "./lessonuse.js";
 import { MAX_SATELLITES, recordedCore } from "./universe.js";
@@ -47,7 +48,7 @@ export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
 const DOSSIER_PREVIEW = 400;
 
-export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events", "universe"] as const;
+export const PACK_SECTIONS = ["dossiers", "tasks", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events", "universe"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -259,6 +260,17 @@ function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
     title: `Your decisions per asset (record_decision; one is due every ${DECISION_HOURS} h; code scores each, staying out included):`,
     lines: decisionsPackLines(db, cfg, now),
   };
+}
+
+/**
+ * Owner's request of 2026-10-10: answers to the tasks Claude handed to the second brain that it has not read yet,
+ * cut short here (sonni_memory section tasks shows them in full), and the batches still in progress; nothing when
+ * there are none. buildMemoryPack marks read only the batches the fitted pack shows whole, so a finished batch does
+ * not wake Claude for what it already saw, and one the size budget cut still does.
+ */
+function tasksSection(blocks: BatchBlock[], pending: string[]): Section | null {
+  const lines = [...blocks.flatMap((b) => b.lines), ...pending];
+  return lines.length ? { title: TASKS_TITLE, lines, detail: "tasks" } : null;
 }
 
 /** Second brain (2026-10-08): wrong figures code found in Claude's recent texts; nothing when there are none. */
@@ -508,10 +520,12 @@ function ownerNotesSection(db: DB, now: Date, days: number): Section | null {
 export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(), dailyCapCents: number | null = null): string {
   const head = [`MEMORY PACK — ${isoSeconds(now)} (within ${PACK_BUDGET} characters; ${moreHint("hypotheses")} and other sections show more)`];
   const previous = takePackMarker(db, now);
+  const taskBlocks = unreadBatches(db, now, 350);
   const sections: (Section | null)[] = [
     previous ? sinceSection(db, previous) : null,
     pricesSection(db, cfg, now),
     ownerNotesSection(db, now, 7),
+    tasksSection(taskBlocks, pendingBatchLines(db)),
     portfolioSection(db, cfg, now),
     decisionsSection(db, cfg, now),
     analogsSection(db, cfg),
@@ -531,7 +545,9 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     reflectionsSection(db, PACK_REFLECTIONS, REFLECTION_PREVIEW),
     headlinesSection(db, now, PACK_HEADLINES),
   ];
-  return fitSections(head, sections.filter((s): s is Section => s !== null));
+  const pack = fitSections(head, sections.filter((s): s is Section => s !== null));
+  markVisibleBatchesRead(db, taskBlocks, pack, now);
+  return pack;
 }
 
 /**
@@ -543,6 +559,12 @@ export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSecti
   switch (section) {
     case "dossiers":
       return fitSections(head, [dossiersSection(db, cfg, DOSSIER_MAX_CHARS)]);
+    case "tasks": {
+      const { unread, lines } = recentTaskBlocks(db, now);
+      const text = fitSections(head, [{ title: TASKS_TITLE, lines: lines.length ? lines : ["- none in the last 48 hours (delegate_to_second_brain to hand work over)"] }]);
+      markVisibleBatchesRead(db, unread, text, now);
+      return text;
+    }
     case "notes":
       return fitSections(head, [ownerNotesSection(db, now, 30) ?? { title: "Notes from the owner (last 30 days):", lines: ["- none"] }]);
     case "portfolio":
