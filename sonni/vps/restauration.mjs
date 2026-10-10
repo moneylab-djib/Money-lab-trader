@@ -26,7 +26,8 @@
  *   the owner of the target's FOLDER, so that Sonni can open them even when no database was there before. A
  *   target that is not a regular file (a folder, a symbolic link) is refused, and so is any entry at the
  *   partial file's name, a dangling symbolic link included. On a failure after the move it says exactly where
- *   every file is and how to put the previous ones back; the quarantine is never removed.
+ *   every file is and how to put the previous ones back; the quarantine is never removed once a file is in it (an
+ *   empty one, when the run fails before moving anything, is removed and the previous database said intact).
  *   The commands to go back move the restored file aside WITH the -wal, -shm and -journal beside it before the
  *   previous files return (an old state.db placed next to the restored run's -wal would silently take in that
  *   journal), under names carrying this run's UTC stamp (`<cible>.restauree-<horodatage>`, `.echec-` after a
@@ -68,6 +69,13 @@ import {
  * cannot swap the entry for a symbolic link between its creation and the change of owner. `sync` also flushes it.
  */
 function secureEntry(entry, mode, owner, directory, sync = false) {
+  // Windows has no POSIX modes or owners, O_DIRECTORY or O_NOFOLLOW, and refuses fchmod and fsync on a folder's
+  // descriptor (EPERM, seen on the owner's PC, report local-win n°04): for a folder only its type is checked there.
+  // The VPS runs Linux, where the no-follow descriptor below is what protects the change of owner.
+  if (directory && process.platform === "win32") {
+    if (!fs.lstatSync(entry).isDirectory()) throw new Error(`${entry} n'est pas un dossier`);
+    return;
+  }
   const flags = (directory ? fs.constants.O_RDONLY | fs.constants.O_DIRECTORY : fs.constants.O_RDWR) | fs.constants.O_NOFOLLOW;
   const fd = fs.openSync(entry, flags);
   try {
@@ -431,7 +439,19 @@ export function restaurer(copieArg, {
         fs.rmSync(partial, { force: true });
       } catch { /* reported below */ }
     }
-    if (moved.length || quarantine || placed) {
+    if (quarantine && !moved.length && !placed) {
+      // The quarantine folder was created but nothing went into it (its owner or mode could not be set): the
+      // previous database never moved. Saying "restored database, to move" here would send the owner to move the
+      // good memory (report local-win n°04). The empty folder is this run's own: it is removed when still empty.
+      warn(`ÉCHEC avant tout déplacement : l'ancienne base est intacte, à sa place (${target}). Ne la déplace pas ; rien n'a été restauré.`);
+      let removed = false;
+      try {
+        fs.rmdirSync(quarantine);
+        removed = true;
+      } catch { /* not empty or not removable: left as it is */ }
+      warn(removed ? `Le dossier ${quarantine}, vide, a été retiré.` : `Le dossier ${quarantine} n'a pas été supprimé (vérifie qu'il est vide).`);
+      if (removed) quarantine = null;
+    } else if (moved.length || quarantine || placed) {
       warn(`ÉCHEC après ${moved.length || quarantine ? "la mise de côté de l'ancienne base" : "la mise en place de la copie"}. Où sont les fichiers :`);
       for (const m of moved) warn(`  - ${m.from} est maintenant ${m.to} (intact)`);
       const later = moved.length ? " avant de remettre l'ancienne" : "";

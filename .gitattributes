@@ -1,3 +1,11 @@
 .likma/features.json merge=likma-features
 docs/FEATURES.md merge=likma-generated
 docs/CODEMAP.md merge=likma-generated
+# Code is LF in every checkout, Windows included: a CRLF checkout (git's Windows default, core.autocrlf=true) made
+# vitest fail to import the sonni/*.mjs scripts on the owner's PC (report local-win n°04).
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.sh text eol=lf

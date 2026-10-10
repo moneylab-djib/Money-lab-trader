@@ -817,6 +817,61 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     s.untouched();
   });
 
+  it("on a failure before anything moved (the quarantine folder cannot be secured), says the previous database is intact and removes the empty folder", async () => {
+    // Report local-win n°04: fchmod on the folder's descriptor failed (EPERM) right after the quarantine was created,
+    // and the message called the untouched previous database "base restaurée NON conforme, à déplacer". On the VPS the
+    // same path is reached when securing the folder fails (an owner change as root, for example).
+    const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
+    const s = laterState();
+    const fake = fakeSystemctl("inactive");
+    const realFchmod = fs.fchmodSync;
+    const spy = vi.spyOn(fs, "fchmodSync").mockImplementation((fd, mode) => {
+      if (fs.fstatSync(fd).isDirectory()) throw Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+      realFchmod(fd, mode);
+    });
+    let r: { value: number; stdout: string; stderr: string };
+    try {
+      r = await captured(() => restaurer(s.copy, { confirmed: true, getuid: () => 1000, env: { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin } }));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(r.value, r.stdout + r.stderr).toBe(3);
+    expect(r.stderr).toContain(`ÉCHEC avant tout déplacement : l'ancienne base est intacte, à sa place (${s.live}). Ne la déplace pas ; rien n'a été restauré.`);
+    expect(r.stderr).toMatch(/Le dossier .*quarantaine-\d{8}T\d{6}Z, vide, a été retiré\./);
+    expect(r.stderr).not.toContain("NON conforme");
+    expect(r.stderr).not.toContain("ÉCHEC après");
+    expect(r.stderr).not.toContain("Pour remettre l'ancienne mémoire");
+    expect(lastLine(r.stdout)).toBe("RÉSULTAT : code=3 cible=inchangée quarantaine=aucune");
+    s.untouched();
+  });
+
+  it("restores on Windows without changing a folder's mode (fchmod and fsync on a folder's descriptor fail there)", async () => {
+    const { restaurer } = await import(pathToFileURL(RESTAURATION).href);
+    const s = laterState();
+    const fake = fakeSystemctl("inactive");
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    const folders: string[] = [];
+    const realFchmod = fs.fchmodSync;
+    const spy = vi.spyOn(fs, "fchmodSync").mockImplementation((fd, mode) => {
+      if (fs.fstatSync(fd).isDirectory()) folders.push(String(mode));
+      realFchmod(fd, mode);
+    });
+    let r: { value: number; stdout: string; stderr: string };
+    try {
+      Object.defineProperty(process, "platform", { ...platform, value: "win32" });
+      r = await captured(() => restaurer(s.copy, { confirmed: true, getuid: () => 1000, env: { ...process.env, HOME: s.h, SONNI_SYSTEMCTL: fake.bin } }));
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+      spy.mockRestore();
+    }
+    expect(r.value, r.stdout + r.stderr).toBe(0);
+    expect(folders).toEqual([]);
+    expect(sha(s.live)).toBe(sha(s.copy));
+    const automaton = path.dirname(s.live);
+    const q = path.join(automaton, fs.readdirSync(automaton).filter((f) => f.startsWith("quarantaine-"))[0]);
+    for (const [x, hash] of Object.entries(s.files)) expect(sha(path.join(q, `state.db${x}`)), `state.db${x}`).toBe(hash);
+  });
+
   it("on a failure after the move (a foreign partial file appears), exits 3, keeps the quarantine and prints how to put the old files back", () => {
     const s = laterState();
     const partial = `${s.live}.restauration-partielle`;
