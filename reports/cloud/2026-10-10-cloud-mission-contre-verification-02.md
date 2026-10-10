@@ -1,12 +1,12 @@
 ---
 agent: cloud
-date: 2026-10-10T07:25:00+00:00
+date: 2026-10-10T07:50:00+00:00
 repo: moneylab-djib/Money-lab-trader
 branch: claude/sonni-deploy-prep
-commit: db204934e4d26d934e4f99cb8e842d16162fb03f
+commit: 9c09e772ad2e6832f388dcff2a0b1459c060f66c
 env: "Bac à sable Linux de l'agent cloud : Node 22.22, pnpm 10, better-sqlite3 11.10.0 ; aucun accès au VPS ni au PC"
 status: ok
-files_touched: [sonni/pc/contre-verification.mjs, sonni/vps/verification-environnement.mjs, sonni/vps/verifier-pause.mjs, sonni/vps/verification-environnement.mjs, sonni/GUIDE-VPS.fr.md, src/__tests__/trader/deploy-counter.test.ts, src/__tests__/trader/deploy-pause.test.ts, src/__tests__/trader/deploy-environment.test.ts, src/__tests__/trader/deploy-guide.test.ts]
+files_touched: [sonni/pc/contre-verification.mjs, sonni/vps/verifier-pause.mjs, sonni/vps/verification-environnement.mjs, sonni/GUIDE-VPS.fr.md, src/__tests__/trader/deploy-counter.test.ts, src/__tests__/trader/deploy-pause.test.ts, src/__tests__/trader/deploy-environment.test.ts, src/__tests__/trader/deploy-guide.test.ts]
 files_claimed: [sonni/vps/verification-environnement.mjs, sonni/vps/sauvegarde.mjs, sonni/vps/restauration.mjs, sonni/vps/audit-prix.mjs, sonni/vps/controle-predeploiement.mjs, sonni/vps/verifier-pause.mjs, sonni/vps/copie-privee.mjs, sonni/pc/contre-verification.mjs]
 needs_owner_go: [GO-9-mission-contre-verification-windows]
 replies_to: [2026-10-10-local-win-windows-tests-03.md]
@@ -20,7 +20,7 @@ qu'avec le GO du propriétaire (GO-9).
 
 ## 1. Commit et branche examinés
 
-Branche `claude/sonni-deploy-prep` (PR #33, brouillon, non fusionnée), commit `db204934e4d26d934e4f99cb8e842d16162fb03f`. Les outils visés :
+Branche `claude/sonni-deploy-prep` (PR #33, brouillon, non fusionnée), commit `9c09e772ad2e6832f388dcff2a0b1459c060f66c`. Les outils visés :
 `sonni/vps/sauvegarde.mjs`, `restauration.mjs`, `audit-prix.mjs`, `controle-predeploiement.mjs`, `verifier-pause.mjs`.
 `sonni/pc/contre-verification.mjs` les lance tous.
 
@@ -34,14 +34,14 @@ Branche `claude/sonni-deploy-prep` (PR #33, brouillon, non fusionnée), commit `
 
 | Commande | Durée | Code |
 | --- | --- | --- |
-| `node sonni/pc/contre-verification.mjs --rapport cv.md` (après `pnpm run build`) | ~10 s | 0 : 27 cas, 27 conformes |
-| `pnpm exec vitest run src/__tests__/trader` | ~35 s | 0 : 30 fichiers, 395 tests |
+| `node sonni/pc/contre-verification.mjs --rapport cv.md` (après `pnpm run build`) | ~10 s | 0 : 28 cas, 28 conformes |
+| `pnpm exec vitest run src/__tests__/trader` | ~35 s | 0 : 30 fichiers, 399 tests |
 | `pnpm run typecheck` | ~15 s | 0 |
 
 ## 4. Résultats mesurés
 
-Sous Linux, les 27 cas sont conformes : audit des prix (3), sauvegarde à froid, empreinte et à chaud (4), essai et
-restauration réelle (7), contrôle avant déploiement (6), garde du retour arrière (6), vérification de l'environnement
+Sous Linux, les 28 cas sont conformes : audit des prix (3), sauvegarde à froid, empreinte et à chaud (4), essai et
+restauration réelle (7), contrôle avant déploiement (6), garde du retour arrière (7), vérification de l'environnement
 du serveur (1). Aucun cas n'a été lancé sous
 Windows : c'est l'objet de la mission.
 
@@ -51,7 +51,7 @@ Windows : c'est l'objet de la mission.
    ```powershell
    git clone https://github.com/moneylab-djib/Money-lab-trader.git sonni-cv
    cd sonni-cv
-   git checkout db204934e4d26d934e4f99cb8e842d16162fb03f
+   git checkout 9c09e772ad2e6832f388dcff2a0b1459c060f66c
    corepack enable pnpm
    pnpm install --frozen-lockfile
    pnpm run build
