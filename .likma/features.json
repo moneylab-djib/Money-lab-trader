@@ -27,9 +27,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -51,24 +51,24 @@
           "8": "sonni"
         },
         "checks_hash": "8bc80ee5b7f034963ddf6f66a0986e7511fca85f01854f5c2281643d897243ab",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "30356d0bf5c772617ad3fd14836400d34f98e3a2c87003b8f74cd699753d2e2e",
         "results": [
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           },
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -106,9 +106,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -130,24 +130,24 @@
           "8": "sonni"
         },
         "checks_hash": "8bc80ee5b7f034963ddf6f66a0986e7511fca85f01854f5c2281643d897243ab",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "c00d4893d9fceb7a9e81afd76af1c3793972e63f55572c7a6e7fd84bde64e049",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           }
         ],
         "integrity": {
@@ -183,9 +183,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -205,16 +205,16 @@
           "6": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "c0241dd01c73ff18afe45c90979622afa9bc5982e86238deb9289abdc09504b8",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -251,9 +251,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -274,24 +274,24 @@
           "7": "sonni"
         },
         "checks_hash": "8bc80ee5b7f034963ddf6f66a0986e7511fca85f01854f5c2281643d897243ab",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "228797aaac3d5223783bc0f72fa42f7fe7afbbc004d4bab499e0f7ea1652166f",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           }
         ],
         "integrity": {
@@ -327,9 +327,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -349,24 +349,24 @@
           "6": "sonni"
         },
         "checks_hash": "8bc80ee5b7f034963ddf6f66a0986e7511fca85f01854f5c2281643d897243ab",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "e20d18e52860bc6f204fbb4b41357757e952c3192fca266b639f74a57072ccca",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           }
         ],
         "integrity": {
@@ -402,9 +402,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -424,16 +424,16 @@
           "6": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "f9faf929b0cf850d436575bce8aa944974d0eb64db8a9ae0cb277a32e6a8f1ea",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -468,9 +468,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "358aa7614bf11589b65afee93c63cc02c0f46537c6056c7867a5c71f7ca98857",
+        "fingerprint": "446ad24b3ad6deb9b8907371a61da1f27aab9750a2961186a4df99b8caee5705",
         "scope": [
           "src",
           "sonni",
@@ -489,16 +489,16 @@
           "5": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "755da3cea08314c09ebc7e946175cf6e3cac8f5f4cdc3dbf279d77d1177b7db9",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -531,9 +531,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "7c3048fc3ff0893be6672979e19109e773c266386e88fb6c8959ab7063ba8ca6",
+        "fingerprint": "f07bffa4b7028080235808b457b30bfd9089c28d88e8a8ce00ddb47e19177fb0",
         "scope": [
           "src",
           "sonni",
@@ -550,16 +550,16 @@
           "5": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "d3c89b62c235fcecefcf94e6267e123c3fc6d7fc3cef9d2c6a8f6991a21a7122",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -588,9 +588,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "8169f98889b0446639eccdcb91fe2ca859414db2964e0f8b80c3b9e142a31b38",
+        "fingerprint": "b734487919ca79b20bed0fe789aec4fd0533fb89cfccba4306cffc208a686196",
         "scope": [
           "src",
           "sonni"
@@ -603,24 +603,24 @@
           "5": "sonni-e2e"
         },
         "checks_hash": "8bc80ee5b7f034963ddf6f66a0986e7511fca85f01854f5c2281643d897243ab",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "25135845d18109a61417b6ea86906d1768e8a0966453d960eddcfe3d4c198d45",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           }
         ],
         "integrity": {
@@ -652,9 +652,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "8169f98889b0446639eccdcb91fe2ca859414db2964e0f8b80c3b9e142a31b38",
+        "fingerprint": "b734487919ca79b20bed0fe789aec4fd0533fb89cfccba4306cffc208a686196",
         "scope": [
           "src",
           "sonni"
@@ -670,24 +670,24 @@
           "8": "sonni"
         },
         "checks_hash": "eed5bb1fb243ffadd03fc4e3d8d45359e7f8e8ea17dc9d31074c4b56c83293ef",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "f5d1247de86c14cae41710ca67b4795d3701599864fe09dfd0c48ecac10f7eb5",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "money-lab",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 28.807,
-            "output_bytes": 40121,
-            "output_sha256": "0594f3a506d528371aba9ef2ff04a74ac18656e28c65a72cc76d2bff24ef38a8"
+            "seconds": 28.74,
+            "output_bytes": 40006,
+            "output_sha256": "c6cf711ee6c520be05310d0d949f6ad5e22ae626505047db918b98974f26d65a"
           }
         ],
         "integrity": {
@@ -717,9 +717,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "8169f98889b0446639eccdcb91fe2ca859414db2964e0f8b80c3b9e142a31b38",
+        "fingerprint": "b734487919ca79b20bed0fe789aec4fd0533fb89cfccba4306cffc208a686196",
         "scope": [
           "src",
           "sonni"
@@ -733,24 +733,24 @@
           "6": "sonni"
         },
         "checks_hash": "8bc80ee5b7f034963ddf6f66a0986e7511fca85f01854f5c2281643d897243ab",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "639637716a663c81c92345e617c1e983827b4018b5a785308ee38bfd1e7cf6e2",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           }
         ],
         "integrity": {
@@ -778,9 +778,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "8169f98889b0446639eccdcb91fe2ca859414db2964e0f8b80c3b9e142a31b38",
+        "fingerprint": "b734487919ca79b20bed0fe789aec4fd0533fb89cfccba4306cffc208a686196",
         "scope": [
           "src",
           "sonni"
@@ -792,16 +792,16 @@
           "4": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "6d40388d599271b46ef3207802494317f36ccf1baa3811f16a7d447ec18bda08",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -829,9 +829,9 @@
       ],
       "status": "verified",
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "8169f98889b0446639eccdcb91fe2ca859414db2964e0f8b80c3b9e142a31b38",
+        "fingerprint": "b734487919ca79b20bed0fe789aec4fd0533fb89cfccba4306cffc208a686196",
         "scope": [
           "src",
           "sonni"
@@ -843,16 +843,16 @@
           "4": "sonni"
         },
         "checks_hash": "1cd102c9b4f40610d71b5a59c232a547512652e858b379f49f02cfc812359aca",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "bcc8488832f240d5d31663fe55486e44dcbc3581f58735a767cea7260083217b",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           }
         ],
         "integrity": {
@@ -1408,9 +1408,9 @@
         "note": "ci.yml runs every Likma check without masking; runtime check added; token counter guard; worklog test path; ci-workflow guard test; review fixes"
       },
       "verification": {
-        "at": "2026-10-10T06:36:44.839224+00:00",
+        "at": "2026-10-10T08:06:00.249985+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "054fd1cb371c2ac267c04f592dafb323ce4001f2699f3c70394e95c212d8603d",
+        "fingerprint": "c666ae27ffe2a16d87d52a2763a84043184087d05b759802a7480f595ec75b95",
         "scope": [
           ".github/workflows/ci.yml",
           ".github/workflows/release.yml",
@@ -1429,32 +1429,32 @@
           "6": "sonni-e2e"
         },
         "checks_hash": "9094757bd0d1339572cc961dc56c88e9cf759e9b15e1be7e5ddf1f28822bf517",
-        "report": ".likma/checks/01fb191aae9b49618f7d71fd2a832796.json",
+        "report": ".likma/checks/73a50a4e7e93474dbe156e18ad956d01.json",
         "contract": "f85afc98668d66a2e3d785b6905b0e6d10529611a5b3a12fe87af042c0fd08b3",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 33.263,
-            "output_bytes": 35829,
-            "output_sha256": "52702b10968b5e53d5b667c04e8274fd8500199d9886a6159b5e874cfdda797a"
+            "seconds": 39.315,
+            "output_bytes": 41883,
+            "output_sha256": "c677bf74ad969a9e0c89bf98ca7a394218f74f2a35e0021cdaf6ef079dde22af"
           },
           {
             "name": "runtime",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 28.096,
-            "output_bytes": 78405,
-            "output_sha256": "505cd78f3ca3492af0f2cf8aac034c656ca6985239a3eb0adc12d80cd2877ae4"
+            "seconds": 27.226,
+            "output_bytes": 78255,
+            "output_sha256": "d724f6c740918e86ad19428ec09184853398e6d155e3e0b59741a136f3678a83"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 620.158,
+            "seconds": 634.598,
             "output_bytes": 5084,
-            "output_sha256": "b5fdea6586a9322ddf3bf063099893fc10b1319719bc4ca73f472ecfb97fd98a"
+            "output_sha256": "8d215d5bfd720b7e02fb15ac1a425e52ce46435a67b1a4444714038c3e2ca7cf"
           }
         ],
         "integrity": {
@@ -1933,16 +1933,16 @@
         "note": "Five owner-run scripts in sonni/vps (Node + better-sqlite3, French output, exit codes 0/1/2/3/130, RÉSULTAT line) sharing copie-privee.mjs; 119 tests in four files (366 in the sonni check); no runtime, config, schema or history change; audit-prix output identical; reviewed by three adversarial reviews, a three-lens final review and a fresh acceptance review, all findings fixed"
       },
       "review": {
-        "at": "2026-10-10T06:12:18.818541+00:00",
-        "verdict": "pass",
-        "notes": "Fresh-context acceptance review (separate agent) of 9481152: all 11 criteria and the owner's 5 points met; 366 trader tests pass, no runtime diff from b0479a3, audit-prix output byte-identical on 5 inputs; hands-on runs in a scratch HOME confirmed the live folder untouched by backups, the restore quarantines and refuses root without --cible, the gate blocks and only listed keys lift points to decide, and the post-start check opens read-only. Its verdict was concerns for 5 minor guide/wording points (pause before rollback, fresh gate when Sonni is stopped with last prices in section E, COMMIT wording, hot-backup label, stale Likma counts), all fixed in c15cd0a; no criterion failed.",
-        "fingerprint": "43cb8a2da6a807437b08e131f5c0b9cb28c72f4c626f783ee489060c5a3bb135",
-        "contract": "ef4213a5abbd378b2383f5ef3b97e84b56917749c5ed52ea6d450be4e443189e"
+        "at": "2026-10-10T08:06:12.520067+00:00",
+        "verdict": "concerns",
+        "notes": "Fresh-context acceptance review of db20493: CONCERNS, no blocker, 14/14 criteria met; 2 major (pending-buy option could start an old version; stale copy accepted by verifier-pause) and 6 minor points, all fixed with tests in 9c09e77 and re-verified (report 52217dc5).",
+        "fingerprint": "ae4f2bf29258a5b8867513425980919f48d11ff1cc587b7a69ab587c93ae5604",
+        "contract": "5b75c863fc5dc5a4eb79ae9ad2b5812122217f743362ae88273995135a846953"
       },
       "verification": {
-        "at": "2026-10-10T07:29:52.918805+00:00",
+        "at": "2026-10-10T07:53:39.426974+00:00",
         "fingerprint_version": 3,
-        "fingerprint": "3ff5fc1d28281ccf6b76c93cf31580f2c66df4708a89e29ff1791301ab3f4aa4",
+        "fingerprint": "ae4f2bf29258a5b8867513425980919f48d11ff1cc587b7a69ab587c93ae5604",
         "scope": [
           "sonni/vps/copie-privee.mjs",
           "sonni/vps/audit-prix.mjs",
@@ -1986,22 +1986,22 @@
           "14": "sonni"
         },
         "checks_hash": "3a8ae11b70bfaaa628b2c3ae0d7a10c608dbe08289b0924b8caacec70a5aa4c6",
-        "report": ".likma/checks/dbd1590abfe348808f356757bff09946.json",
-        "contract": "f36a612575800c96fd265254e1f75fa0675854a4100b51896fd625700752d275",
+        "report": ".likma/checks/52217dc5e7b242c798c9b98d4c77ce42.json",
+        "contract": "5b75c863fc5dc5a4eb79ae9ad2b5812122217f743362ae88273995135a846953",
         "results": [
           {
             "name": "sonni",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 36.546,
-            "output_bytes": 39047,
-            "output_sha256": "0a9b16999bc084a906799614a1efa302907206ce30b2e4b446146300c9f1a693"
+            "seconds": 37.722,
+            "output_bytes": 40125,
+            "output_sha256": "78f2e77cb8d40d8d1543f306ee7e95f5b5b94b76225474051aab02edaa90bbc1"
           },
           {
             "name": "types",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 6.505,
+            "seconds": 6.976,
             "output_bytes": 72,
             "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
           },
@@ -2009,25 +2009,25 @@
             "name": "money-lab",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 29.658,
-            "output_bytes": 40121,
-            "output_sha256": "e819550d892a89f26080e6dcb582a7733001b08147fbdaaa10782d7b27b3dedd"
+            "seconds": 28.923,
+            "output_bytes": 40006,
+            "output_sha256": "50cd19feec41e3cd6fefebbcedee3436f1446d0326d595baf0f86490e3b942cb"
           },
           {
             "name": "runtime",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 27.378,
-            "output_bytes": 78768,
-            "output_sha256": "ae64e38d567d54e2bcb4d8f77d916a5ddc2b15a2bff9eafa8188127f831de4cb"
+            "seconds": 27.478,
+            "output_bytes": 78553,
+            "output_sha256": "019c7338cd24dd4b0b9a28accff485e179ecb24393ca7497fb0326d1f9b4cd47"
           },
           {
             "name": "sonni-e2e",
             "result": "passed",
             "exit_code": 0,
-            "seconds": 619.42,
+            "seconds": 619.4,
             "output_bytes": 5084,
-            "output_sha256": "391717008b29bf2e40751d0a1f2bdee78e2e338b4759cd5c4872792ab0d2466d"
+            "output_sha256": "7551711239ddb882e7d23c21fea3f2047106728a6ecd4b8de0f669837c4b7d24"
           }
         ],
         "integrity": {

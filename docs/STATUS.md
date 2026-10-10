@@ -117,6 +117,12 @@
       - a duplicate entry in the mission header.
   - Checks after the round: sonni 30 files, 399 tests; typecheck; build; contre-verification 28/28 on Linux. Not run
     on Windows (the mission's purpose).
+  - Likma after the round:
+    - deploy-prep verified on 9c09e77 (report 52217dc5: sonni, types, money-lab, runtime, build, sonni-e2e 619 s);
+    - the 14 features sharing its files re-verified (report 73a50a4e, sonni-e2e 635 s);
+    - review recorded as concerns, all fixed.
+
+    GitHub CI on 9c09e77: `checks`, `e2e`, `audit` and `trufflehog` green.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at
