@@ -2035,6 +2035,89 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "brain-tasks",
+      "title": "Sonni hands batches of tasks to the second brain, sleeps, and is woken with the answers",
+      "criteria": [
+        "delegate_to_second_brain queues 1 to 8 tasks as one batch (16 waiting, 40 a UTC day, 10-600 characters, followed asset, 1-24 h window) and refuses with a reason when the second brain is unconfigured, keyless or off, or a request breaks a limit or looks like prompt instructions",
+        "The PC answers each task from code's data only (prices, 48 h observations, the asset's dossier, memory excerpts from code's search); answers are bounded plain text with prompt-boundary patterns refused, stored as untrusted task outputs and searchable",
+        "When every task of a batch is answered, failed or expired, code wakes Claude once through the shared wake gate, at most 8 such wakes a UTC day 20 min apart within 6 h; never for a batch with no answer nor for answers Claude already read; no Claude call while the PC works",
+        "Claude sees the unread answers labelled as untrusted in the wake message, the pack and sonni_memory section tasks, its quota and the link state in the rules block, and the delegation rule in its mission; the owner sees the day's tasks in /cerveau",
+        "docs/MEMORY.md, docs/GUARDS.md (G18) and docs/PLAN.fr.md describe the stores, limits and wake"
+      ],
+      "status": "verified",
+      "paths": [
+        "src/trader/braintasks.ts",
+        "src/trader/brain.ts",
+        "src/trader/tools.ts",
+        "src/trader/pack.ts",
+        "src/trader/prompt.ts",
+        "src/trader/schema.ts",
+        "src/agent/loop.ts",
+        "src/__tests__/trader/braintasks.test.ts",
+        "sonni/e2e.mjs"
+      ],
+      "implementation": {
+        "at": "2026-10-10T11:39:20.072285+00:00",
+        "note": "delegate_to_second_brain queues batches (8/call, 16 waiting, 40/day); the PC answers from code's data; a finished batch wakes Claude once via sonni_brain_tasks through the shared gate (8/day, 20 min, 6 h); answers read only after a paid turn or a whole view; wake message bounded; queue expires when the brain is off; e2e: delegate, sleep, no Claude call, woken with the answers"
+      },
+      "verification": {
+        "at": "2026-10-10T11:52:41.483940+00:00",
+        "fingerprint_version": 3,
+        "fingerprint": "b85879b2434cdf93472ef8e029ab21fde16a1338336944bc4f68a997b87a2682",
+        "scope": [
+          "src/trader/braintasks.ts",
+          "src/trader/brain.ts",
+          "src/trader/tools.ts",
+          "src/trader/pack.ts",
+          "src/trader/prompt.ts",
+          "src/trader/schema.ts",
+          "src/agent/loop.ts",
+          "src/__tests__/trader/braintasks.test.ts",
+          "sonni/e2e.mjs"
+        ],
+        "criterion_checks": {
+          "1": "sonni",
+          "2": "sonni",
+          "3": "sonni-e2e",
+          "4": "sonni",
+          "5": "types"
+        },
+        "checks_hash": "7a145fb6cab48f110eb91ad76f40c324c5084444b316d354b59099d941a28d75",
+        "report": ".likma/checks/b8ee3736fb8246098d37869760b2bb12.json",
+        "contract": "d35964351576cae4d40b74bf55809ce499d6e84527608bd77141f6763c308837",
+        "results": [
+          {
+            "name": "sonni",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 39.435,
+            "output_bytes": 40822,
+            "output_sha256": "8e29c78bd5cc6a5d2f89adf784d93cc9a38845cde8b8061a345632416b99964a"
+          },
+          {
+            "name": "sonni-e2e",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 735.863,
+            "output_bytes": 5491,
+            "output_sha256": "81104d846977a35391d9cd43a3a8abdfc89fcb6a3fabdc181758ca5f23080771"
+          },
+          {
+            "name": "types",
+            "result": "passed",
+            "exit_code": 0,
+            "seconds": 8.533,
+            "output_bytes": 72,
+            "output_sha256": "97841db1aa153d73b2e88cc94925993fe52c1ec4f641e62fea01de32ff0a8b42"
+          }
+        ],
+        "integrity": {
+          "base": "43a029b36669e3302c8ce9df749741db28e37b95",
+          "flags": []
+        }
+      }
     }
   ]
 }

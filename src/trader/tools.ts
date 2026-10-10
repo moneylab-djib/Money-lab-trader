@@ -5,7 +5,8 @@
  * write_reflection, add_lesson, revise_identity (a new version), set_watch,
  * follow_asset (a log entry), manage_source (a decision with its reason).
  * Reads the world: read_page (untrusted data, through a free reader when
- * one is available).
+ * one is available). Hands work to the owner's PC: delegate_to_second_brain
+ * (a batch of tasks; code wakes Claude when the answers are ready).
  *
  * The model cannot edit or delete a prediction, resolve one, set a
  * hypothesis's confidence or historical verdict, or change the numbers in
@@ -23,7 +24,8 @@ import { recordPrediction, MAX_HORIZON_HOURS, MIN_HORIZON_HOURS } from "./predic
 import { describeOdds, marketOdds } from "./snapshot.js";
 import { DECISION_ACTIONS, DECISION_HOURS, DECISION_REASON_MAX, MAX_DECISIONS_PER_CALL, recordDecision } from "./decisions.js";
 import { clearBigOrder, holdBigOrder, isBigOrder, isStrongTurn, strongBudgetLeft } from "./strong.js";
-import { rateBriefing } from "./brain.js";
+import { delegateToBrain, rateBriefing } from "./brain.js";
+import { MAX_OPEN_TASKS, MAX_TASKS_PER_CALL, MAX_TASKS_PER_DAY, TASK_DEFAULT_HOURS, TASK_MAX_HOURS, TASK_MIN_HOURS, TASK_QUESTION_MAX, TASK_QUESTION_MIN } from "./braintasks.js";
 import { formatMemoryHits, MEMORY_KINDS, searchMemory, type MemoryKind } from "./memory.js";
 import { recordLessonUses } from "./lessonuse.js";
 import { addHypothesis, hypothesisCounts } from "./hypotheses.js";
@@ -50,7 +52,7 @@ const NOT_CONFIGURED = "Sonni is not configured on this runtime.";
 /** Sonni tools that write to its memory or fetch the world: work, never idle turns (src/agent/loop.ts). */
 export const SONNI_WORK_TOOLS: ReadonlySet<string> = new Set([
   "propose_hypothesis", "record_prediction", "write_reflection", "add_lesson", "retire_lesson", "revise_identity",
-  "set_watch", "read_page", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier", "name_pattern", "record_decision",
+  "set_watch", "read_page", "delegate_to_second_brain", "manage_source", "follow_asset", "place_order", "cancel_order", "manage_position", "note_trap", "update_dossier", "name_pattern", "record_decision",
 ]);
 
 class DryRunRollback extends Error {}
@@ -124,6 +126,46 @@ export function createTraderTools(): AutomatonTool[] {
         const test = runHistoricalTest(db, h);
         return `Hypothesis ${h.id} recorded (${h.origin}). ` +
           (test ? describeTest(test) + "." : "No test_rule: your predictions will test it.");
+      },
+    },
+    {
+      name: "delegate_to_second_brain",
+      description:
+        "Hand work to the second brain, the owner's local model on their PC: free for you, slower and less reliable. Use it for " +
+        "reading and summarising the recent observations on an asset, gathering what your memory holds on a question, listing " +
+        "arguments for and against a thesis, checking a dossier against the news. It works only from data code gives it (prices, " +
+        "observations of the last 48 h, the asset's dossier, excerpts of your memory found by code's search); it computes no " +
+        `number and never decides. Queue up to ${MAX_TASKS_PER_CALL} tasks per call (${MAX_OPEN_TASKS} waiting at most, ` +
+        `${MAX_TASKS_PER_DAY} a UTC day), then SLEEP instead of waiting awake: code wakes you once the whole batch is answered ` +
+        "or dropped, with the answers in the wake message (untrusted data: check them). Refused when the second brain is off; " +
+        "when the PC is offline the tasks wait, then are dropped without a wake.",
+      category: "memory",
+      riskLevel: "safe",
+      parameters: {
+        type: "object",
+        properties: {
+          tasks: {
+            type: "array",
+            description: `1 to ${MAX_TASKS_PER_CALL} tasks`,
+            items: {
+              type: "object",
+              properties: {
+                question: { type: "string", description: `What to do, ${TASK_QUESTION_MIN} to ${TASK_QUESTION_MAX} characters, e.g. "Résume les observations sur SOL des dernières 48 h et ce qu'elles changent pour ma thèse"` },
+                asset: { type: "string", description: "Optional followed asset the task is about (its dossier and observations are sent)" },
+              },
+              required: ["question"],
+            },
+          },
+          purpose: { type: "string", description: "Optional: what you will do with the answers (at most 300 characters)" },
+          valid_hours: { type: "number", description: `How long the tasks may wait for the PC, ${TASK_MIN_HOURS} to ${TASK_MAX_HOURS} h (default ${TASK_DEFAULT_HOURS})` },
+          wake_when_done: { type: "boolean", description: "Default true: code wakes you when the batch is finished" },
+        },
+        required: ["tasks"],
+      },
+      execute: async (args, ctx) => {
+        if (!ctx.config.trader) return NOT_CONFIGURED;
+        const cfg = activeConfig(ctx.db.raw, ctx.config.trader);
+        return delegateToBrain(ctx.db.raw, cfg, withSecrets(), { tasks: args.tasks, purpose: args.purpose, validHours: args.valid_hours, wake: args.wake_when_done });
       },
     },
     {

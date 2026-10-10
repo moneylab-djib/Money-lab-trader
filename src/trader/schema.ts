@@ -690,6 +690,24 @@ function ensureAliveSchema(db: DB): void {
     );
     ${appendOnly("trader_brain_predictions")}
 
+    -- Owner's request of 2026-10-10: batches of tasks Claude hands to the second brain (src/trader/braintasks.ts).
+    -- Code sets finished_at and done when every task is answered, failed or expired, woken_at when it wakes
+    -- Claude for the answers, shown_at when Claude reads them. Never deleted.
+    CREATE TABLE IF NOT EXISTS trader_brain_batches (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      tasks INTEGER NOT NULL CHECK (tasks > 0),
+      purpose TEXT NOT NULL,
+      wake INTEGER NOT NULL CHECK (wake IN (0, 1)),
+      finished_at TEXT,
+      done INTEGER,
+      woken_at TEXT,
+      shown_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trader_brain_batches_open ON trader_brain_batches (finished_at, shown_at);
+    CREATE TRIGGER IF NOT EXISTS trader_brain_batches_no_delete BEFORE DELETE ON trader_brain_batches
+      BEGIN SELECT RAISE(ABORT, 'trader_brain_batches keeps its history'); END;
+
     -- Step 4 of the 2026-10-08 plan: summaries of finished days, weeks and months computed by code (src/trader/summaries.ts).
     CREATE TABLE IF NOT EXISTS trader_summaries (
       period TEXT NOT NULL CHECK (period IN ('day', 'week', 'month')),

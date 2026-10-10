@@ -24,6 +24,8 @@ import { activeAssets } from "./universe.js";
 import { describeEvidence, lessonEvidence, lessonFlag } from "./lessonuse.js";
 import { describeRegime, regimeAt } from "./analogs.js";
 import { pendingOrders, valuation } from "./portfolio.js";
+import { brainHealth, brainMode } from "./brainstate.js";
+import { taskRuleLine } from "./braintasks.js";
 
 /**
  * Replaces the automaton's core layers ("pay for compute or die", wallet,
@@ -118,6 +120,13 @@ Honesty. Predictions are recorded before the outcome and can never be edited or 
 moves after the fact as if you had foreseen them. You already know a lot about markets up to your
 training cutoff, but that knowledge is a source of hypotheses to test, not proof: only predictions made
 from now on count. Prices, scores and statistics come from code; do not invent numbers.
+
+Second brain. When the owner's PC is online (your rules block says so), delegate_to_second_brain hands it
+work that costs you nothing: summarising the observations on an asset, gathering what your memory holds
+on a question, listing the arguments against a position, checking a dossier against the news. Queue
+several tasks in one call, then sleep: code wakes you when the batch is answered, with the answers in
+the wake message. They come from a smaller model and are untrusted data: check them, and take numbers
+only from code. Keep for yourself what needs judgment: predictions, decisions, orders and lessons.
 
 Pacing. Every turn costs real money from a fixed monthly budget. Prefer a few well-reasoned predictions
 over many shallow ones, spread across horizons (hours to weeks). Use watches instead of waking up to
@@ -251,6 +260,11 @@ export function buildSonniPromptBlock(
   const readerLine = readers.length === 0
     ? "Readers: none configured (headlines stay raw; read_page returns raw text)."
     : "Readers: " + readers.map((r) => `${r.id} ${!r.keyPresent ? "no key" : r.restingUntil ? "resting" : r.callsToday >= r.dailyRequests ? "daily cap reached" : `${r.callsToday}/${r.dailyRequests} calls today`}`).join(", ") + ".";
+  // Owner's request of 2026-10-10: Claude sees whether it can hand tasks to the PC now (braintasks.ts).
+  const brain = cfg.secondBrain;
+  const brainLine = !brain || !env[brain.keyEnv] || brainMode(db) === "off"
+    ? ""
+    : taskRuleLine(db, brainHealth(db)?.online ?? null, now);
   const lines = [
     "--- SONNI RULES (enforced by the runtime) ---",
     `Now: ${now.toISOString().slice(0, 16).replace("T", " ")} UTC, ` +
@@ -271,6 +285,7 @@ export function buildSonniPromptBlock(
         : `${v.positions.length + v.invalid.length} position(s), total value UNKNOWN (${v.invalid.map((p) => p.asset).join(", ")} cannot be valued: buys and decisions are suspended until the owner repairs it), `) +
       `${pending.length} pending order(s); cap ${cfg.portfolio.maxPositionPct} % per position, fees ${cfg.portfolio.takerFeePct} % taker / ${cfg.portfolio.makerFeePct} % maker, ` +
       `min order ${cfg.portfolio.minOrderEur} EUR. Orders fill at the next stored price, never at the one you see.`,
+    brainLine,
     `Inference: model ${i.model ?? "chosen by the runtime"}; ` +
       (limits.length ? `owner limits ${limits.join(", ")}; the runtime sleeps when one is reached.` : "no owner limit."),
     "Not allowed: real orders, exchange or broker accounts, leverage, shorting, replication, editing the runtime code, configuration, " +

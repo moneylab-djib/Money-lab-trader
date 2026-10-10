@@ -75,6 +75,7 @@ import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
 import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS, sonniDecisionInstructions } from "../trader/prompt.js";
 import { decisionsDue } from "../trader/decisions.js";
 import { briefingForWake } from "../trader/brain.js";
+import { markBatchesRead, taskAnswersForWake } from "../trader/braintasks.js";
 import { upkeepForWake } from "../trader/brainchecks.js";
 import { bigOrderInstructions, clearBigOrder, readPendingBigOrder, setStrongTurn } from "../trader/strong.js";
 import {
@@ -465,6 +466,8 @@ export async function runAgentLoop(
   let intakePending = false;
   let reflectionPending = false;
   let consolidationTurn = false;
+  // Owner's request of 2026-10-10: second-brain task batches carried by this wake message, marked read after a paid turn.
+  let taskBatchesShown: string[] = [];
   if (moneyLab) {
     const reason = db.getKV(MONEY_LAB_WAKE_REASON_KEY);
     if (reason) {
@@ -500,6 +503,13 @@ export async function runAgentLoop(
       // Step 3 (2026-10-08): the second brain's fresh situation note, labelled as untrusted data.
       const brainNote = briefingForWake(db.raw);
       if (brainNote) wakeupInput += `\n\n${brainNote}`;
+      // Owner's request of 2026-10-10: the answers to the tasks Claude handed to the second brain before sleeping.
+      // They count as read once a paid turn ran with them (below), like the review: a blocked wake keeps them unread.
+      const taskAnswers = taskAnswersForWake(db.raw);
+      if (taskAnswers) {
+        wakeupInput += `\n\n${taskAnswers.text}`;
+        taskBatchesShown = taskAnswers.batches;
+      }
       // A big order held on the previous wake gets its stronger-model turn now.
       const held = readPendingBigOrder(db.raw);
       if (held) {
@@ -918,6 +928,10 @@ export async function runAgentLoop(
       if (consolidationTurn && trader && routerResult.finishReason !== "budget_exceeded") {
         markConsolidationDone(db.raw, activeConfig(db.raw, trader));
         consolidationTurn = false;
+      }
+      if (taskBatchesShown.length && routerResult.finishReason !== "budget_exceeded") {
+        markBatchesRead(db.raw, taskBatchesShown, new Date());
+        taskBatchesShown = [];
       }
 
       // Build a compatible response for the rest of the loop
