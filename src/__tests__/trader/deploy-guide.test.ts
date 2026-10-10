@@ -14,7 +14,8 @@ const GUIDE = fs.readFileSync(path.join(ROOT, "sonni", "GUIDE-VPS.fr.md"), "utf-
 function scriptCommands(text: string): { script: string; options: string[]; line: string }[] {
   const out: { script: string; options: string[]; line: string }[] = [];
   for (const line of text.split("\n")) {
-    for (const m of line.matchAll(/node sonni\/vps\/([a-z-]+\.mjs)([^|`]*)/g)) {
+    // The Telegram sender runs as root from a root-owned copy (/root/envoi-telegram.mjs) of sonni/vps/envoi-telegram.mjs.
+    for (const m of line.matchAll(/node (?:sonni\/vps\/|\/root\/)([a-z-]+\.mjs)([^|`]*)/g)) {
       out.push({ script: m[1], options: [...m[2].matchAll(/(--[a-z][a-z-]*)/g)].map((o) => o[1]), line: line.trim() });
     }
   }
@@ -48,6 +49,22 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     }
   });
 
+  it("runs the Telegram sender as root only from a root-owned copy whose fingerprint is checked", () => {
+    expect(section).toContain("install -o root -g root -m 0500 sonni/vps/envoi-telegram.mjs /root/envoi-telegram.mjs");
+    expect(section).toContain("sha256sum /root/envoi-telegram.mjs");
+    expect(section).toContain("EMPREINTE_ENVOI");
+    expect(section).not.toMatch(/\| node sonni\/vps\/envoi-telegram\.mjs/);
+    expect(section.indexOf("sha256sum /root/envoi-telegram.mjs")).toBeLessThan(section.indexOf("| node /root/envoi-telegram.mjs"));
+  });
+
+  it("starts every server block that runs a tool from /opt/sonni", () => {
+    for (const block of section.split("```sh").slice(1).map((b) => b.split("```")[0])) {
+      if (/node sonni\/vps\//.test(block) && !/node sonni\/vps\/(sauvegarde|restauration --essai|restauration\.mjs --essai|controle-predeploiement)/.test(block)) {
+        expect(block, block).toContain("cd /opt/sonni");
+      }
+    }
+  });
+
   it("pins the approved commit and never runs configure.mjs or a bare git pull in the procedure", () => {
     expect(section).toContain("git merge --ff-only COMMIT");
     expect(section).not.toMatch(/^\s*sudo -u sonni -H git pull/m);
@@ -60,8 +77,9 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
       expect(i, s).toBeGreaterThan(-1);
       return i;
     };
-    const stop = at("systemctl stop sonni");
-    const install = at("pnpm install --frozen-lockfile");
+    const phase2 = at("### Phase 2");
+    const stop = at("systemctl stop sonni", phase2);
+    const install = at("pnpm install --frozen-lockfile", phase2); // Phase 1 also installs, on the owner's PC
     const backup = at("node sonni/vps/sauvegarde.mjs");
     const drill = at("node sonni/vps/restauration.mjs --essai COPIE");
     const gate = at("node sonni/vps/controle-predeploiement.mjs COPIE");

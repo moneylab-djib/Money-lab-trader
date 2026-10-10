@@ -306,13 +306,15 @@ Il ne change ni la stratégie, ni les frais, ni les réglages, ni la forme de la
 Règles pour tout ce qui suit :
 - tape les commandes une par une ;
 - chaque outil finit par une ligne `RÉSULTAT : code=…`. Seul `code=0` permet de continuer. Pour `code=1`,
-  `2` ou `3`, arrête-toi et envoie-moi toute la sortie ;
+  `2` ou `3`, arrête-toi et envoie-moi toute la sortie. Une seule exception : « Trop tôt : relance dans
+  N min » veut dire d'attendre puis de relancer la même commande ;
 - **ne répare rien toi-même**. Une réparation de l'historique demande une procédure séparée et ton accord.
 
-Dans les commandes :
-- `COMMIT` est le numéro de version que ton GO de déploiement approuve. Il contient les étapes 0.1 à 0.3
-  et les outils de cette procédure ;
-- `COPIE` est le chemin qu'affiche la sauvegarde.
+Les valeurs à remplacer dans les commandes :
+- `COMMIT` : le numéro de version que ton GO de déploiement approuve. Il contient les étapes 0.1 à 0.3 et
+  les outils de cette procédure ;
+- `COPIE` : le chemin qu'affiche la sauvegarde ;
+- `EMPREINTE_ENVOI` : l'empreinte de l'outil d'envoi Telegram, que je te donne avec `COMMIT`.
 
 ### Phase 0 — L'état actuel (lecture seule)
 
@@ -333,13 +335,21 @@ montre l'état des sauvegardes et la place libre sur le disque.
 ### Phase 1 — Pré-audit sur une copie, hors du serveur (aucun changement sur le VPS)
 
 **La copie.** Prends la dernière sauvegarde quotidienne. Sonni l'écrit lui-même avec la fonction de
-sauvegarde de SQLite et la vérifie chaque jour. Elle peut avoir jusqu'à un jour : ce qui s'est passé depuis
-sera contrôlé à la phase 2.
+sauvegarde de SQLite et la vérifie chaque jour.
 
-**La récupérer sur ton PC**, au choix :
-- **Ton PC la reçoit déjà chaque nuit** (partie 6 de `sonni/GUIDE-PC.fr.md`) : prends le fichier le plus
-  récent de `C:\Sonni\sauvegardes`.
-- **Tu te connectes en `root`**, dans PowerShell :
+Elle peut avoir jusqu'à un jour. Le contrôle prévoit donc ce que Sonni aurait fait **au moment de la
+copie**. Ce qui s'est passé depuis sera contrôlé à la phase 2, sur une copie fraîche.
+
+**La ranger sur ton PC.** Dans PowerShell, crée d'abord le dossier :
+```powershell
+New-Item -ItemType Directory -Force C:\Sonni\pre-audit
+```
+Puis, au choix :
+- **Ton PC la reçoit déjà chaque nuit** (partie 6 de `sonni/GUIDE-PC.fr.md`) :
+  ```powershell
+  Copy-Item C:\Sonni\sauvegardes\state.db.backup-AAAA-MM-JJ C:\Sonni\pre-audit\
+  ```
+- **Tu te connectes en `root`** :
   ```powershell
   scp root@ADRESSE_IP:/home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ C:\Sonni\pre-audit\
   ```
@@ -348,16 +358,25 @@ sera contrôlé à la phase 2.
   cmd /c "ssh ubuntu@ADRESSE_IP sudo cat /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ > C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ"
   ```
 
-**Vérifier l'empreinte.** Sur le serveur, lance
-`sha256sum /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ`. Sur le PC, lance
-`Get-FileHash C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ`. Les deux empreintes doivent être identiques.
+**Vérifier l'empreinte.** Lance :
+- sur le serveur : `sha256sum /home/sonni/.automaton/backups/state.db.backup-AAAA-MM-JJ` ;
+- sur le PC : `Get-FileHash C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ`.
+
+Les deux empreintes doivent être identiques. Le serveur l'écrit en minuscules et le PC en majuscules : cette
+différence ne compte pas.
 
 **Faire le contrôle**, au choix :
 - **A, le plus simple** : envoie-moi ce fichier dans notre conversation. Je lance les deux contrôles et je te
   présente le résultat. Le fichier contient toute la mémoire de Sonni : journal, ordres, prédictions et tes
   messages. Il ne contient aucune clé, car elles restent dans `/etc/sonni.env`.
-- **B, sur ton PC** : il faut Node 22 et une copie de `main`, puis `pnpm install`. Lance :
-  ```sh
+- **B, sur ton PC.** Il faut Node 22, Git et pnpm. Si GitHub te le demande, connecte-toi avec ton compte.
+  Dans PowerShell :
+  ```powershell
+  cd C:\Sonni
+  git clone https://github.com/moneylab-djib/Money-lab-trader.git sonni-code
+  cd C:\Sonni\sonni-code
+  git checkout COMMIT
+  pnpm install --frozen-lockfile
   node sonni/vps/restauration.mjs --essai C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ
   node sonni/vps/controle-predeploiement.mjs C:\Sonni\pre-audit\state.db.backup-AAAA-MM-JJ
   ```
@@ -366,19 +385,23 @@ sera contrôlé à la phase 2.
 - L'essai de restauration remet la copie en place dans un dossier temporaire. Il vérifie qu'elle est intacte
   et complète, mesure le temps que prend la restauration, puis efface ce dossier.
 - Le contrôle avant déploiement comprend l'audit des prix de l'étape 0.3. Il rapproche aussi la caisse et
-  chaque position du registre. Il liste chaque ordre en attente et chaque stop, avec ce que le premier relevé
-  en fera. Il signale enfin si le redémarrage lancera un cycle payé.
+  chaque actif du registre. Il liste chaque ordre en attente et chaque stop, avec ce que le premier relevé en
+  fera. Il signale enfin si le redémarrage lancera un cycle payé.
 
 **Le résultat** classe chaque point en trois niveaux :
 - **BLOQUANT** : une anomalie dans les données, par exemple une position invalide ou un registre qui ne tombe
   pas juste ;
 - **À DÉCIDER** : ce que le redémarrage déclenchera, ou un écart historique. Par exemple un stop déjà
-  franchi, un ordre ancien qui sera refusé ou un écart d'arrondi d'avant l'étape 0.3 ;
+  franchi, un ordre refusé, expiré ou exécuté à un prix ancien, une position sans stop, ou un écart d'arrondi
+  d'avant l'étape 0.3. Chaque point porte une **clé**, par exemple `stop-franchi:BTC` ;
 - **INFO** : pour information seulement.
 
-Avec `code=1`, le déploiement est bloqué : je te présente les points et tu décides. Tu peux accepter les
-points « À DÉCIDER » dans ton GO de déploiement. Pour un point BLOQUANT, il faut d'abord une procédure de
-réparation séparée.
+Avec `code=1`, le déploiement est bloqué : je te présente les points et tu décides.
+- Pour un point « À DÉCIDER », ton GO de déploiement peut l'accepter **en nommant sa clé**. Le contrôle donne
+  la ligne exacte à recopier : `--accepter-a-decider clé1,clé2`.
+- Un point qui apparaîtrait ensuite, avec une autre clé, bloquera de nouveau : il faudra une nouvelle
+  décision.
+- Pour un point BLOQUANT, il faut d'abord une procédure de réparation séparée.
 
 ### Phase 2 — La fenêtre de déploiement (seulement après ton GO de déploiement)
 
@@ -405,6 +428,7 @@ propose Ubuntu.
    `state.db-wal` ou un `state.db-shm`, l'arrêt n'a pas été propre : arrête-toi et envoie-moi la sortie.
 3. **Installe exactement la version approuvée :**
    ```sh
+   cd /opt/sonni
    sudo -u sonni -H git fetch origin
    sudo -u sonni -H git checkout main
    sudo -u sonni -H git merge --ff-only COMMIT
@@ -412,8 +436,12 @@ propose Ubuntu.
    sudo -u sonni -H pnpm install --frozen-lockfile
    sudo -u sonni -H pnpm run build
    ```
-   `git rev-parse HEAD` doit afficher `COMMIT`. Si `merge --ff-only` refuse, arrête-toi et redémarre
-   l'ancienne version avec `systemctl start sonni` : rien n'a changé.
+   `git rev-parse HEAD` doit afficher `COMMIT`.
+   - Si `merge --ff-only` refuse, arrête-toi et redémarre l'ancienne version avec `systemctl start sonni` :
+     le programme compilé n'a pas changé.
+   - Si `pnpm install` ou `pnpm run build` échoue, **ne démarre pas** : le programme compilé peut être à
+     moitié neuf. Reconstruis l'ancienne version (« Retour arrière », étapes R3 et R4), ou laisse Sonni
+     arrêté. Envoie-moi la sortie.
 
    Ne lance **pas** `configure.mjs` cette fois : aucun réglage ne change.
 4. **Fais la sauvegarde.** Sonni est arrêté, donc c'est une copie exacte du fichier :
@@ -426,12 +454,13 @@ propose Ubuntu.
    ```sh
    sudo -u sonni -H node sonni/vps/restauration.mjs --essai COPIE
    ```
-6. **Fais le contrôle avant démarrage :**
+6. **Fais le contrôle avant démarrage**, d'abord sans rien accepter :
    ```sh
    sudo -u sonni -H node sonni/vps/controle-predeploiement.mjs COPIE
    ```
-   Ajoute `--accepter-a-decider` seulement si ton GO a accepté les points « À DÉCIDER » de la phase 1, et
-   s'ils sont les mêmes. Un point BLOQUANT bloque toujours.
+   Si ton GO a accepté des points « À DÉCIDER », relance-le en ajoutant `--accepter-a-decider` suivi des
+   clés que ton GO nomme, et seulement celles-là. Un point dont la clé n'est pas dans ton GO bloque toujours,
+   comme un point BLOQUANT.
 7. **Si une de ces trois commandes ne finit pas par `code=0`**, ne démarre pas la nouvelle version. Au
    choix :
    - redémarre l'ancienne : suis « Retour arrière » plus bas, étapes R3 et R4 ;
@@ -447,8 +476,10 @@ propose Ubuntu.
 
 ### Phase 3 — Contrôles après démarrage et rapport Telegram
 
-**Attends 10 à 15 minutes**, le temps d'une collecte de prix et d'un passage du courtier virtuel, puis :
+**Attends 10 à 15 minutes**, le temps d'une collecte de prix et d'un passage du courtier virtuel. Si ta
+connexion s'est coupée, reconnecte-toi (étape 4), puis :
 ```sh
+cd /opt/sonni
 journalctl -u sonni -n 80 --no-pager
 sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT
 ```
@@ -477,23 +508,35 @@ alerte que si elle se répète, aux mêmes seuils que `/santé`.
 `--ordres-acceptes ID1,ID2` (les numéros que le contrôle avant démarrage a donnés). Leur refus devient
 alors une information. Tout autre refus reste une alerte.
 
-**Le rapport sur Telegram.** Cette ligne se lance en `root`, car elle lit le jeton du bot dans
-`/etc/sonni.env`. Le jeton n'est jamais affiché :
+**Le rapport sur Telegram.** L'outil d'envoi lit le jeton du bot dans `/etc/sonni.env`, que seul `root`
+peut lire. Il se lance donc en `root`, mais jamais depuis le dossier du programme, que l'utilisateur
+`sonni` peut modifier. On en fait d'abord une copie à `root`, dont on vérifie l'empreinte :
 ```sh
-sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT --resume | node sonni/vps/envoi-telegram.mjs
+cd /opt/sonni
+install -o root -g root -m 0500 sonni/vps/envoi-telegram.mjs /root/envoi-telegram.mjs
+sha256sum /root/envoi-telegram.mjs
 ```
+L'empreinte affichée doit être exactement `EMPREINTE_ENVOI`. Sinon, n'envoie rien et préviens-moi. Puis :
+```sh
+cd /opt/sonni
+sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT --resume | node /root/envoi-telegram.mjs
+```
+Si tu as utilisé `--ordres-acceptes` plus haut, ajoute-le aussi à cette ligne. La dernière ligne rappelle le
+code du rapport (`rapport=code …`) : c'est lui qui compte, pas celui de l'envoi. Le jeton n'est jamais
+affiché.
 
 **Sur ton téléphone**, envoie :
 - `/statut` ;
 - `/portefeuille`, où les résultats portent la mention « (après tous les frais) » ;
-- `/technique`, où aucun incident « courtier virtuel » ne doit apparaître.
+- `/technique`, où aucun incident « courtier virtuel » ne doit apparaître, sauf pour les ordres acceptés avec
+  `--ordres-acceptes`.
 
 **Déclencheurs de retour arrière.** Décide dans les 15 minutes, et le retour arrière se fait sur ton accord.
 Les déclencheurs sont :
 - le contrôle finit par `code=1` ;
 - `systemctl is-active sonni` n'affiche pas `active`, ou Sonni redémarre en boucle (`systemctl status sonni`
   montre des redémarrages) ;
-- un incident « courtier virtuel » dans `/technique` ;
+- un incident « courtier virtuel » dans `/technique`, hors ordres acceptés ;
 - « Valeur non fiable » dans `/portefeuille` ;
 - plusieurs cycles payés que tu n'as pas demandés ;
 - aucune réponse sur Telegram.
@@ -510,8 +553,8 @@ des contrôles verts. Elle n'est « observée » qu'après ces 24 heures et ton 
 ### Retour arrière
 
 **Par défaut, on revient sur le code et on garde la base.** L'ancienne version relit sans erreur ce que la
-nouvelle a écrit : c'est vérifié sur les deux versions possibles du serveur, et la forme de la base ne change
-pas.
+nouvelle a écrit. C'est vérifié sur les deux bouts de la plage possible (4c015b0 et fd5916d), et la forme
+de la base ne change pas entre les deux.
 
 Ce que tu verras de nouveau avec l'ancienne version :
 - les résultats sans les frais d'achat ;
@@ -521,8 +564,11 @@ Ce que tu verras de nouveau avec l'ancienne version :
 **Attention.** L'ancienne version ramène aussi le défaut que l'étape 0.3 corrige. Pendant qu'elle tourne, un
 achat à moins de 0,005 € redeviendrait une quantité infinie, et l'historique serait abîmé pour de bon.
 Donc :
-- **avant** le retour arrière, regarde `/portefeuille`. S'il y a un ordre d'achat en attente sur un actif à
-  moins de 1 €, dis-le-moi d'abord ;
+- **avant** le retour arrière, regarde les ordres d'achat en attente sur un actif à moins de 1 € :
+  - si Sonni tourne, dans `/portefeuille` ;
+  - s'il est arrêté, dans la section E du dernier contrôle avant démarrage.
+
+  S'il y en a, dis-le-moi d'abord ;
 - **après**, mets Sonni en pause avec `/pause`, le temps qu'on corrige. En pause, il ne place plus d'ordre ;
   le courtier exécute seulement ceux déjà en attente.
 
@@ -531,11 +577,13 @@ efface tout ce que Sonni a écrit après `COPIE` : journal, prédictions, ordres
 comptées. S'il faut restaurer la base **et** revenir sur le code, restaure la base d'abord, car l'outil
 n'existe que dans la nouvelle version :
 ```sh
+cd /opt/sonni
 systemctl stop sonni
 sudo -u sonni -H node sonni/vps/restauration.mjs --restaurer COPIE --confirmer
 ```
 L'outil vérifie l'empreinte et refuse tant que Sonni tourne. Il ne supprime rien : l'ancienne base et ses
-fichiers `-wal`/`-shm` partent dans un dossier `quarantaine-…` à côté.
+fichiers `-wal`/`-shm` partent dans un dossier `quarantaine-…` à côté. Ne démarre pas encore si tu reviens
+aussi sur le code : enchaîne R3 et R4.
 
 R2. **Arrête Sonni :** `systemctl stop sonni`
 
@@ -561,8 +609,11 @@ dans l'ancienne version : on vérifie avec le journal et Telegram. Envoie-moi le
 2. Serveur : `systemctl stop sonni` puis `systemctl disable sonni`.
 3. Sauvegarde (sa mémoire) : `cd /opt/sonni && sudo -u sonni -H node sonni/vps/sauvegarde.mjs`. Elle
    écrit une copie vérifiée, avec son empreinte, dans `/home/sonni/.automaton/predeploiement/`.
-   Télécharge-la ensuite chez toi. Si ton PC suit la partie 6 de `sonni/GUIDE-PC.fr.md`, il en garde
-   déjà une par nuit dans `C:\Sonni\sauvegardes`.
+   Si l'outil n'existe pas (une version d'avant le déploiement contrôlé), Sonni étant arrêté : vérifie
+   avec `ls -la /home/sonni/.automaton/state.db*` qu'il n'y a ni `-wal` ni `-shm`, puis lance
+   `cp -p /home/sonni/.automaton/state.db /root/sonni-state.db` et `sha256sum /root/sonni-state.db`.
+   Télécharge ensuite la copie chez toi. Si ton PC suit la partie 6 de `sonni/GUIDE-PC.fr.md`, il en
+   garde déjà une par nuit dans `C:\Sonni\sauvegardes`.
 4. **La pause n'arrête pas les factures** : supprime le VPS chez l'hébergeur quand tu n'en as plus besoin.
 
 ## Limites à connaître

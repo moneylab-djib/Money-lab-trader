@@ -228,9 +228,11 @@ entre lire plus et payer des données : ça fait partie de son apprentissage.
    0.3 »). D'abord, sans rien changer sur le serveur, l'état actuel et un pré-audit sur une copie de la
    sauvegarde du jour, hors du serveur. Ensuite, seulement avec ton GO de déploiement : arrêt, version
    approuvée installée à l'identique, sauvegarde vérifiée (empreinte SHA-256), essai de restauration dans
-   un dossier temporaire, puis un contrôle avant démarrage qui bloque à la moindre anomalie (positions
-   invalides, registre qui ne tombe pas juste, ordres en attente et stops que le redémarrage déclencherait,
-   écarts d'arrondi d'avant l'étape 0.3) jusqu'à ta décision. Après le démarrage : un contrôle en lecture
+   un dossier temporaire, puis un contrôle avant démarrage qui bloque jusqu'à ta décision : anomalies
+   (positions invalides, registre qui ne tombe pas juste) et points à décider (ordres que le premier relevé
+   refuserait, ferait expirer ou exécuterait à un prix ancien, stops déjà franchis, positions sans stop,
+   écarts d'arrondi d'avant l'étape 0.3). Un point à décider ne passe que si ton GO le nomme par sa clé ;
+   une anomalie ne passe jamais. Après le démarrage : un contrôle en lecture
    seule (version, prix, appels payés, incidents, ordres refusés), un rapport envoyé sur Telegram, 24 h
    d'observation et un retour arrière prévu (le code d'abord ; la base seulement en cas de corruption et
    sur ta décision, l'ancienne étant mise de côté, jamais effacée). Le programme de Sonni lui-même ne change
