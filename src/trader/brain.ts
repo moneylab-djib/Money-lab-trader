@@ -388,7 +388,8 @@ function absorb(db: DB, cfg: TraderConfig, job: BrainJob, json: any, now: Date, 
     }
     case "task": {
       // Read by Claude when it wakes (braintasks.ts), labelled as untrusted; the subject is the asset, so memory search finds it.
-      const answer = cleanText(json?.answer, TASK_ANSWER_MAX);
+      // One paragraph: a multi-line answer could imitate the batch headers or task lines around it.
+      const answer = cleanText(String(json?.answer ?? "").replace(/\s*\n\s*/g, " "), TASK_ANSWER_MAX);
       if (!answer) return false;
       storeOutput(db, job.id, "task", (job.payload as TaskPayload).asset ?? null, answer, now, model);
       return true;
@@ -543,7 +544,13 @@ export async function brainTick(
 ): Promise<TickOutcome> {
   const b = cfg.secondBrain;
   const key = b ? env[b.keyEnv] : undefined;
-  if (!b || !key || brainMode(db) === "off") return { ran: null, ok: false, online: false, queued: 0 };
+  if (!b || !key || brainMode(db) === "off") {
+    // Nothing runs, but Claude's task batches still expire and close on time instead of staying "with the second brain".
+    const t = now();
+    maintainQueue(db, t);
+    settleBatches(db, t, hooks);
+    return { ran: null, ok: false, online: false, queued: 0 };
+  }
   const t = now();
   const prev = brainHealth(db);
   const health = !prev || t.getTime() - Date.parse(prev.lastCheckAt) >= HEALTH_EVERY_SECONDS * 1000 ? await checkHealth(db, cfg, key, fetchFn, t) : prev;

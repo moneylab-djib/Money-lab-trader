@@ -565,7 +565,11 @@ export function journalFingerprint(db: DB): string {
   // Step 1 (2026-10-08): a stated decision per asset, staying out included, is the model's work.
   const hasDecisions = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_decisions'").get();
   const decisions = hasDecisions ? (db.prepare("SELECT COUNT(*) AS n FROM trader_decisions").get() as any).n : 0;
-  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}|${portfolio}|${decisions}`;
+  // Owner's request of 2026-10-10: handing a batch of tasks to the second brain before sleeping is the work it asked
+  // for, not an idle cycle (bounded: 40 tasks a UTC day, 16 waiting).
+  const hasBatches = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trader_brain_batches'").get();
+  const batches = hasBatches ? (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_batches").get() as any).n : 0;
+  return `${exp.n}|${exp.t}|${help.t}|${ideas}|${predictions}|${memory}|${portfolio}|${decisions}|${batches}`;
 }
 
 /** Closed help requests, most recently resolved first. */
