@@ -58,7 +58,8 @@ sur le VPS entre deux étapes :
    (ta demande du 10 octobre ; construit, PR en attente de ton GO) : Sonni peut confier lui-même du
    travail à ton PC avec un nouvel outil gratuit (`delegate_to_second_brain`) : résumer l'actualité d'un
    actif, chercher ce que sa mémoire dit d'une question, lister les arguments contre une position,
-   confronter un dossier aux nouvelles. Jusqu'à 8 tâches d'un coup, 16 en attente, 40 par jour. Il
+   confronter un dossier aux nouvelles. Sans limite par jour (ta décision du 10 octobre : utiliser ton PC au maximum), 20 tâches par
+   appel ; tes questions, le tri de l'actualité et la note de situation passent toujours avant. Il
    s'endort ensuite au lieu d'attendre éveillé (donc sans payer Claude) ; quand ton PC a fini le lot, le
    code le réveille une fois avec les réponses (au plus 8 réveils de ce type par jour, à 20 minutes
    d'écart, jamais pendant une pause ou un plafond de budget, jamais si ton PC n'a rien répondu). Ton PC

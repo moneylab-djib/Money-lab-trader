@@ -26,10 +26,12 @@ import { SYMBOL } from "./config.js";
 type DB = Database.Database;
 
 export const TASK_JOB_KIND = "task";
-/** At most this many tasks in one call, this many waiting at once, and this many queued a UTC day. */
-export const MAX_TASKS_PER_CALL = 8;
-export const MAX_OPEN_TASKS = 16;
-export const MAX_TASKS_PER_DAY = 40;
+/**
+ * The size of one call. There is no daily or waiting limit (owner's decision of 2026-10-10: use the PC as much as
+ * Sonni can): the PC works through the queue one task at a time, after the owner's questions, the news triage,
+ * the parallel predictions and the situation note (brain.ts priorities), so a long queue never holds those back.
+ */
+export const MAX_TASKS_PER_CALL = 20;
 export const TASK_QUESTION_MIN = 10;
 export const TASK_QUESTION_MAX = 600;
 export const TASK_PURPOSE_MAX = 300;
@@ -120,14 +122,6 @@ export function planDelegation(
   const list = Array.isArray(raw.tasks) ? raw.tasks : [];
   if (list.length === 0) return { error: "Give at least one task: tasks is a list of {question, asset?}." };
   if (list.length > MAX_TASKS_PER_CALL) return { error: `At most ${MAX_TASKS_PER_CALL} tasks per call (you gave ${list.length}).` };
-  const open = openTasks(db);
-  if (open + list.length > MAX_OPEN_TASKS) {
-    return { error: `${open} task(s) are still waiting for the second brain; at most ${MAX_OPEN_TASKS} may wait at once. Sleep until they are answered.` };
-  }
-  const today = tasksQueuedToday(db, now);
-  if (today + list.length > MAX_TASKS_PER_DAY) {
-    return { error: `Daily limit: ${today} of ${MAX_TASKS_PER_DAY} tasks already queued today (UTC); ${Math.max(0, MAX_TASKS_PER_DAY - today)} left.` };
-  }
   const purpose = plain(raw.purpose, TASK_PURPOSE_MAX);
   if (purpose && containsInjectionPatterns(purpose)) return { error: "The purpose contains text that looks like prompt instructions; rephrase it." };
   const hours = raw.validHours === undefined || raw.validHours === null ? TASK_DEFAULT_HOURS : Number(raw.validHours);
@@ -359,7 +353,7 @@ export function recentTaskBlocks(db: DB, now: Date, readLimit = 6): { unread: Ba
 export function taskRuleLine(db: DB, online: boolean | null, now: Date): string {
   const open = openTasks(db);
   return `Second brain: ${online === null ? "not contacted yet" : online ? "online" : "OFFLINE (tasks wait, then expire)"}; ` +
-    `delegated tasks today ${tasksQueuedToday(db, now)} of ${MAX_TASKS_PER_DAY}, ${open} waiting; ` +
+    `delegated tasks today ${tasksQueuedToday(db, now)} (no limit), ${open} waiting; ` +
     `answers woke you ${taskWakesToday(db, now)} of ${MAX_TASK_WAKES_PER_DAY} times today. ` +
     "Delegate reading, summaries and memory digging with delegate_to_second_brain (free), then sleep instead of waiting awake.";
 }
@@ -369,6 +363,6 @@ export function taskLinesFr(db: DB, now: Date): string[] {
   const day = dayStart(now);
   const batches = (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_batches WHERE created_at >= ?").get(day) as { n: number }).n;
   const done = (db.prepare("SELECT COUNT(*) AS n FROM trader_brain_jobs WHERE kind = ? AND status = 'done' AND finished_at >= ?").get(TASK_JOB_KIND, day) as { n: number }).n;
-  return [`- Tâches confiées par Sonni aujourd'hui : ${tasksQueuedToday(db, now)} sur ${MAX_TASKS_PER_DAY} au maximum (${batches} lot(s)), ` +
+  return [`- Tâches confiées par Sonni aujourd'hui : ${tasksQueuedToday(db, now)}, sans limite (${batches} lot(s)), ` +
     `${done} répondue(s), ${openTasks(db)} en attente ; réveils de Sonni pour lire les réponses : ${taskWakesToday(db, now)} sur ${MAX_TASK_WAKES_PER_DAY}.`];
 }

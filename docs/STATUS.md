@@ -6,7 +6,7 @@
   "observed" until the owner says so). Branch claude/sonni-brain-tasks (draft PR #37) holds the first entry below.
 - Tasks Sonni hands to the second brain (owner's request of 2026-10-10, feature `brain-tasks`, guard G18). Status:
   built and verified (Likma `feature verify`, .likma/checks/b8ee3736fb8246098d37869760b2bb12.json); not merged, not deployed.
-  - New tool `delegate_to_second_brain`: 1 to 8 tasks per call, 16 waiting, 40 a UTC day. The PC answers from
+  - New tool `delegate_to_second_brain`: 1 to 20 tasks per call; no daily or waiting limit since the owner's decision of 2026-10-10 (priority 4.5, after the time-bound jobs). The PC answers from
     code's data only. A finished batch wakes Claude once (source `sonni_brain_tasks`) through the shared gate:
     8 a day, 20 min apart, within 6 h. There is no wake for a batch with no answer or for answers already read.
   - Answers are marked read only after a paid turn ran with them, or when a view showed the whole batch. The wake

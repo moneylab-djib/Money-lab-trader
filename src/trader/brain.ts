@@ -49,11 +49,13 @@ type FetchFn = typeof fetch;
 export const JOB_KINDS = ["question", "triage", "task", "parallel_prediction", "briefing", "counter_case", "postmortem_brief", "consistency_check", "upkeep"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 /**
- * Lower runs first: the owner's questions, then fresh news and the tasks Claude handed over while it sleeps (braintasks.ts),
- * then the rest; checks of Sonni's own memory last (9: night re-check).
+ * Lower runs first: the owner's questions, then fresh news, the parallel predictions and the situation note (all
+ * time-bound), then the tasks Claude handed over while it sleeps (braintasks.ts: unlimited, so placed after those,
+ * at 4.5 to keep the stored priorities of the other kinds), then the rest; checks of Sonni's own memory last
+ * (9: night re-check).
  */
 const PRIORITY: Record<JobKind, number> = {
-  question: 1, triage: 2, task: 2, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, upkeep: 7, consistency_check: 8,
+  question: 1, triage: 2, task: 4.5, parallel_prediction: 3, briefing: 4, counter_case: 5, postmortem_brief: 6, upkeep: 7, consistency_check: 8,
 };
 /**
  * The checks of Sonni's own memory are judged by code and an empty answer is a valid one, so they say little about
