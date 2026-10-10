@@ -2035,6 +2035,29 @@
           "flags": []
         }
       }
+    },
+    {
+      "id": "brain-tasks",
+      "title": "Sonni hands batches of tasks to the second brain, sleeps, and is woken with the answers",
+      "criteria": [
+        "delegate_to_second_brain queues 1 to 8 tasks as one batch (16 waiting, 40 a UTC day, 10-600 characters, followed asset, 1-24 h window) and refuses with a reason when the second brain is unconfigured, keyless or off, or a request breaks a limit or looks like prompt instructions",
+        "The PC answers each task from code's data only (prices, 48 h observations, the asset's dossier, memory excerpts from code's search); answers are bounded plain text with prompt-boundary patterns refused, stored as untrusted task outputs and searchable",
+        "When every task of a batch is answered, failed or expired, code wakes Claude once through the shared wake gate, at most 8 such wakes a UTC day 20 min apart within 6 h; never for a batch with no answer nor for answers Claude already read; no Claude call while the PC works",
+        "Claude sees the unread answers labelled as untrusted in the wake message, the pack and sonni_memory section tasks, its quota and the link state in the rules block, and the delegation rule in its mission; the owner sees the day's tasks in /cerveau",
+        "docs/MEMORY.md, docs/GUARDS.md (G18) and docs/PLAN.fr.md describe the stores, limits and wake"
+      ],
+      "status": "planned",
+      "paths": [
+        "src/trader/braintasks.ts",
+        "src/trader/brain.ts",
+        "src/trader/tools.ts",
+        "src/trader/pack.ts",
+        "src/trader/prompt.ts",
+        "src/trader/schema.ts",
+        "src/agent/loop.ts",
+        "src/__tests__/trader/braintasks.test.ts",
+        "sonni/e2e.mjs"
+      ]
     }
   ]
 }

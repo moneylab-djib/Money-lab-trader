@@ -34,6 +34,7 @@ import { decisionsPackLines, DECISION_HOURS } from "./decisions.js";
 import { getPredictionSnapshot } from "./snapshot.js";
 import { screenPackLines } from "./screen.js";
 import { latestOutput } from "./brain.js";
+import { recentTaskLines, TASKS_TITLE, unreadTaskLines } from "./braintasks.js";
 import { analogLine, similarSituations } from "./analogs.js";
 import { describeEvidence, lessonEvidence } from "./lessonuse.js";
 import { MAX_SATELLITES, recordedCore } from "./universe.js";
@@ -47,7 +48,7 @@ export const PACK_BUDGET = 9_000;
 /** Groups sonni_memory can return alone, in full (within the same budget). */
 const DOSSIER_PREVIEW = 400;
 
-export const PACK_SECTIONS = ["dossiers", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events", "universe"] as const;
+export const PACK_SECTIONS = ["dossiers", "tasks", "notes", "cycles", "portfolio", "trades", "traps", "hypotheses", "predictions", "observations", "headlines", "reflections", "watches", "sources", "events", "universe"] as const;
 export type PackSection = (typeof PACK_SECTIONS)[number];
 
 const VERDICT_RANK: Record<string, number> = { supported: 0, inconclusive: 1, insufficient: 2, none: 3, refuted: 4 };
@@ -259,6 +260,16 @@ function decisionsSection(db: DB, cfg: TraderConfig, now: Date): Section {
     title: `Your decisions per asset (record_decision; one is due every ${DECISION_HOURS} h; code scores each, staying out included):`,
     lines: decisionsPackLines(db, cfg, now),
   };
+}
+
+/**
+ * Owner's request of 2026-10-10: answers to the tasks Claude handed to the second brain that it has not read yet,
+ * cut short here (sonni_memory section tasks shows them in full), and the batches still in progress; nothing when
+ * there are none. Shown answers are marked read, so a finished batch does not wake Claude for what it already saw.
+ */
+function tasksSection(db: DB, now: Date): Section | null {
+  const lines = unreadTaskLines(db, now, 350);
+  return lines.length ? { title: TASKS_TITLE, lines, detail: "tasks" } : null;
 }
 
 /** Second brain (2026-10-08): wrong figures code found in Claude's recent texts; nothing when there are none. */
@@ -512,6 +523,7 @@ export function buildMemoryPack(db: DB, cfg: TraderConfig, now: Date = new Date(
     previous ? sinceSection(db, previous) : null,
     pricesSection(db, cfg, now),
     ownerNotesSection(db, now, 7),
+    tasksSection(db, now),
     portfolioSection(db, cfg, now),
     decisionsSection(db, cfg, now),
     analogsSection(db, cfg),
@@ -543,6 +555,10 @@ export function buildMemorySection(db: DB, cfg: TraderConfig, section: PackSecti
   switch (section) {
     case "dossiers":
       return fitSections(head, [dossiersSection(db, cfg, DOSSIER_MAX_CHARS)]);
+    case "tasks": {
+      const lines = recentTaskLines(db, now);
+      return fitSections(head, [{ title: TASKS_TITLE, lines: lines.length ? lines : ["- none in the last 48 hours (delegate_to_second_brain to hand work over)"] }]);
+    }
     case "notes":
       return fitSections(head, [ownerNotesSection(db, now, 30) ?? { title: "Notes from the owner (last 30 days):", lines: ["- none"] }]);
     case "portfolio":

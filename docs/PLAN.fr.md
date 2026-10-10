@@ -54,7 +54,17 @@ sur le VPS entre deux étapes :
    vraiment tourner et le déclare « confirmé » après 50 tâches réussies avec moins d'un échec sur 10
    (seules ses mauvaises réponses comptent ; une coupure du PC ne compte pas ; `/cerveau recompter` fait
    repartir ce compteur de zéro, de façon visible, sans rien effacer) ;
-   si tu changes de modèle, ses scores repartent de zéro (jamais de mélange). La copie de chaque nuit
+   si tu changes de modèle, ses scores repartent de zéro (jamais de mélange). **Tâches confiées par Sonni**
+   (ta demande du 10 octobre ; construit, PR en attente de ton GO) : Sonni peut confier lui-même du
+   travail à ton PC avec un nouvel outil gratuit (`delegate_to_second_brain`) : résumer l'actualité d'un
+   actif, chercher ce que sa mémoire dit d'une question, lister les arguments contre une position,
+   confronter un dossier aux nouvelles. Jusqu'à 8 tâches d'un coup, 16 en attente, 40 par jour. Il
+   s'endort ensuite au lieu d'attendre éveillé (donc sans payer Claude) ; quand ton PC a fini le lot, le
+   code le réveille une fois avec les réponses (au plus 8 réveils de ce type par jour, à 20 minutes
+   d'écart, jamais pendant une pause ou un plafond de budget, jamais si ton PC n'a rien répondu). Ton PC
+   ne travaille que sur les données que le code lui donne ; ses réponses restent des données non fiables
+   que Sonni vérifie ; il garde pour lui les paris, décisions, ordres et leçons. `/cerveau` montre le
+   compte du jour. La copie de chaque nuit
    passe par un compte en lecture seule sur le serveur, joignable seulement par Tailscale, et ton PC
    vérifie son empreinte avant de la garder (30 jours).
 4. **Mémoire v2** (fusionnée, PR #23 ; en service) : trois niveaux. Le vital toujours
@@ -110,6 +120,7 @@ savoir vérifié, sans tricher avec sa mémoire du passé.
 | ~3 fois par jour + mouvements forts | Prend ses décisions virtuelles | Sonnet 5.5 |
 | Après chaque texte de Sonni | Contrôle des chiffres (le code juge) | second cerveau (ton PC) + code, gratuit |
 | La nuit, dès 1 h | Entretien des leçons (propositions), relecture des anciens textes | second cerveau (ton PC), gratuit |
+| Quand Sonni le décide | Tâches qu'il confie à ton PC (résumés, recherches dans sa mémoire), puis il dort jusqu'aux réponses | second cerveau (ton PC), gratuit |
 | Chaque soir à 19 h 30 | Autopsie de la journée (post-mortems, pièges, dossiers, note du jour) | Sonnet 5.5 |
 | Chaque dimanche | Grande revue, mise à jour de la mémoire, **rapport hebdo sur Telegram** | Opus 5.5 |
 

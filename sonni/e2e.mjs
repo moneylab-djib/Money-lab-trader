@@ -68,6 +68,8 @@ function intakeModel(body, results) {
 }
 
 let wokenByMove = false;
+/** Owner's request of 2026-10-10: Claude hands tasks to the second brain, sleeps, and is woken with the answers. */
+const delegation = { asked: false, slept: false, woken: false };
 let booted = false;
 /** The fake Kraken holds daily history until the startup cycle has slept, so the history wake is exercised. */
 let ohlcReleased = false;
@@ -91,6 +93,26 @@ function model(body) {
       use("sleep", { duration_seconds: 3600, reason: "evening done" }),
     ]);
   }
+  // Owner's request of 2026-10-10: on the owner's word, hand two tasks to the second brain, then sleep.
+  if (/confie le travail au second cerveau/.test(lastUserText) && !delegation.asked) {
+    delegation.asked = true;
+    return reply([use("delegate_to_second_brain", {
+      tasks: [{ question: "Résume les observations sur le BTC des dernières 48 h", asset: "BTC" }, { question: "Quels arguments contre ma position BTC ?", asset: "BTC" }],
+      purpose: "préparer ma prochaine décision BTC",
+    })]);
+  }
+  if (delegation.asked && !delegation.slept && results.some((r) => /^Queued 2 task\(s\) for the second brain as batch bt_\w+/.test(r))) {
+    delegation.slept = true;
+    results.some((r) => /Now sleep \(sleep tool\) instead of waiting awake/.test(r))
+      ? ok("delegate_to_second_brain queues the batch and tells Claude to sleep") : fail(`delegation result: ${results.at(-1)}`);
+    return reply([use("sleep", { duration_seconds: 7200, reason: "le second cerveau travaille" })]);
+  }
+  if (/SECOND BRAIN TASKS/.test(lastUserText) && !delegation.woken) {
+    delegation.woken = true;
+    /Wake-up reason: second cerveau : 2 réponse\(s\) sur 2 tâche\(s\) prête\(s\)/.test(lastUserText) && /UNTRUSTED DATA/.test(lastUserText) && /Entrées records sur les ETF, d'après le second cerveau/.test(lastUserText)
+      ? ok("code wakes the sleeping Claude once the batch is answered, with the answers as untrusted data") : fail(`task wake message: ${lastUserText.slice(0, 600)}`);
+    return reply([use("sleep", { duration_seconds: 3600, reason: "réponses lues" })]);
+  }
   // The self-wake after the price jump: the runtime says why it woke the model.
   if (/Wake-up reason: BTC \+\d/.test(lastUserText) && !wokenByMove) {
     wokenByMove = true;
@@ -108,7 +130,7 @@ function model(body) {
       const rulesAt = system.indexOf("--- SONNI RULES");
       rulesAt > 0 && system.indexOf("--- AVAILABLE TOOLS ---") < rulesAt ? ok("rules block after the tool list (cached prefix)") : fail("rules block not last in the system prompt");
       const offered = new Set(body.tools.map((t) => t.name));
-      for (const t of ["sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap", "market_odds", "record_decision", "search_memory"]) {
+      for (const t of ["delegate_to_second_brain", "sonni_memory", "record_prediction", "message_owner", "sleep", "write_reflection", "set_watch", "read_page", "manage_source", "follow_asset", "revise_identity", "add_lesson", "place_order", "cancel_order", "manage_position", "note_trap", "market_odds", "record_decision", "search_memory"]) {
         if (!offered.has(t)) fail(`tool ${t} not offered`);
       }
       for (const t of ["record_experiment", "idea", "post_social", "check_domain", "spawn_child", "update_soul", "remember_fact", "distress_signal",
@@ -297,6 +319,9 @@ const server = http.createServer(async (req, res) => {
     } else if (user.startsWith("Memory upkeep")) {
       brainCalls.push("upkeep");
       answer = { proposals: [] };
+    } else if (user.startsWith("Sonni's main model hands you a task")) {
+      brainCalls.push("task");
+      answer = { answer: "Entrées records sur les ETF, d'après le second cerveau ; aucune donnée contraire dans la mémoire." };
     } else if (user.includes("Score each observation")) {
       brainCalls.push("triage");
       answer = { items: [...user.matchAll(/- \[(o_\w+)\]/g)].map((m) => ({ id: m[1], relevance: 0.6, impact: 0.4, novelty: 0.5, note: "Flux ETF suivi de près" })) };
@@ -607,6 +632,17 @@ await until(() => tgOutbox.some((m) => /🧠 Second cerveau — mode assistant/.
 await until(() => brainCalls.includes("consistency"), 150_000)
   ? ok("the second brain re-reads the figures of Sonni's texts for code to judge") : fail(`no consistency check; second brain calls: ${[...new Set(brainCalls)].join(", ")}`);
 anthropicCalls === paidBefore ? ok("the second brain's work made no Claude call") : fail(`Claude called ${anthropicCalls - paidBefore} time(s) during the second brain's work`);
+// Owner's request of 2026-10-10: Claude delegates a batch, sleeps while the PC works, and code wakes it with the answers.
+tgSend("Sonni, confie le travail au second cerveau puis dors.");
+await until(() => delegation.slept, 90_000) ? ok("Claude delegated two tasks and went to sleep") : fail(`no delegation: ${JSON.stringify(delegation)}`);
+const sleptAt = anthropicCalls;
+await until(() => brainCalls.filter((c) => c === "task").length >= 2, 120_000)
+  ? ok("the second brain answers both tasks while Claude sleeps") : fail(`task calls: ${brainCalls.filter((c) => c === "task").length}`);
+anthropicCalls === sleptAt ? ok("no Claude call while the PC works on the tasks") : fail(`Claude called ${anthropicCalls - sleptAt} time(s) while the PC worked`);
+await until(() => delegation.woken, 90_000) ? ok("Claude woken once the batch is done") : fail("no wake after the batch was answered");
+await wait(20_000);
+brainCalls.filter((c) => c === "task").length === 2 && /\[SONNI\] Second cerveau : task fait/.test(out)
+  ? ok("each task ran once") : fail(`task calls: ${brainCalls.filter((c) => c === "task").length}`);
 if (/pc-e2e/.test(out) || tgOutbox.some((m) => /pc-e2e/.test(m.text))) fail("the second brain's key leaked");
 child.kill("SIGTERM");
 await wait(1500);

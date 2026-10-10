@@ -75,6 +75,7 @@ import { createTraderTools, SONNI_WORK_TOOLS } from "../trader/tools.js";
 import { SONNI_EVENING_INSTRUCTIONS, SONNI_REFLECTION_INSTRUCTIONS, SONNI_REVIEW_INSTRUCTIONS, sonniDecisionInstructions } from "../trader/prompt.js";
 import { decisionsDue } from "../trader/decisions.js";
 import { briefingForWake } from "../trader/brain.js";
+import { taskAnswersForWake } from "../trader/braintasks.js";
 import { upkeepForWake } from "../trader/brainchecks.js";
 import { bigOrderInstructions, clearBigOrder, readPendingBigOrder, setStrongTurn } from "../trader/strong.js";
 import {
@@ -500,6 +501,9 @@ export async function runAgentLoop(
       // Step 3 (2026-10-08): the second brain's fresh situation note, labelled as untrusted data.
       const brainNote = briefingForWake(db.raw);
       if (brainNote) wakeupInput += `\n\n${brainNote}`;
+      // Owner's request of 2026-10-10: the answers to the tasks Claude handed to the second brain before sleeping.
+      const taskAnswers = taskAnswersForWake(db.raw);
+      if (taskAnswers) wakeupInput += `\n\n${taskAnswers}`;
       // A big order held on the previous wake gets its stronger-model turn now.
       const held = readPendingBigOrder(db.raw);
       if (held) {
