@@ -48,6 +48,9 @@
 | Deployment gate | sonni/vps/controle-predeploiement.mjs | Read-only pre-deployment check of a copy: audit, reconciliation, first-tick simulation of pending orders and stops; exit 1 blocks | brokerTick, applyFill, stops or the restart sleep rule change (its fidelity test compares it with brokerTick) |
 | Deployment post-start check | sonni/vps/controle-apres-demarrage.mjs | Read-only check of the live db after a start: build, prices, paid calls, incidents, rejections, positions, outbox, repeated failures | Health thresholds, incident kinds, table formats or the deployment procedure change |
 | Deployment Telegram report | sonni/vps/envoi-telegram.mjs | Sends a stdin report to the owner's chat with the configured bot token (never printed) | The Telegram config keys or env file change |
+| Deployment pause check | sonni/vps/verifier-pause.mjs | Rollback guard: the pause is recorded, no pending buy, no sub-cent or invalid position, nothing bought since the old version started | The pause record, the broker's pending orders or the rollback procedure change (keep GUIDE-VPS in sync) |
+| Deployment environment preflight | sonni/vps/verification-environnement.mjs | Read-only check that the VPS has what the tools need (Node, Sonni's better-sqlite3, user, ~/.automaton rights, disk, commands) | A deployment tool needs a new Node function, command, folder or right |
+| Deployment counter-verification | sonni/pc/contre-verification.mjs | Runs every deployment tool on fictitious databases built by Sonni's code, compares exit codes and messages, writes a French report | A deployment tool's exit code, message or option changes |
 
 Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.
