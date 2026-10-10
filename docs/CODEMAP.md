@@ -42,6 +42,12 @@
 | Sonni evening consolidation | src/trader/consolidation.ts | When the daily evening turn is due, its wake and done markers, its status for the owner | The evening schedule, its gate or what the turn asks for changes |
 | Sonni second brain | src/trader/brain.ts | The second brain's job queue on the VPS (priorities, leases, expiry), its prompts, code's checks of its answers, /cerveau and /question | A second-brain job, its priority or validation, the confirmation counter or the owner's commands change |
 | Sonni memory checks by the second brain | src/trader/brainchecks.ts | Consistency check of the figures in Claude's texts (the PC points, code judges) and night upkeep proposals about the lessons; what Claude and the owner see of them | A fact sheet, a judging rule, the night schedule, the upkeep checks or their display changes |
+| Deployment safe copy | sonni/vps/copie-privee.mjs | Shared read-only block: refuses the live db, private temporary copy opened read-only, SHA-256 before and after | A script that reads a copy of Sonni's memory changes how it refuses or opens files |
+| Deployment backup | sonni/vps/sauvegarde.mjs | Owner-run verified copy of the live db outside the daily rotation (online backup API or byte copy, integrity, counts, .sha256) | Backup location, verification or the live database layout changes (keep GUIDE-VPS in sync) |
+| Deployment restore | sonni/vps/restauration.mjs | Restore drill in a temporary folder; owner-confirmed restore that quarantines the current files | Restore steps, quarantine or the service check change (keep GUIDE-VPS in sync) |
+| Deployment gate | sonni/vps/controle-predeploiement.mjs | Read-only pre-deployment check of a copy: audit, reconciliation, first-tick simulation of pending orders and stops; exit 1 blocks | brokerTick, applyFill, stops or the restart sleep rule change (its fidelity test compares it with brokerTick) |
+| Deployment post-start check | sonni/vps/controle-apres-demarrage.mjs | Read-only check of the live db after a start: build, prices, paid calls, incidents, rejections, positions, outbox, repeated failures | Health thresholds, incident kinds, table formats or the deployment procedure change |
+| Deployment Telegram report | sonni/vps/envoi-telegram.mjs | Sends a stdin report to the owner's chat with the configured bot token (never printed) | The Telegram config keys or env file change |
 
 Generated from likma.project.json; regenerate with `project map`.
 Keep entries short and tied to actual paths. Agents must confirm ownership before editing.

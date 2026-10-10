@@ -467,7 +467,15 @@ Tu ne dois voir ni `Fatal`, ni `Les clés du programme sont lisibles`.
 - les incidents ;
 - les ordres refusés ;
 - que chaque position est utilisable ;
-- les messages Telegram en attente.
+- les messages Telegram en attente ;
+- les pannes répétées.
+
+Un échec passager, par exemple une seule coupure de Telegram, reste une information. Une panne n'est une
+alerte que si elle se répète, aux mêmes seuils que `/santé`.
+
+**Si ton GO a accepté le refus de certains ordres** annoncés à la phase 2, ajoute
+`--ordres-acceptes ID1,ID2` (les numéros que le contrôle avant démarrage a donnés). Leur refus devient
+alors une information. Tout autre refus reste une alerte.
 
 **Le rapport sur Telegram.** Cette ligne se lance en `root`, car elle lit le jeton du bot dans
 `/etc/sonni.env`. Le jeton n'est jamais affiché :
@@ -551,9 +559,10 @@ dans l'ancienne version : on vérifie avec le journal et Telegram. Envoie-moi le
 
 1. Telegram : `/pause fin` (plus aucune dépense d'inférence).
 2. Serveur : `systemctl stop sonni` puis `systemctl disable sonni`.
-3. Sauvegarde (sa mémoire) : `cp /home/sonni/.automaton/state.db /root/sonni-state.db`, puis
-   télécharge-la chez toi (si tu as suivi la partie 6 de `sonni/GUIDE-PC.fr.md`, ton PC en garde
-   déjà une par nuit dans `C:\Sonni\sauvegardes`).
+3. Sauvegarde (sa mémoire) : `cd /opt/sonni && sudo -u sonni -H node sonni/vps/sauvegarde.mjs`. Elle
+   écrit une copie vérifiée, avec son empreinte, dans `/home/sonni/.automaton/predeploiement/`.
+   Télécharge-la ensuite chez toi. Si ton PC suit la partie 6 de `sonni/GUIDE-PC.fr.md`, il en garde
+   déjà une par nuit dans `C:\Sonni\sauvegardes`.
 4. **La pause n'arrête pas les factures** : supprime le VPS chez l'hébergeur quand tu n'en as plus besoin.
 
 ## Limites à connaître

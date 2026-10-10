@@ -3,6 +3,44 @@
 - Branch / commit: main b0479a3 after PR #32 (step 0.3, price precision); before it PR #31 (step 0.2, trade fees,
   c1638c0) and PR #30 (step 0.1, CI gate, 0ee7f7f). claude/sonni-deploy-prep (deployment preparation, separate
   pull request) holds the first entry below.
+- Deployment preparation for steps 0.1-0.3 (owner's request of 2026-10-09 evening, branch claude/sonni-deploy-prep).
+  Status: built (sandbox); not merged, not in service, not observed. Nothing was run on the VPS: the developer has
+  no access to it, and every VPS step waits for the owner (phases 0 and 1 read only; phases 2 and 3 need the owner's
+  deployment GO).
+  - Found (docs/research/deploy-prep.md):
+    - the VPS commit is unknown (somewhere in 4c015b0..fd5916d, and the runtime does not log it);
+    - backups were verified but never restored. There was no on-demand copy, and the daily copy can be 24 h old;
+    - the price audit exits 0 on findings and does not look at pending orders, stops, cash or ledger-versus-position
+      quantities;
+    - the guide's update deployed whatever main was (`git pull`), rewrote the config and built while the old process
+      ran;
+    - no post-start check or Telegram report existed.
+  - Change, five owner-run scripts in sonni/vps (Node and better-sqlite3 only; French output; exit codes 0 OK, 1
+    finding, 2 refused, 3 technical, 130 interrupted; a final `RÉSULTAT` line):
+    - sauvegarde.mjs: a verified copy of the live database outside the daily rotation (online backup API in one step
+      while Sonni runs, byte copy when stopped; integrity, row counts, `.sha256`, mode 600);
+    - restauration.mjs: `--essai` restores into a temporary folder and reports integrity, counts, restore time and
+      age; `--restaurer … --confirmer` runs only while Sonni is stopped, with a matching `.sha256`, and moves the
+      current files into a quarantine folder;
+    - controle-predeploiement.mjs: the gate. It covers the step 0.3 audit, cash and position reconciliation, and a
+      simulation of the first broker tick on the copy (pending orders, stops, paid wake at restart). BLOQUANT,
+      À DÉCIDER and INFO; exit 1 blocks;
+    - controle-apres-demarrage.mjs: a read-only check of the live database after the start (build, prices, paid
+      calls, incidents, rejections, positions, outbox, repeated failures); exit 1 is a rollback trigger;
+    - envoi-telegram.mjs: the report to the owner's chat, with the token read from /etc/sonni.env and never printed.
+
+    The read-only block of audit-prix.mjs is shared (copie-privee.mjs); the audit's output, errors and exit codes
+    are byte-identical. GUIDE-VPS has the French procedure and its rollback.
+  - Unchanged: Sonni's runtime code, configuration, schema and stored history; no paid call, no VPS change.
+  - Rollback rehearsal (sandbox, builds of fd5916d and 4c015b0): old code opens and runs on main's data and main
+    reopens what old code wrote, with no exception and no non-finite figure. A code rollback brings back the
+    pre-0.3 precision bug for fills made meanwhile (a buy under 0.005 EUR becomes an infinite quantity): the guide
+    asks to check pending buys under 1 EUR first and to /pause Sonni while the old code runs.
+  - Checks: sonni 27 files, 345 tests (98 new in deploy-backup, deploy-predeploy, deploy-poststart, deploy-guide).
+    Three adversarial reviews (one per script group, with mutations): 3 major and 13 minor findings, all fixed with
+    tests. The major ones were a restore rollback that could replay a crashed run's WAL into the old database, stops
+    judged on the stored instead of the post-tick level, and transient health events counted as rollback triggers.
+    Likma verify: pending.
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
     commit 4273322); merged into main through PR #32 on the owner's go of 2026-10-09 (merge commit b0479a3 at

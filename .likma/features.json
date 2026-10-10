@@ -1826,10 +1826,19 @@
         "THE VPS guide SHALL give the owner, in French, the survey, the pre-audit on a copy, the deployment window pinned to the approved commit, post-start checks, the Telegram report, the observation window and the rollback",
         "WHEN this tooling ships, THE SYSTEM SHALL keep Sonni's runtime code, configuration, schema, stored history and audit-prix.mjs output unchanged, with tests making no network call outside 127.0.0.1 and no paid call"
       ],
-      "status": "planned",
+      "status": "built",
       "paths": [
         "sonni/vps/copie-privee.mjs",
         "sonni/vps/audit-prix.mjs",
+        "sonni/vps/sauvegarde.mjs",
+        "sonni/vps/restauration.mjs",
+        "sonni/vps/controle-predeploiement.mjs",
+        "sonni/vps/controle-apres-demarrage.mjs",
+        "sonni/vps/envoi-telegram.mjs",
+        "src/__tests__/trader/deploy-backup.test.ts",
+        "src/__tests__/trader/deploy-predeploy.test.ts",
+        "src/__tests__/trader/deploy-poststart.test.ts",
+        "src/__tests__/trader/deploy-guide.test.ts",
         "sonni/GUIDE-VPS.fr.md"
       ],
       "track": "deep",
@@ -1858,7 +1867,9 @@
           "after": [
             "t1"
           ],
-          "status": "todo"
+          "status": "done",
+          "done_at": "2026-10-10T04:51:35.918149+00:00",
+          "note": "sauvegarde.mjs and restauration.mjs (--essai, --restaurer --confirmer with quarantine); deploy-backup.test.ts 22 tests incl. hot backup under concurrent writes, cold copy, refusals, failure-after-move recovery run through the printed commands; reviewed (2 major, 4 minor fixed)"
         },
         {
           "id": "t3",
@@ -1872,7 +1883,9 @@
           "after": [
             "t1"
           ],
-          "status": "todo"
+          "status": "done",
+          "done_at": "2026-10-10T04:51:36.061890+00:00",
+          "note": "controle-predeploiement.mjs: audit, reconciliation, first-tick simulation; deploy-predeploy.test.ts 33 tests incl. fidelity against the real brokerTick (time bounds, TTL, horizon, stale stop price); reviewed (1 major, 3 minor fixed)"
         },
         {
           "id": "t4",
@@ -1885,7 +1898,9 @@
           "after": [
             "t1"
           ],
-          "status": "todo"
+          "status": "done",
+          "done_at": "2026-10-10T04:51:36.203117+00:00",
+          "note": "controle-apres-demarrage.mjs and envoi-telegram.mjs; deploy-poststart.test.ts 38 tests incl. read-only open while a writer runs, health thresholds, --ordres-acceptes, local 127.0.0.1 Telegram server, token never printed; reviewed (1 major, 5 minor fixed)"
         },
         {
           "id": "t5",
@@ -1899,9 +1914,15 @@
             "t3",
             "t4"
           ],
-          "status": "todo"
+          "status": "done",
+          "done_at": "2026-10-10T04:51:36.358420+00:00",
+          "note": "GUIDE-VPS controlled deployment in French with deploy-guide.test.ts (commands and options exist, order stop<install<backup<drill<gate<start<check); rollback rehearsed on fd5916d and 4c015b0 builds (docs/research/deploy-prep.md); STATUS, PLAN.fr, MEMORY, AGENTS, CODEMAP updated"
         }
-      ]
+      ],
+      "implementation": {
+        "at": "2026-10-10T04:51:36.550563+00:00",
+        "note": "Five owner-run scripts in sonni/vps (Node + better-sqlite3, French output, exit codes 0/1/2/3/130, RÉSULTAT line) sharing copie-privee.mjs; 98 tests in four files; no runtime, config, schema or history change; audit-prix output identical"
+      }
     }
   ]
 }
