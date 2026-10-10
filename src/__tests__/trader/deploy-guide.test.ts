@@ -124,7 +124,7 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     const pause = at("node dist/index.js --money-lab pause", rollback);
     const backup = at("node sonni/vps/sauvegarde.mjs", rollback);
     const verify = at("node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR", rollback);
-    const start = at("systemctl start sonni", code); // the earlier one restarts the NEW version, paused (R4)
+    const start = at("systemctl start sonni", code); // the earlier one restarts the NEW version, paused, only when HEAD is COMMIT (R4)
     const running = at("node sonni/vps/verifier-pause.mjs --en-marche --depuis", rollback);
     // A restore brings back the copy's pause state: the pause is recorded after it, then checked on a fresh copy while
     // the new version is still installed (so pending buys can still be left to it), and only then is the code rolled back.
@@ -136,5 +136,18 @@ describe("Controlled deployment guide (sonni/GUIDE-VPS.fr.md) and the sonni/vps 
     expect(fs.readFileSync(path.join(ROOT, "src", "money-lab", "cli.ts"), "utf-8")).toContain('case "pause"');
     // The rollback no longer sends the owner to /reprendre: it relaunches a paid cycle.
     expect(section.slice(rollback)).not.toMatch(/envoie `\/reprendre`/);
+  });
+
+  it("lets a pending buy wait on the new version only when COMMIT is installed, and confirms the rollback commit", () => {
+    const rollback = section.indexOf("### Retour arrière");
+    const step = (n: number) => section.indexOf(`\nR${n}. `, rollback);
+    const r4 = section.slice(step(4), step(5));
+    const option = r4.slice(r4.indexOf("ordre(s) d'achat en attente"));
+    expect(option.indexOf("git -C /opt/sonni rev-parse HEAD")).toBeGreaterThan(-1);
+    expect(option.indexOf("git -C /opt/sonni rev-parse HEAD")).toBeLessThan(option.indexOf("systemctl start sonni"));
+    expect(option).toContain("si la ligne affiche exactement `COMMIT`");
+    expect(option).toMatch(/sinon \(l'ancienne version est installée[^)]*\), \*\*ne\s+démarre pas\*\*/);
+    const r5 = section.slice(step(5), step(6));
+    expect(r5).toContain("sudo -u sonni -H git rev-parse HEAD\ncat /root/sonni-commit-avant.txt");
   });
 });

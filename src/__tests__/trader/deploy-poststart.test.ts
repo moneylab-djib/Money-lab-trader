@@ -474,7 +474,7 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
     expect(r2.stderr).toContain("Cette base ne contient pas la mémoire de Sonni");
   });
 
-  it("a damaged live database: exit 1 with one alert, and the message says the remedy is restoring the copy (R1), not rolling back the code", () => {
+  it("a damaged live database: exit 1 with one alert, and the message says the remedy is restoring the copy (R2), not rolling back the code", () => {
     const h = home();
     const file = path.join(h, ".automaton", "state.db");
     const db = createDatabase(file);
@@ -499,7 +499,7 @@ describe("Post-start check of the live database (sonni/vps/controle-apres-demarr
       expect(r.status, r.stdout + r.stderr).toBe(1);
       const message = "Contrôle impossible : base abîmée (SQLite la dit corrompue) (SQLITE_CORRUPT";
       const remedy = "Le retour arrière du code ne répare pas la base : la remettre en état, c'est restaurer la copie d'avant le déploiement " +
-        "(guide, « Retour arrière », étape R1 : restauration.mjs --restaurer COPIE --confirmer), sur ta décision.";
+        "(guide, « Retour arrière », étape R2 : restauration.mjs --restaurer COPIE --confirmer), sur ta décision.";
       expect(r.stderr).toContain(message);
       expect(r.stderr).toContain(remedy);
       expect(r.stdout).toContain(resume ? `Sonni — contrôle après démarrage impossible : ${message}` : `ALERTE : ${message}`);

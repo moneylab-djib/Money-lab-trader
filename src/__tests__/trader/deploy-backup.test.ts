@@ -934,13 +934,13 @@ describe("Real restore (sonni/vps/restauration.mjs --restaurer)", () => {
     expect(sha(s.copy)).toBe(copyHash);
     expect(fs.readdirSync(e.TMPDIR!)).toEqual([]);
     expect(r.stdout).toContain(`Ancienne mémoire mise de côté dans ${q} (rien n'a été supprimé)`);
-    // Next steps: going back on the code too comes first (no start yet), then the start and the post-start
+    // Next steps: an old version, or going back on the code, means no start yet (the guide's verified pause), then the start and the post-start
     // check as the guide runs it (as the sonni user, with the expected version).
     const steps = r.stdout.slice(r.stdout.indexOf("Étapes suivantes :"));
     // The start time is noted BEFORE the start, so the check counts what the first broker tick does.
     expect(steps.split("\n").slice(1, 6)).toEqual([
-      "  - Si tu reviens aussi sur le code : ne démarre pas encore, suis R2 à R4 du guide.",
-      "  - Sinon, dans cet ordre : note l'heure, démarre, puis contrôle après 10 à 15 minutes :",
+      "  - Si l'ancienne version est installée, ou si tu reviens aussi sur le code : ne démarre pas encore, suis R3 à R6 du guide (pause enregistrée et vérifiée).",
+      "  - Seulement si la version approuvée est installée (git -C /opt/sonni rev-parse HEAD affiche COMMIT) et que tu la gardes : note l'heure, démarre, puis contrôle après 10 à 15 minutes :",
       "    date -u +%Y-%m-%dT%H:%M:%SZ | tee /root/sonni-demarrage.txt",
       "    systemctl start sonni",
       '    cd /opt/sonni && sudo -u sonni -H node sonni/vps/controle-apres-demarrage.mjs --depuis "$(cat /root/sonni-demarrage.txt)" --commit-attendu COMMIT',

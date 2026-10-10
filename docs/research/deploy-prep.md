@@ -208,8 +208,19 @@ The owner asked for five changes before the merge. This section records what was
 
     Pending buys can then still be left to the new version, paused, until they fill or expire. No version
     has an owner command to cancel an order; adding one would be a separate change.
-  - Residual risk, not covered: a server reboot during the window starts sonni.service (enabled,
-    Restart=always) in whatever state it is. The guide asks not to reboot during the window.
+  - After the fresh-context acceptance review (verdict CONCERNS, no blocker), the following were added:
+    - `--copie` refuses a copy older than the live database or its -wal. Only modification times are read,
+      so a daily backup or the Phase 2 COPIE cannot stand in for COPIE_RETOUR;
+    - `--en-marche` refuses a pause recorded after the start, which means it was lifted, then set again;
+    - every check reads inside one read transaction;
+    - the guide lets a pending buy wait on the new version only when `rev-parse HEAD` is COMMIT;
+    - R5 confirms the rollback commit;
+    - restauration.mjs's next steps no longer send an old version straight to a start.
+  - Residual risks, not covered:
+    - a server reboot during the window starts sonni.service (enabled, Restart=always) in whatever state it
+      is. The guide asks not to reboot during the window;
+    - a price that falls under 1 EUR after R4 can still trigger a stop sale by the old broker. R6 detects it
+      afterwards.
 - **VPS compatibility.** verification-environnement.mjs is a read-only preflight run from the tools' own place.
   It checks:
   - the Node version and the functions the tools call;

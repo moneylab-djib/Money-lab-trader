@@ -98,9 +98,18 @@ function run(args: string[], home = tmp("sonni-pause-home-")) {
   expect(last, r.stdout + r.stderr).toMatch(/^RÉSULTAT : code=\d+ pause=/);
   return { status: r.status, stdout: r.stdout, stderr: r.stderr, last };
 }
-function runCopy(file: string, args: string[] = []) {
+/** A HOME whose live database (only its modification time is read) predates every copy. */
+function homeWithOlderLive(): string {
+  const home = tmp("sonni-pause-home-");
+  fs.mkdirSync(path.join(home, ".automaton"));
+  const live = path.join(home, ".automaton", "state.db");
+  fs.writeFileSync(live, "base active fictive");
+  fs.utimesSync(live, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z"));
+  return home;
+}
+function runCopy(file: string, args: string[] = [], home = homeWithOlderLive()) {
   const before = sha(file);
-  const r = run(["--copie", file, ...args]);
+  const r = run(["--copie", file, ...args], home);
   expect(sha(file)).toBe(before);
   expect(fs.existsSync(`${file}-wal`) || fs.existsSync(`${file}-shm`)).toBe(false);
   return r;
@@ -115,6 +124,35 @@ describe("Pause check before a rollback (sonni/vps/verifier-pause.mjs), on a cop
     expect(r.stdout).toContain("ÉCHEC : aucune pause enregistrée");
     expect(r.stdout).toContain("ne démarre pas l'ancienne version");
     expect(r.last).toBe("RÉSULTAT : code=1 pause=non achats_en_attente=0 ventes_a_risque=0 positions_sans_prix=0 bloquants=0 achats_depuis=non vérifié ventes_depuis=non vérifié");
+  });
+
+  it("refuses a copy older than Sonni's database (a daily backup, an earlier copy), and a run without the live database", () => {
+    const file = copy({ paused: true });
+    const home = homeWithOlderLive();
+    const live = path.join(home, ".automaton", "state.db");
+    let r = runCopy(file, [], home);
+    expect(r.stdout).toContain("OK : copie à jour : la base de Sonni n'a pas changé depuis qu'elle a été faite");
+    // Sonni wrote after the copy (it ran, or the pause was recorded after the backup).
+    fs.utimesSync(live, new Date(Date.now() + 60_000), new Date(Date.now() + 60_000));
+    r = runCopy(file, [], home);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("ÉCHEC : copie plus ancienne que la base de Sonni (state.db modifié après la copie)");
+    // A -wal newer than the copy counts too.
+    fs.utimesSync(live, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z"));
+    fs.writeFileSync(`${live}-wal`, "");
+    r = runCopy(file, [], home);
+    expect(r.stdout).toContain("(state.db-wal modifié après la copie)");
+    // No live database in HOME: cannot tell, refused.
+    r = runCopy(file, [], tmp("sonni-pause-sans-base-"));
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("ÉCHEC : base de Sonni introuvable");
+  });
+
+  it("refuses the live database given as the copy, pointing to the fresh backup", () => {
+    const home = homeWithOlderLive();
+    const r = run(["--copie", path.join(home, ".automaton", "state.db")], home);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("Donne la copie que la sauvegarde vient de faire (COPIE_RETOUR");
   });
 
   it("lets it go on when the pause is recorded and nothing can buy or sell at a rounded price: exit 0", () => {
@@ -229,7 +267,8 @@ describe("Pause check after the old version started (--en-marche), on the live d
     const db = openDb(file);
     openDbs.push(db);
     fill(db);
-    pause(db.raw, "retour arrière", "operator");
+    // Recorded (R3) before the old version starts (R6, --depuis hours(5)).
+    setKV(db.raw, "money_lab.paused", JSON.stringify({ at: hours(4.5).toISOString(), reason: "retour arrière", by: "operator" }));
     extra?.(db);
     expect(fs.existsSync(`${file}-wal`) && fs.existsSync(`${file}-shm`)).toBe(true);
     return { home, db, file };
@@ -284,6 +323,13 @@ describe("Pause check after the old version started (--en-marche), on the live d
     expect(r.status, r.stdout).toBe(1);
     expect(r.stdout).toContain("ÉCHEC : 1 vente(s) sous 1 € depuis le 07/10/2026 13:00 UTC");
     expect(r.last).toContain("ventes_depuis=1");
+  });
+
+  it("fails when the pause was lifted, then set again after the start", () => {
+    const { home } = live((db) => setKV(db.raw, "money_lab.paused", JSON.stringify({ at: hours(6).toISOString(), reason: "remise", by: "operator" })));
+    const r = run(since(5), home);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("après le démarrage du 07/10/2026 13:00 UTC : elle a été levée puis remise");
   });
 
   it("fails when the pause was lifted while the old version runs", () => {

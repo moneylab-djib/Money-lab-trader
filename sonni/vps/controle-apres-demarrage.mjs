@@ -22,7 +22,7 @@
  * no runtime code.
  *
  * Exit codes: 0 no alert; 1 at least one ALERTE (the guide lists them as rollback triggers) or a damaged
- * database (the message then says that rolling back the code does not repair it: restoring the copy, step R1 of
+ * database (the message then says that rolling back the code does not repair it: restoring the copy, step R2 of
  * the guide, is the owner's decision); 2 refused or usage error (too early, no -wal or -shm, unknown option,
  * unreadable --config; nothing opened);
  * 3 technical error (not SQLite, not Sonni's memory, unreadable file); 130 interrupted (nothing to clean: no
@@ -684,7 +684,7 @@ export function controleApresDemarrage(options = {}) {
     const corrupt = /^SQLITE_CORRUPT/.test(err?.code ?? "");
     const remedy = corrupt
       ? " Le retour arrière du code ne répare pas la base : la remettre en état, c'est restaurer la copie d'avant le déploiement" +
-        " (guide, « Retour arrière », étape R1 : restauration.mjs --restaurer COPIE --confirmer), sur ta décision."
+        " (guide, « Retour arrière », étape R2 : restauration.mjs --restaurer COPIE --confirmer), sur ta décision."
       : "";
     return done(corrupt ? 1 : 3, corrupt ? 1 : 0, `Contrôle impossible : ${technicalFr(err)}. Rien n'a été écrit.${remedy}`);
   } finally {

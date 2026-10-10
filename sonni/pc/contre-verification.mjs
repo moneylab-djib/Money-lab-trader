@@ -4,7 +4,7 @@
  * runs it on the PC (mission in the agent-reports branch) to check, outside the laboratory where the tools were
  * written, that the backup, restore, audit, gate and pause tools of sonni/vps give the expected exit codes and
  * messages. It never reads production data: every database is built here, by Sonni's own compiled code
- * (dist/: schema, paper broker, pause), in a new temporary folder that holds the fake HOME, TEMP and the copies.
+ * (dist/: schema, paper broker), in a new temporary folder that holds the fake HOME, TEMP and the copies.
  * No network, no inference, no Telegram, no systemctl (a fake one on Linux and macOS; Windows uses
  * --sans-systemd). C:\Sonni, ~/.automaton and the VPS are never touched: HOME, USERPROFILE, TEMP, TMP and TMPDIR
  * of every tool point into the temporary folder, and every path the script passes is checked to be inside it.
@@ -105,7 +105,8 @@ export function fixtureBuilder(api, now = Date.now()) {
     }
     db.setAgentState("sleeping");
     db.setKV("sleep_until", new Date(now + 2 * 3_600_000).toISOString());
-    if (paused) api.pause(db.raw, "contre-vérification", "operator");
+    // The pause as `--money-lab pause` records it, dated before the simulated start of the old version.
+    if (paused) db.setKV("money_lab.paused", JSON.stringify({ at: at(150).toISOString(), reason: "contre-vérification", by: "operator" }));
     if (keepOpen) return db;
     db.close();
     return null;
@@ -197,7 +198,13 @@ export async function runCounterCheck({ api, keep = false, log = () => {} }) {
     const stopFranchi = copyOf("stop-franchi", { crossedStop: true });
     const enAttente = copyOf("achat-en-attente", { pendingBuy: true });
     const sansPause = copyOf("sans-pause", { paused: false });
-    const H = home("home-lecture", null).h;
+    // The read-only tools' HOME: its "live" database is only a file older than every copy (verifier-pause compares
+    // the copy with it by modification time; no tool opens it).
+    const lecture = home("home-lecture", (f) => {
+      fs.writeFileSync(f, "base active fictive (seule sa date compte)\n");
+      fs.utimesSync(f, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z"));
+    });
+    const H = lecture.h;
 
     // 1. Price audit (step 0.3, output kept as shipped: no RÉSULTAT line, exit 0 even when it lists points, 1 on an error).
     const audit = { script: "audit-prix.mjs", homeDir: H, resultLine: false };
@@ -255,6 +262,9 @@ export async function runCounterCheck({ api, keep = false, log = () => {} }) {
     const usdc = ["--accepter-arrondi", "USDC"];
     run({ ...pause, name: "retour arrière : stop sous 1 € refusé sans GO nommant l'actif", args: ["--copie", propre], expect: 1, contains: ["vente-arrondie:USDC", "ventes_a_risque=1"], unchanged: [propre] });
     run({ ...pause, name: "retour arrière permis : pause, arrondi USDC accepté", args: ["--copie", propre, ...usdc], expect: 0, contains: ["pause=oui", "bloquants=0"], unchanged: [propre] });
+    const vieille = home("home-copie-ancienne", (f) => fs.writeFileSync(f, "base active fictive, modifiée après la copie\n"));
+    fs.utimesSync(vieille.file, new Date(Date.now() + 60_000), new Date(Date.now() + 60_000));
+    run({ ...pause, name: "retour arrière : copie plus ancienne que la base refusée", args: ["--copie", propre, ...usdc], homeDir: vieille.h, expect: 1, contains: ["copie plus ancienne que la base de Sonni"], unchanged: [propre] });
     run({ ...pause, name: "retour arrière : pause absente", args: ["--copie", sansPause, ...usdc], expect: 1, contains: ["aucune pause enregistrée"], unchanged: [sansPause] });
     run({ ...pause, name: "retour arrière : achat en attente pendant la pause", args: ["--copie", enAttente, ...usdc], expect: 1, contains: ["achats_en_attente=1"], unchanged: [enAttente] });
     run({ ...pause, name: "retour arrière : position corrompue (BLOQUANT)", args: ["--copie", corrompue, ...usdc], expect: 1, contains: ["anomalie(s) BLOQUANT"], unchanged: [corrompue] });

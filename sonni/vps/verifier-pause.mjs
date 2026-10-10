@@ -19,7 +19,11 @@
  *   5. the gate's blocking checks (controle-predeploiement.mjs: invalid positions, ledger reconciliation, cash, orders
  *      and trades): no BLOQUANT. No version starts on data the gate refuses;
  *   6. with --en-marche (after the old version started; --depuis is then required): no buy placed or filled since
- *      that moment, and no sale filled since under 1 EUR on an asset the GO did not name.
+ *      that moment, no sale filled since under 1 EUR on an asset the GO did not name, and a pause recorded before
+ *      that moment (a later one means it was lifted, then set again);
+ *   7. with --copie: the copy is not older than Sonni's database (its file and -wal), so a daily backup or an earlier
+ *      copy cannot stand in for a fresh one; the live database must be there (its modification time only is read).
+ * On the live database every check reads inside one read transaction: a broker fill cannot fall between two of them.
  *
  * Safety: --copie reads a private copy of a copy (copie-privee.mjs, never the live file); --en-marche opens the live
  * database read-only while Sonni runs (refused when its -wal or -shm is missing, see controle-apres-demarrage.mjs).
@@ -36,6 +40,7 @@
  *   [--base <state.db>] replaces ~/.automaton/state.db and [--config <automaton.json>] ~/.automaton/automaton.json.
  */
 
+import fs from "fs";
 import os from "os";
 import path from "path";
 import { isMain, liveDatabasePath, openPrivateCopy, price, refusal } from "./copie-privee.mjs";
@@ -99,7 +104,7 @@ const roundingShare = (p) => (p > 0 ? 0.005 / p : Infinity);
  * Runs the checks on an open read-only database. `gateCtx` is the gate's context (now, staleMinutes, portfolio,
  * assets, notes) or null to skip the gate. Returns `{ lines, failures, counts }`.
  */
-export function verifier(db, { depuis = null, accepted = [], gateCtx = null } = {}) {
+export function verifier(db, { depuis = null, accepted = [], gateCtx = null, freshness = null } = {}) {
   const lines = [];
   let failures = 0;
   const ok = (text) => lines.push(`- OK : ${text}`);
@@ -112,6 +117,11 @@ export function verifier(db, { depuis = null, accepted = [], gateCtx = null } = 
     throw new Refused(3, "Ce n'est pas la mémoire de Sonni (tables kv, trader_orders ou trader_positions absentes).");
   }
   const acceptedSet = new Set(accepted);
+  // 7. The copy is not older than the live database (its own check, done by the caller from file times).
+  if (freshness) {
+    if (freshness.ok) ok(freshness.text);
+    else fail(freshness.text);
+  }
   const hasPrices = hasTable(db, "trader_prices");
   const lastPrice = (asset) => (hasPrices ? db.prepare("SELECT ts, price FROM trader_prices WHERE asset = ? ORDER BY ts DESC LIMIT 1").get(asset) : undefined);
   const priced = (asset) => {
@@ -124,11 +134,15 @@ export function verifier(db, { depuis = null, accepted = [], gateCtx = null } = 
   if (!raw) fail("aucune pause enregistrée : l'ancienne version lancerait des cycles et pourrait acheter. Enregistre la pause (commande du guide), puis relance ce contrôle.");
   else {
     let detail = "enregistrement illisible, compté comme une pause";
+    let at = NaN;
     try {
       const state = JSON.parse(raw.value);
+      at = Date.parse(state.at);
       detail = `depuis ${when(state.at)}${state.reason ? ` (${String(state.reason).slice(0, 120)})` : ""}`;
     } catch { /* fail closed, said above */ }
-    ok(`pause enregistrée ${detail}`);
+    if (depuis && Number.isFinite(at) && at >= depuis.getTime()) {
+      fail(`pause enregistrée ${detail}, après le démarrage du ${when(depuis)} : elle a été levée puis remise pendant que l'ancienne version tournait. Arrête Sonni (systemctl stop sonni) et envoie-moi ce rapport.`);
+    } else ok(`pause enregistrée ${detail}`);
   }
 
   // 2. Pending buys: the broker fills them during the pause, which would be a buy by the old version.
@@ -216,6 +230,31 @@ export function verifier(db, { depuis = null, accepted = [], gateCtx = null } = 
   return { lines, failures, counts: { paused: !!raw, pendingBuys: pendingBuys.length, atRisk, noPrice, blocking, buysSince, sellsSince } };
 }
 
+/**
+ * Whether the copy is at least as recent as Sonni's database: none of the live file and its -wal was modified after
+ * the copy was written. Only modification times are read; the live database is never opened.
+ */
+export function copyFreshness(copyFile, liveFile) {
+  let copyTime;
+  try {
+    copyTime = fs.statSync(copyFile).mtimeMs;
+  } catch {
+    return { ok: false, text: `copie illisible : ${copyFile}` };
+  }
+  const times = [];
+  for (const f of [liveFile, `${liveFile}-wal`]) {
+    try {
+      times.push({ f, t: fs.statSync(f).mtimeMs });
+    } catch { /* absent */ }
+  }
+  if (!times.some((x) => x.f === liveFile)) {
+    return { ok: false, text: `base de Sonni introuvable (${liveFile}) : impossible de savoir si la copie est à jour. Lance la vérification en sonni (sudo -u sonni -H) sur la copie que la sauvegarde vient de faire.` };
+  }
+  const newer = times.filter((x) => x.t > copyTime);
+  if (newer.length === 0) return { ok: true, text: "copie à jour : la base de Sonni n'a pas changé depuis qu'elle a été faite" };
+  return { ok: false, text: `copie plus ancienne que la base de Sonni (${newer.map((x) => path.basename(x.f)).join(", ")} modifié après la copie) : elle ne dit pas l'état actuel. Refais la sauvegarde (étape R4) et vérifie la nouvelle copie (COPIE_RETOUR).` };
+}
+
 export function resultLine(code, counts) {
   const n = (v) => (v === null || v === undefined ? "non vérifié" : v);
   if (!counts) return `RÉSULTAT : code=${code} pause=inconnue achats_en_attente=inconnu ventes_a_risque=inconnu positions_sans_prix=inconnu bloquants=inconnu achats_depuis=non vérifié ventes_depuis=non vérifié`;
@@ -240,11 +279,14 @@ export function verifierPause(argv, { env = process.env, clock = () => new Date(
     const configFile = path.resolve(args.config ?? path.join(env.HOME || os.homedir(), ".automaton", "automaton.json"));
     const gateCfg = readGateConfig(configFile, !!args.config);
     say(`Vérification avant et après un retour arrière (${args.mode === "copie" ? "sur une copie" : "sur la base de Sonni en marche, en lecture seule"})`);
+    let freshness = null;
     if (args.mode === "copie") {
       const file = path.resolve(args.copie);
+      if (path.basename(file) === "state.db") throw new Refused(2, "Refusé : c'est la base active de Sonni. Donne la copie que la sauvegarde vient de faire (COPIE_RETOUR, dans ~/.automaton/predeploiement/).");
       const refused = refusal(file, env);
       if (refused) throw new Refused(2, refused);
       say(`Copie : ${file}`);
+      freshness = copyFreshness(file, liveDatabasePath(env));
       copy = openPrivateCopy(file, "sonni-verifier-pause-");
       db = copy.db;
     } else {
@@ -259,7 +301,8 @@ export function verifierPause(argv, { env = process.env, clock = () => new Date(
     if (args.accepted.length) say(`Arrondi accepté par ton GO pour : ${args.accepted.join(", ")}`);
     const now = args.mode === "copie" ? (copyMoment(db)?.now ?? clock()) : clock();
     const gateCtx = { now, clock: clock(), staleMinutes: gateCfg.staleMinutes, portfolio: gateCfg.portfolio, assets: followedAssets(db, gateCfg.assets), notes: [] };
-    const { lines, failures, counts } = verifier(db, { depuis: args.depuis, accepted: args.accepted, gateCtx });
+    // One read transaction: on the live database, a broker fill cannot land between two checks.
+    const { lines, failures, counts } = db.transaction(() => verifier(db, { depuis: args.depuis, accepted: args.accepted, gateCtx, freshness }))();
     for (const l of lines) say(l);
     const code = failures > 0 ? 1 : 0;
     say(code === 0

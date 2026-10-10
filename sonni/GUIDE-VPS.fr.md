@@ -481,7 +481,8 @@ propose Ubuntu.
    Si ton GO a accepté des points « À DÉCIDER », relance le contrôle en ajoutant `--accepter-a-decider`
    suivi des clés que ton GO nomme, et seulement celles-là. Un point dont la clé n'est pas dans ton GO bloque
    toujours, comme un point BLOQUANT : aucune option ne lève un point BLOQUANT.
-7. **Si une de ces trois commandes ne finit pas par `code=0`, n'installe rien.** Le programme n'a pas
+7. **Si la sauvegarde, l'essai ou le contrôle ne finit pas par `code=0`, n'installe rien.** Pour le
+   contrôle, c'est le dernier lancement qui compte, avec seulement les clés que ton GO accepte. Le programme n'a pas
    changé. Laisse Sonni arrêté et envoie-moi la sortie : la décision est la tienne. Redémarrer l'ancienne
    version ne se fait que par « Retour arrière » plus bas, pause vérifiée comprise (l'étape R5 est alors
    inutile).
@@ -647,23 +648,31 @@ sudo -u sonni -H node dist/index.js --money-lab pause "retour arrière"
 Si la pause existait déjà (`/pause` de R1), la commande la garde telle quelle. Si cette commande échoue
 parce que la compilation de la Phase 2 a échoué, fais d'abord R5, puis reviens à R3 et R4.
 
-R4. **Vérifie la pause sur une copie fraîche**, tant que la nouvelle version est encore installée :
+R4. **Vérifie la pause sur une copie fraîche** (avant R5, tant que la version installée n'a pas changé) :
 ```sh
 cd /home/sonni/outils-deploiement
 sudo -u sonni -H node sonni/vps/sauvegarde.mjs
 sudo -u sonni -H node sonni/vps/verifier-pause.mjs --copie COPIE_RETOUR
 ```
-`COPIE_RETOUR` est le chemin qu'affiche cette nouvelle sauvegarde. Il faut `code=0`. Sinon **ne reviens pas
-en arrière** :
+`COPIE_RETOUR` est le chemin qu'affiche cette nouvelle sauvegarde. Une copie plus ancienne que la base,
+comme la sauvegarde du jour ou `COPIE`, est refusée. Il faut `code=0`. Sinon **ne reviens pas en arrière** :
 - « aucune pause enregistrée » : refais R3, puis R4 ;
 - « vente-arrondie:ACTIF » : une vente sous 1 € que l'ancienne version arrondirait au centime. L'outil donne
   la part de la valeur en jeu. Si ton GO de retour arrière l'accepte en nommant l'actif, relance avec
   `--accepter-arrondi ACTIF1,ACTIF2` (les actifs que ton GO nomme, et seulement ceux-là) ;
 - « ordre(s) d'achat en attente » : l'ancienne version les exécuterait. Chaque ordre est listé avec son
-  échéance. Au choix : redémarre la nouvelle version, toujours en pause (`systemctl start sonni`), jusqu'à
-  son exécution ou son échéance, puis reprends à R1 ; ou laisse Sonni arrêté et envoie-moi la sortie. Aucune
-  version n'a de commande pour annuler un ordre à ta place : en ajouter une serait un changement séparé, à ta
-  demande ;
+  échéance. Regarde d'abord quelle version est installée :
+  ```sh
+  sudo -u sonni -H git -C /opt/sonni rev-parse HEAD
+  ```
+  - si la ligne affiche exactement `COMMIT`, la nouvelle version est installée. Au choix : redémarre-la,
+    toujours en pause (`systemctl start sonni`), jusqu'à l'exécution ou l'échéance de ces ordres, puis
+    reprends à R1 ; ou laisse Sonni arrêté et envoie-moi la sortie ;
+  - sinon (l'ancienne version est installée : Phase 2 arrêtée avant l'étape 8, ou R5 déjà fait), **ne
+    démarre pas** : laisse Sonni arrêté et envoie-moi la sortie.
+
+  Aucune version n'a de commande pour annuler un ordre à ta place : en ajouter une serait un changement
+  séparé, à ta demande ;
 - « sous 1 centime », « sans aucun prix » ou « BLOQUANT » : laisse Sonni arrêté et envoie-moi la sortie. Aucune
   version ne redémarre sur ces données avant une réparation séparée, que tu décides.
 
@@ -672,9 +681,13 @@ n'a pas eu lieu. La base ne change pas pendant cette étape, donc la vérificati
 ```sh
 cd /opt/sonni
 sudo -u sonni -H git checkout --detach "$(cat /root/sonni-commit-avant.txt)"
+sudo -u sonni -H git rev-parse HEAD
+cat /root/sonni-commit-avant.txt
 sudo -u sonni -H pnpm install --frozen-lockfile
 sudo -u sonni -H pnpm run build
 ```
+Les deux lignes affichées par `git rev-parse HEAD` et `cat` doivent être identiques. Sinon, ou si
+l'installation ou la compilation échoue, ne démarre pas et envoie-moi la sortie.
 
 R6. **Démarre l'ancienne version et vérifie-la en marche :**
 ```sh

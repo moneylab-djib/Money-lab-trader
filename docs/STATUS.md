@@ -103,7 +103,19 @@
     - the pending-buy remedy was impossible after the code rollback.
 
     Not fixed: a server reboot during the window starts the service as it stands (the guide says not to reboot).
-  - Checks after the round: sonni 30 files, 395 tests; typecheck; build; contre-verification 27/27 on Linux. Not run
+  - Fresh-context acceptance review (Likma `feature review`) of db20493: CONCERNS, no blocker, all 14 criteria
+    met. It raised 2 major and 6 minor points, all fixed with tests:
+    - a pending buy could be left to an OLD version restarted by the guide's option; the option now needs
+      `rev-parse HEAD` = COMMIT;
+    - verifier-pause accepted a stale copy; a copy older than the live database or its -wal is now refused;
+    - minor:
+      - stale R-step references in restauration.mjs and controle-apres-demarrage.mjs;
+      - Phase 2 step 7 wording;
+      - one read transaction for the checks;
+      - a pause set again after the start;
+      - R5 confirms the rollback commit;
+      - a duplicate entry in the mission header.
+  - Checks after the round: sonni 30 files, 399 tests; typecheck; build; contre-verification 28/28 on Linux. Not run
     on Windows (the mission's purpose).
 - Step 0.3 of the owner's plan of 2026-10-09, price precision of the paper broker (branch claude/sonni-price-precision).
   Status: built and verified (sandbox and GitHub: `checks`, `e2e`, `audit` and `trufflehog` green on PR #32's last
